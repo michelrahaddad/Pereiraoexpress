@@ -332,7 +332,7 @@ export default function NewService() {
           </Button>
           <div>
             <h1 className="font-semibold">Novo serviço</h1>
-            <p className="text-sm text-muted-foreground">Descreva seu problema para a IA</p>
+            <p className="text-sm text-muted-foreground">Descreva seu problema para o Pereirão</p>
           </div>
         </div>
 
