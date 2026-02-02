@@ -1,5 +1,6 @@
 import { 
   userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages,
+  systemSettings, payments,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
   type ServiceRequest, type InsertServiceRequest,
@@ -7,6 +8,8 @@ import {
   type Review, type InsertReview,
   type Conversation, type InsertConversation,
   type Message, type InsertMessage,
+  type SystemSetting, type InsertSystemSetting,
+  type Payment, type InsertPayment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
@@ -41,6 +44,21 @@ export interface IStorage {
   
   getMessagesByConversation(conversationId: number): Promise<Message[]>;
   createMessage(data: InsertMessage): Promise<Message>;
+  
+  // System settings
+  getSystemSettings(): Promise<SystemSetting[]>;
+  getSystemSetting(key: string): Promise<SystemSetting | undefined>;
+  upsertSystemSetting(data: InsertSystemSetting): Promise<SystemSetting>;
+  
+  // Payments
+  getPaymentsByUser(userId: string): Promise<Payment[]>;
+  getPaymentById(id: number): Promise<Payment | undefined>;
+  createPayment(data: InsertPayment): Promise<Payment>;
+  updatePaymentStatus(id: number, status: string): Promise<Payment | undefined>;
+  getAllPayments(): Promise<Payment[]>;
+  
+  // Admin
+  getAllUserProfiles(): Promise<UserProfile[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -168,6 +186,63 @@ class DatabaseStorage implements IStorage {
   async createMessage(data: InsertMessage): Promise<Message> {
     const [message] = await db.insert(messages).values(data).returning();
     return message;
+  }
+
+  // System settings
+  async getSystemSettings(): Promise<SystemSetting[]> {
+    return db.select().from(systemSettings);
+  }
+
+  async getSystemSetting(key: string): Promise<SystemSetting | undefined> {
+    const [setting] = await db.select().from(systemSettings).where(eq(systemSettings.key, key));
+    return setting;
+  }
+
+  async upsertSystemSetting(data: InsertSystemSetting): Promise<SystemSetting> {
+    const existing = await this.getSystemSetting(data.key);
+    if (existing) {
+      const [updated] = await db.update(systemSettings)
+        .set({ value: data.value, description: data.description, updatedAt: new Date() })
+        .where(eq(systemSettings.key, data.key))
+        .returning();
+      return updated;
+    }
+    const [newSetting] = await db.insert(systemSettings).values(data).returning();
+    return newSetting;
+  }
+
+  // Payments
+  async getPaymentsByUser(userId: string): Promise<Payment[]> {
+    return db.select().from(payments)
+      .where(eq(payments.userId, userId))
+      .orderBy(desc(payments.createdAt));
+  }
+
+  async getPaymentById(id: number): Promise<Payment | undefined> {
+    const [payment] = await db.select().from(payments).where(eq(payments.id, id));
+    return payment;
+  }
+
+  async createPayment(data: InsertPayment): Promise<Payment> {
+    const [payment] = await db.insert(payments).values(data).returning();
+    return payment;
+  }
+
+  async updatePaymentStatus(id: number, status: string): Promise<Payment | undefined> {
+    const [updated] = await db.update(payments)
+      .set({ status: status as any, completedAt: status === "completed" ? new Date() : null })
+      .where(eq(payments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getAllPayments(): Promise<Payment[]> {
+    return db.select().from(payments).orderBy(desc(payments.createdAt));
+  }
+
+  // Admin
+  async getAllUserProfiles(): Promise<UserProfile[]> {
+    return db.select().from(userProfiles).orderBy(desc(userProfiles.createdAt));
   }
 }
 

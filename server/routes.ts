@@ -366,6 +366,160 @@ Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
     }
   });
 
+  // Payment routes
+  app.post("/api/payments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount, method, description, serviceRequestId } = req.body;
+      
+      // Generate simulated PIX code
+      const pixCode = method === "pix" ? `00020126580014br.gov.bcb.pix0136${Date.now()}` : null;
+      
+      const payment = await storage.createPayment({
+        userId,
+        amount,
+        method,
+        description,
+        serviceRequestId,
+        pixCode,
+        status: "pending",
+      });
+
+      // Simulate payment processing (in production, this would integrate with Stripe)
+      setTimeout(async () => {
+        await storage.updatePaymentStatus(payment.id, "completed");
+      }, 2000);
+
+      res.json(payment);
+    } catch (error) {
+      console.error("Error creating payment:", error);
+      res.status(500).json({ error: "Failed to create payment" });
+    }
+  });
+
+  app.get("/api/payments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const payments = await storage.getPaymentsByUser(userId);
+      res.json(payments);
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+      res.status(500).json({ error: "Failed to fetch payments" });
+    }
+  });
+
+  // Admin routes
+  const isAdmin = async (req: any, res: any, next: any) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    const userId = req.user.claims.sub;
+    const profile = await storage.getUserProfile(userId);
+    if (!profile || profile.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    next();
+  };
+
+  app.get("/api/admin/settings", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getSystemSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  app.post("/api/admin/settings", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { key, value, description } = req.body;
+      const setting = await storage.upsertSystemSetting({ key, value, description });
+      res.json(setting);
+    } catch (error) {
+      console.error("Error updating setting:", error);
+      res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
+
+  app.get("/api/admin/users", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const profiles = await storage.getAllUserProfiles();
+      res.json(profiles);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.patch("/api/admin/users/:userId/role", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { role } = req.body;
+      const profile = await storage.updateUserProfile(userId, { role });
+      res.json(profile);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
+  app.get("/api/admin/services", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const services = await storage.getAllServices();
+      res.json(services);
+    } catch (error) {
+      console.error("Error fetching services:", error);
+      res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  app.get("/api/admin/payments", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const payments = await storage.getAllPayments();
+      res.json(payments);
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+      res.status(500).json({ error: "Failed to fetch payments" });
+    }
+  });
+
+  app.get("/api/admin/stats", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const services = await storage.getAllServices();
+      const profiles = await storage.getAllUserProfiles();
+      const payments = await storage.getAllPayments();
+
+      const stats = {
+        totalServices: services.length,
+        completedServices: services.filter(s => s.status === "completed").length,
+        pendingServices: services.filter(s => s.status === "pending" || s.status === "diagnosed").length,
+        totalUsers: profiles.length,
+        totalClients: profiles.filter(p => p.role === "client").length,
+        totalProviders: profiles.filter(p => p.role === "provider").length,
+        totalRevenue: payments.filter(p => p.status === "completed").reduce((sum, p) => sum + p.amount, 0),
+        totalPayments: payments.length,
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // Check user role endpoint
+  app.get("/api/user/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      res.json({ role: profile?.role || "client" });
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+      res.status(500).json({ error: "Failed to fetch user role" });
+    }
+  });
+
   app.get("/health", (req, res) => {
     res.json({ status: "ok" });
   });
