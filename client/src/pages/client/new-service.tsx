@@ -37,12 +37,18 @@ interface DiagnosisResult {
   title: string;
   category: string;
   diagnosis: string;
-  materials: string[];
+  providerMaterials: string[];
+  clientMaterials: string[];
+  materials?: string[]; // backwards compatibility
   estimatedPrices: {
     standard: number;
     express: number;
     urgent: number;
   };
+}
+
+function cleanMessageContent(content: string): string {
+  return content.replace(/###DIAGNOSIS###[\s\S]*?###END_DIAGNOSIS###/g, '').trim();
 }
 
 export default function NewService() {
@@ -70,12 +76,16 @@ export default function NewService() {
 
   const createServiceMutation = useMutation({
     mutationFn: async (data: { diagnosis: DiagnosisResult; sla: string }) => {
+      const allMaterials = {
+        providerMaterials: data.diagnosis.providerMaterials || [],
+        clientMaterials: data.diagnosis.clientMaterials || []
+      };
       const response = await apiRequest("POST", "/api/services", {
         title: data.diagnosis.title,
         description: messages.filter(m => m.role === "user").map(m => m.content).join("\n"),
         categoryId: 1,
         diagnosis: data.diagnosis.diagnosis,
-        materials: JSON.stringify(data.diagnosis.materials),
+        materials: JSON.stringify(allMaterials),
         slaPriority: data.sla,
         estimatedPrice: data.diagnosis.estimatedPrices[data.sla as keyof typeof data.diagnosis.estimatedPrices],
       });
@@ -355,7 +365,7 @@ export default function NewService() {
                       ? "bg-primary text-primary-foreground" 
                       : "bg-muted"
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{cleanMessageContent(message.content)}</p>
                   </div>
                 </div>
               </div>
@@ -385,11 +395,22 @@ export default function NewService() {
                 <CardDescription>{diagnosis.diagnosis}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {diagnosis.materials.length > 0 && (
+                {diagnosis.providerMaterials && diagnosis.providerMaterials.length > 0 && (
                   <div>
-                    <p className="text-sm font-medium mb-2">Materiais necessários:</p>
+                    <p className="text-sm font-medium mb-2">Equipamentos do prestador:</p>
                     <div className="flex flex-wrap gap-2">
-                      {diagnosis.materials.map((material, i) => (
+                      {diagnosis.providerMaterials.map((material, i) => (
+                        <Badge key={i} variant="outline">{material}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {diagnosis.clientMaterials && diagnosis.clientMaterials.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Materiais para você comprar:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {diagnosis.clientMaterials.map((material, i) => (
                         <Badge key={i} variant="secondary">{material}</Badge>
                       ))}
                     </div>

@@ -270,13 +270,19 @@ FLUXO DE PERGUNTAS:
 
 CATEGORIAS: Encanamento, Elétrica, Pintura, Marcenaria, Ar Condicionado, Limpeza
 
-Quando entender o problema, gere o diagnóstico no formato:
+SOBRE MATERIAIS:
+- "providerMaterials": ferramentas e equipamentos que o PRESTADOR traz (máquina desentupidora, furadeira, escada, EPI, etc)
+- "clientMaterials": peças ou materiais que o CLIENTE precisa comprar (torneira nova, tinta, lâmpada, tomada, etc)
+- Se não houver materiais para o cliente, deixe "clientMaterials" vazio []
+
+Quando entender o problema, responda normalmente E adicione o diagnóstico:
 ###DIAGNOSIS###
 {
   "title": "Título curto",
   "category": "Categoria",
   "diagnosis": "Explicação simples do problema e solução",
-  "materials": ["material1", "material2"],
+  "providerMaterials": ["equipamento1", "ferramenta2"],
+  "clientMaterials": [],
   "estimatedPrices": {
     "standard": 15000,
     "express": 22500,
