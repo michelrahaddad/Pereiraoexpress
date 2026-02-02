@@ -31,6 +31,7 @@ Preferred communication style: Simple, everyday language.
 - **UI Components**: shadcn/ui component library built on Radix UI primitives
 - **Styling**: Tailwind CSS with custom theme variables supporting light/dark modes
 - **Mobile First**: PWA-ready with responsive design and manifest.json configured
+- **Voice Input**: Web Speech API for speech-to-text input in AI chat (browser-native, no API required)
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript running on Node.js

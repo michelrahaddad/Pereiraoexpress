@@ -21,7 +21,9 @@ import {
   Clock,
   Zap,
   AlertTriangle,
-  X
+  X,
+  Mic,
+  MicOff
 } from "lucide-react";
 
 interface Message {
@@ -63,6 +65,8 @@ export default function NewService() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
   const [selectedSLA, setSelectedSLA] = useState<"standard" | "express" | "urgent" | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const createServiceMutation = useMutation({
     mutationFn: async (data: { diagnosis: DiagnosisResult; sla: string }) => {
@@ -97,6 +101,15 @@ export default function NewService() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   if (!authLoading && !isAuthenticated) {
     return (
@@ -203,6 +216,83 @@ export default function NewService() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const startVoiceRecording = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      toast({
+        title: "Não suportado",
+        description: "Seu navegador não suporta reconhecimento de voz. Tente usar Chrome ou Edge.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        setInput(prev => {
+          const needsSpace = prev.length > 0 && !prev.endsWith(" ");
+          return prev + (needsSpace ? " " : "") + finalTranscript.trim();
+        });
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error("Speech recognition error:", event.error);
+      setIsRecording(false);
+      if (event.error === "not-allowed") {
+        toast({
+          title: "Permissão negada",
+          description: "Permita o acesso ao microfone para usar o reconhecimento de voz.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  const stopVoiceRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const toggleVoiceRecording = () => {
+    if (isRecording) {
+      stopVoiceRecording();
+    } else {
+      startVoiceRecording();
     }
   };
 
@@ -402,6 +492,21 @@ export default function NewService() {
               data-testid="button-upload-image"
             >
               <ImageIcon className="h-5 w-5" />
+            </Button>
+            
+            <Button
+              variant={isRecording ? "destructive" : "outline"}
+              size="icon"
+              onClick={toggleVoiceRecording}
+              disabled={isStreaming}
+              data-testid="button-voice-record"
+              title={isRecording ? "Parar gravação" : "Gravar áudio"}
+            >
+              {isRecording ? (
+                <MicOff className="h-5 w-5 animate-pulse" />
+              ) : (
+                <Mic className="h-5 w-5" />
+              )}
             </Button>
             
             <Textarea
