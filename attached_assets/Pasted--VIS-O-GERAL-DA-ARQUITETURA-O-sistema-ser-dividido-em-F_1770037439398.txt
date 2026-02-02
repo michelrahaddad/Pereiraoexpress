@@ -1,0 +1,316 @@
+🧠 VISÃO GERAL DA ARQUITETURA
+
+O sistema será dividido em:
+
+Frontend Web Responsivo (PWA Mobile First)
+
+Backend em Clean Architecture
+
+Módulo de IA para diagnóstico
+
+Sistema de pagamentos com divisão automática
+
+Marketplace de materiais
+
+A arquitetura deve ser escalável, modular, testável e preparada para apps nativos no futuro.
+
+🏗 BACKEND — CLEAN ARCHITECTURE + FASTIFY
+
+Separação total entre regras de negócio e tecnologia.
+
+🔵 1. DOMAIN (NÚCLEO DO NEGÓCIO)
+
+Não pode depender de frameworks, banco ou HTTP.
+
+Entities principais
+
+User (CLIENT, PROVIDER, ADMIN)
+
+ServiceRequest
+
+ServicePlan
+
+Diagnosis
+
+MaterialSuggestion
+
+Payment
+
+Review
+
+Regras de negócio
+
+Serviço só inicia com pagamento aprovado
+
+Prestador não pode aceitar serviços simultâneos no mesmo horário
+
+Cancelamento após aceite pode gerar taxa
+
+Fluxo de status controlado
+
+Enums
+
+UserRole
+
+ServiceStatus
+
+ServiceCategory
+
+SLAType
+
+Interfaces (Ports)
+
+UsersRepository
+
+ServiceRequestsRepository
+
+PaymentsRepository
+
+DiagnosisProvider
+
+NotificationProvider
+
+🟣 2. APPLICATION (CASOS DE USO)
+
+Casos de uso independentes de HTTP e banco.
+
+Autenticação
+
+RegisterUser
+
+AuthenticateUser
+
+Cliente
+
+CreateServiceRequest
+
+SendDiagnosisData (texto + fotos)
+
+ReceiveDiagnosisResult
+
+SelectServicePlan
+
+MakePayment
+
+TrackService
+
+LeaveReview
+
+Prestador
+
+ListAvailableServices
+
+AcceptService
+
+UpdateServiceStatus
+
+CompleteService
+
+Admin
+
+ViewReports
+
+ManageUsers
+
+ManageCategories
+
+ManageBasePrices
+
+MonitorAIDiagnoses
+
+🟡 3. INFRASTRUCTURE
+
+Implementações técnicas.
+
+PostgreSQL
+
+Prisma ORM
+
+Bcrypt (hash)
+
+JWT (auth)
+
+Logger
+
+Armazenamento de imagens (S3 ou similar)
+
+Adapter de IA (texto + imagem → diagnóstico)
+
+🔴 4. INTERFACES (HTTP — FASTIFY)
+Rotas
+
+/auth
+/client
+/provider
+/admin
+
+Regras
+
+Controllers finos
+
+Zod para validação
+
+JWT middleware
+
+Middleware de autorização por perfil
+
+Endpoint /health
+
+🧪 TESTES BACKEND
+
+Obrigatório criar testes unitários para:
+
+Entidades (regras de negócio)
+
+Casos de uso críticos (auth, criação de serviço, aceite, SLA)
+
+Não testar Fastify nem banco.
+
+Framework: Vitest
+
+🎨 FRONTEND — WEB RESPONSIVO + PWA (MOBILE FIRST)
+
+O frontend deve ser construído como aplicação web responsiva, com foco inicial em telas de celular, mas adaptável para desktop.
+
+Stack
+
+React
+
+TypeScript
+
+Vite
+
+Tailwind CSS
+
+React Router
+
+Axios
+
+Context API (Auth)
+
+Configuração como PWA instalável
+
+Estrutura
+src/
+ ├── pages/
+ │   ├── client/
+ │   ├── provider/
+ │   └── admin/
+ ├── components/
+ ├── contexts/
+ ├── services/
+ ├── routes/
+ ├── hooks/
+ └── styles/
+
+📱 DIRETRIZES DE DESIGN RESPONSIVO
+📌 Mobile First (prioridade)
+
+Botões grandes
+
+Navegação simples
+
+Cards empilhados
+
+Inputs fáceis para envio de fotos
+
+Chat com IA estilo WhatsApp
+
+💻 Desktop
+
+Layout com colunas
+
+Dashboard expandido
+
+Tabelas e relatórios mais completos (admin)
+
+🖥 TELAS POR PERFIL
+👤 CLIENTE
+
+Login / Cadastro
+
+Tela inicial com botão “Descrever problema”
+
+Chat com IA (texto + fotos)
+
+Tela de diagnóstico
+
+Escolha de prazo/preço (SLA)
+
+Pagamento
+
+Acompanhamento do profissional
+
+Avaliação do serviço
+
+🔧 PRESTADOR
+
+Login
+
+Serviços disponíveis
+
+Detalhes do serviço
+
+Aceitar serviço
+
+Atualizar status
+
+Histórico de ganhos
+
+🛠 ADMIN
+
+Dashboard de métricas
+
+Relatórios financeiros
+
+Gestão de usuários
+
+Gestão de categorias
+
+Monitoramento da IA
+
+Configuração de preços
+
+🎨 DIRETRIZES VISUAIS
+
+Azul elétrico como cor principal
+
+Amarelo para ações importantes
+
+Interface limpa
+
+Linguagem simples e direta
+
+Tom de voz:
+
+Humano, rápido e resolutivo
+Ex: “Já estamos chamando um profissional pra você.”
+
+💳 PAGAMENTOS
+
+Pagamento antes do serviço
+
+Split automático entre plataforma, prestador e loja de materiais
+
+🧠 DIFERENCIAL
+
+✔ Diagnóstico com IA
+✔ Plano de execução automático
+✔ Sugestão de materiais
+✔ Conexão rápida com profissional
+
+🎯 OBJETIVO FINAL
+
+Criar uma plataforma:
+
+Web responsiva e PWA
+
+Escalável
+
+Modular (Clean Architecture)
+
+Preparada para apps nativos no futuro
+
+Com IA integrada ao fluxo principal
+
+Com áreas separadas para Cliente, Prestador e Admin
