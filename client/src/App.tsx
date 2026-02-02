@@ -11,6 +11,9 @@ import ServiceDetails from "@/pages/client/service-details";
 import ProviderDashboard from "@/pages/provider";
 import AdminDashboard from "@/pages/admin";
 import Settings from "@/pages/settings";
+import { ClientLoginPage, ProviderLoginPage } from "@/pages/auth/login";
+import { ClientRegisterPage, ProviderRegisterPage } from "@/pages/auth/register";
+import ForgotPasswordPage, { ResetPasswordPage } from "@/pages/auth/forgot-password";
 
 function Router() {
   return (
@@ -22,6 +25,14 @@ function Router() {
       <Route path="/provider" component={ProviderDashboard} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/settings" component={Settings} />
+      
+      <Route path="/login/cliente" component={ClientLoginPage} />
+      <Route path="/login/prestador" component={ProviderLoginPage} />
+      <Route path="/cadastro/cliente" component={ClientRegisterPage} />
+      <Route path="/cadastro/prestador" component={ProviderRegisterPage} />
+      <Route path="/recuperar-senha" component={ForgotPasswordPage} />
+      <Route path="/redefinir-senha" component={ResetPasswordPage} />
+      
       <Route component={NotFound} />
     </Switch>
   );

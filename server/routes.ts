@@ -1,15 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupLocalAuth, isLocalAuthenticated } from "./auth/localAuth";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "./db";
 import { users, userProfiles } from "@shared/schema";
-import { registerUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@shared/models/auth";
 import { sql, eq } from "drizzle-orm";
 import { serviceRequests, serviceCategories } from "@shared/schema";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
+
+const isAuthenticated = isLocalAuthenticated;
 
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
@@ -40,8 +39,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  await setupAuth(app);
-  registerAuthRoutes(app);
+  setupLocalAuth(app);
   
   await seedCategories();
 
@@ -234,16 +232,6 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching all services:", error);
       res.status(500).json({ error: "Failed to fetch services" });
-    }
-  });
-
-  app.get("/api/admin/users", isAuthenticated, async (req, res) => {
-    try {
-      const allUsers = await db.select().from(users);
-      res.json(allUsers);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ error: "Failed to fetch users" });
     }
   });
 
@@ -464,6 +452,73 @@ Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
     } catch (error) {
       console.error("Error updating user role:", error);
       res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
+  // Create user from admin panel
+  app.post("/api/admin/users", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { firstName, lastName, email, phone, city, role, password } = req.body;
+      
+      if (!firstName || !lastName || !email || !password) {
+        return res.status(400).json({ error: "Dados incompletos" });
+      }
+
+      // Check if email already exists
+      const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (existingUser.length > 0) {
+        return res.status(400).json({ error: "Email já cadastrado" });
+      }
+
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(password, 12);
+      
+      const userId = crypto.randomUUID();
+      
+      // Create user
+      await db.insert(users).values({
+        id: userId,
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+      });
+
+      // Create profile
+      await storage.createUserProfile({
+        userId,
+        role: role || "client",
+        phone,
+        city,
+        documentStatus: role === "provider" ? "pending" : undefined,
+      });
+
+      res.status(201).json({ success: true, userId });
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: error.message || "Failed to create user" });
+    }
+  });
+
+  // Update document status
+  app.patch("/api/admin/users/:userId/document", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { status, notes } = req.body;
+      
+      if (!["approved", "rejected"].includes(status)) {
+        return res.status(400).json({ error: "Status inválido" });
+      }
+
+      const profile = await storage.updateUserProfile(userId, { 
+        documentStatus: status,
+        documentNotes: notes
+      });
+      
+      res.json(profile);
+    } catch (error) {
+      console.error("Error updating document status:", error);
+      res.status(500).json({ error: "Failed to update document status" });
     }
   });
 

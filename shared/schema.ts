@@ -9,6 +9,8 @@ export const userRoleEnum = pgEnum("user_role", ["client", "provider", "admin"])
 export const serviceStatusEnum = pgEnum("service_status", ["pending", "diagnosed", "waiting_provider", "accepted", "in_progress", "completed", "cancelled"]);
 export const slaPriorityEnum = pgEnum("sla_priority", ["standard", "express", "urgent"]);
 
+export const documentStatusEnum = pgEnum("document_status", ["pending", "approved", "rejected"]);
+
 export const userProfiles = pgTable("user_profiles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
@@ -21,6 +23,11 @@ export const userProfiles = pgTable("user_profiles", {
   rating: integer("rating").default(0),
   totalServices: integer("total_services").default(0),
   isAvailable: boolean("is_available").default(true),
+  documentUrl: text("document_url"),
+  documentStatus: documentStatusEnum("document_status").default("pending"),
+  documentNotes: text("document_notes"),
+  termsAccepted: boolean("terms_accepted").default(false),
+  termsAcceptedAt: timestamp("terms_accepted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
