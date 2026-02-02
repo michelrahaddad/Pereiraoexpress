@@ -38,15 +38,15 @@ export default function Landing() {
           <div className="grid gap-12 lg:grid-cols-2 lg:gap-16 items-center">
             <div className="space-y-8 text-center lg:text-left">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight leading-tight">
-                Seu problema resolvido
+                Deu problema em casa?
                 <br />
                 <span className="bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
-                  sem complicação.
+                  Chama o Pereirão.
                 </span>
               </h1>
               
               <p className="text-lg sm:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                Descreva o que está acontecendo, envie fotos e o Pereirão Express encontra o profissional certo para resolver — rápido, com preço claro e segurança.
+                Você explica, manda foto e a gente encontra quem resolve — sem enrolação, com valor definido e atendimento rápido.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
