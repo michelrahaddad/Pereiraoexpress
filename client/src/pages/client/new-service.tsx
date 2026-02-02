@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { PaymentModal } from "@/components/payment-modal";
 import { 
   Send, 
   Image as ImageIcon, 
@@ -72,6 +73,7 @@ export default function NewService() {
   const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
   const [selectedSLA, setSelectedSLA] = useState<"standard" | "express" | "urgent" | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const createServiceMutation = useMutation({
@@ -306,8 +308,14 @@ export default function NewService() {
     }
   };
 
-  const confirmService = () => {
+  const handleConfirmClick = () => {
     if (!diagnosis || !selectedSLA) return;
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentComplete = (paymentId: number) => {
+    if (!diagnosis || !selectedSLA) return;
+    setShowPaymentModal(false);
     createServiceMutation.mutate({ diagnosis, sla: selectedSLA });
   };
 
@@ -471,16 +479,26 @@ export default function NewService() {
                   className="w-full" 
                   size="lg"
                   disabled={!selectedSLA || createServiceMutation.isPending}
-                  onClick={confirmService}
+                  onClick={handleConfirmClick}
                   data-testid="button-confirm-service"
                 >
                   {createServiceMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : null}
-                  Confirmar e buscar profissional
+                  Pagar e buscar profissional
                 </Button>
               </CardContent>
             </Card>
+          )}
+
+          {diagnosis && selectedSLA && (
+            <PaymentModal
+              open={showPaymentModal}
+              onOpenChange={setShowPaymentModal}
+              amount={diagnosis.estimatedPrices[selectedSLA]}
+              description={`Serviço: ${diagnosis.title}`}
+              onPaymentComplete={handlePaymentComplete}
+            />
           )}
         </ScrollArea>
 
