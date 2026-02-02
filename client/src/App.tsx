@@ -7,8 +7,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import NewService from "@/pages/client/new-service";
+import ServiceDetails from "@/pages/client/service-details";
 import ProviderDashboard from "@/pages/provider";
 import AdminDashboard from "@/pages/admin";
+import Settings from "@/pages/settings";
 
 function Router() {
   return (
@@ -16,8 +18,10 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/client" component={Home} />
       <Route path="/client/new" component={NewService} />
+      <Route path="/client/service/:id" component={ServiceDetails} />
       <Route path="/provider" component={ProviderDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );

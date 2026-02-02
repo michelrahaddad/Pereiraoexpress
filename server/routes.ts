@@ -90,7 +90,7 @@ export async function registerRoutes(
 
   app.get("/api/services/:id", isAuthenticated, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const service = await storage.getServiceById(id);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
