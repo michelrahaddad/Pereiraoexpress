@@ -8,6 +8,20 @@ Pereirão Express is a home services marketplace application that connects clien
 
 Preferred communication style: Simple, everyday language.
 
+### Design Preferences
+- **Theme**: Futuristic design with glassmorphism effects, rounded elements, and gradient backgrounds
+- **Colors**: Electric blue (primary) + yellow (accent) color scheme
+- **Border Radius**: Large rounded corners (1rem-3rem) for buttons and cards
+- **Typography**: Clean, modern fonts with strong hierarchy
+- **Effects**: Backdrop blur, gradient overlays, subtle shadows
+
+### Copywriting Style
+- Direct and simple language ("Simples assim")
+- Focus on trust, speed, and transparency
+- Benefit-oriented headlines
+- Clear call-to-actions
+- Tagline: "Chamou. Resolveu. Simples assim."
+
 ## System Architecture
 
 ### Frontend Architecture
