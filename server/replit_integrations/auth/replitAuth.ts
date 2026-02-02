@@ -114,10 +114,41 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/callback", (req, res, next) => {
     ensureStrategy(req.hostname);
-    const redirectTo = (req.session as any).redirectTo || '/client';
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: redirectTo,
-      failureRedirect: "/api/login",
+    const requestedRedirect = (req.session as any).redirectTo || '/client';
+    
+    passport.authenticate(`replitauth:${req.hostname}`, async (err: any, user: any) => {
+      if (err || !user) {
+        return res.redirect("/api/login");
+      }
+      
+      req.login(user, async (loginErr) => {
+        if (loginErr) {
+          return res.redirect("/api/login");
+        }
+        
+        // Check user role to determine final redirect
+        try {
+          const { storage } = await import("../../storage");
+          const userId = user.claims?.sub;
+          if (userId) {
+            const profile = await storage.getUserProfile(userId);
+            
+            // If user is admin and trying to access provider area, redirect to admin
+            if (profile?.role === "admin" && requestedRedirect === "/provider") {
+              return res.redirect("/admin");
+            }
+            
+            // If user is provider and trying to access client area, redirect to provider
+            if (profile?.role === "provider" && requestedRedirect === "/client") {
+              return res.redirect("/provider");
+            }
+          }
+        } catch (e) {
+          console.error("Error checking user role:", e);
+        }
+        
+        return res.redirect(requestedRedirect);
+      });
     })(req, res, next);
   });
 
