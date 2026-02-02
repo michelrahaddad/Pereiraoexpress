@@ -72,6 +72,34 @@ export const reviews = pgTable("reviews", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// System settings for admin control
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key").notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment method enum
+export const paymentMethodEnum = pgEnum("payment_method", ["pix", "credit_card", "debit_card"]);
+export const paymentStatusEnum = pgEnum("payment_status", ["pending", "processing", "completed", "failed", "refunded"]);
+
+// Payments table
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  serviceRequestId: integer("service_request_id"),
+  amount: integer("amount").notNull(), // in cents
+  method: paymentMethodEnum("method").notNull(),
+  status: paymentStatusEnum("status").notNull().default("pending"),
+  description: text("description"),
+  pixCode: text("pix_code"),
+  stripePaymentId: text("stripe_payment_id"), // For future Stripe integration
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
 export const conversations = pgTable("conversations", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -95,6 +123,8 @@ export const insertServiceChatMessageSchema = createInsertSchema(serviceChatMess
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, updatedAt: true });
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, completedAt: true });
 
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type InsertServiceCategory = z.infer<typeof insertServiceCategorySchema>;
@@ -103,6 +133,8 @@ export type InsertServiceChatMessage = z.infer<typeof insertServiceChatMessageSc
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type ServiceCategory = typeof serviceCategories.$inferSelect;
@@ -111,3 +143,5 @@ export type ServiceChatMessage = typeof serviceChatMessages.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type Payment = typeof payments.$inferSelect;
