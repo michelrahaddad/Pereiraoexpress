@@ -4,9 +4,12 @@ import { storage } from "./storage";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "./db";
-import { users } from "@shared/schema";
-import { sql } from "drizzle-orm";
+import { users, userProfiles } from "@shared/schema";
+import { registerUserSchema, loginSchema, resetPasswordRequestSchema, resetPasswordSchema } from "@shared/models/auth";
+import { sql, eq } from "drizzle-orm";
 import { serviceRequests, serviceCategories } from "@shared/schema";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,

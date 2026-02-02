@@ -15,6 +15,7 @@ export const userProfiles = pgTable("user_profiles", {
   role: userRoleEnum("role").notNull().default("client"),
   phone: varchar("phone"),
   address: text("address"),
+  city: varchar("city"),
   bio: text("bio"),
   specialties: text("specialties"),
   rating: integer("rating").default(0),
