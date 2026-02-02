@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -86,12 +86,6 @@ export default function ClientDashboard() {
     enabled: isAuthenticated,
   });
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = "/api/login";
-    }
-  }, [authLoading, isAuthenticated]);
-
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -99,6 +93,10 @@ export default function ClientDashboard() {
         <LoadingSkeleton />
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    return null;
   }
 
   const activeServices = services?.filter(s => 

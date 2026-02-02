@@ -64,16 +64,6 @@ export default function NewService() {
   const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
   const [selectedSLA, setSelectedSLA] = useState<"standard" | "express" | "urgent" | null>(null);
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = "/api/login";
-    }
-  }, [authLoading, isAuthenticated]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   const createServiceMutation = useMutation({
     mutationFn: async (data: { diagnosis: DiagnosisResult; sla: string }) => {
       const response = await apiRequest("POST", "/api/services", {
@@ -103,6 +93,25 @@ export default function NewService() {
       });
     },
   });
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  if (!authLoading && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container px-6 py-16 text-center">
+          <h1 className="text-2xl font-bold mb-4">Acesso necessário</h1>
+          <p className="text-muted-foreground mb-6">Faça login para solicitar um serviço</p>
+          <Button asChild className="rounded-xl">
+            <a href="/api/login">Fazer login</a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

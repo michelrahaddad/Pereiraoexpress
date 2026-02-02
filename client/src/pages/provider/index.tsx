@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -192,12 +192,6 @@ export default function ProviderDashboard() {
       });
     },
   });
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = "/api/login";
-    }
-  }, [authLoading, isAuthenticated]);
 
   if (authLoading) {
     return (

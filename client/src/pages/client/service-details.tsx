@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Header } from "@/components/header";
@@ -74,12 +73,6 @@ export default function ServiceDetails() {
       });
     },
   });
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = "/api/login";
-    }
-  }, [authLoading, isAuthenticated]);
 
   if (authLoading || isLoading) {
     return (
