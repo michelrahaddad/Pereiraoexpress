@@ -130,7 +130,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
             </DropdownMenu>
           ) : (
             <Button asChild className="rounded-xl px-6" data-testid="button-login">
-              <a href="/api/login?redirect=/client">Entrar</a>
+              <Link href="/login/cliente">Entrar</Link>
             </Button>
           )}
         </div>

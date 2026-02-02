@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export default function Settings() {
         <div className="container px-6 py-16 text-center">
           <p className="text-muted-foreground">Faça login para acessar as configurações.</p>
           <Button asChild className="mt-4 rounded-xl">
-            <a href="/api/login">Entrar</a>
+            <Link href="/login/cliente">Entrar</Link>
           </Button>
         </div>
       </div>
