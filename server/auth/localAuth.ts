@@ -10,6 +10,82 @@ import { eq, and, gt } from "drizzle-orm";
 import { registerUserSchema, loginSchema } from "@shared/models/auth";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import OpenAI from "openai";
+
+const geminiClient = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY || "dummy-key",
+  baseURL: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+});
+
+interface DocumentVerificationResult {
+  isValid: boolean;
+  documentType: string | null;
+  confidence: number;
+  reason: string;
+}
+
+async function verifyDocumentWithAI(imageBase64: string): Promise<DocumentVerificationResult> {
+  try {
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    
+    const response = await geminiClient.chat.completions.create({
+      model: "gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analise esta imagem e determine se é um documento de identidade brasileiro válido (RG, CNH, CTPS, Passaporte, ou outro documento oficial com foto).
+
+RESPONDA APENAS em JSON válido, sem markdown:
+{
+  "isValid": true/false,
+  "documentType": "RG" | "CNH" | "CTPS" | "Passaporte" | "Outro" | null,
+  "confidence": 0-100,
+  "reason": "explicação curta"
+}
+
+CRITÉRIOS PARA DOCUMENTO VÁLIDO:
+- Deve parecer um documento oficial brasileiro
+- Deve ter elementos típicos (foto, dados pessoais, brasão/emblema)
+- Imagem deve estar legível
+- Não aceite fotos de pessoas, selfies, ou imagens aleatórias
+
+Se não for um documento válido, explique o motivo em "reason".`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${base64Data}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 500,
+    });
+
+    const content = response.choices[0]?.message?.content || "";
+    const cleanJson = content.replace(/```json\n?|\n?```/g, "").trim();
+    const result = JSON.parse(cleanJson);
+    
+    return {
+      isValid: result.isValid === true && result.confidence >= 70,
+      documentType: result.documentType,
+      confidence: result.confidence,
+      reason: result.reason
+    };
+  } catch (error) {
+    console.error("Document verification error:", error);
+    return {
+      isValid: false,
+      documentType: null,
+      confidence: 0,
+      reason: "Erro ao verificar documento. Tente novamente."
+    };
+  }
+}
 
 const JWT_SECRET = process.env.SESSION_SECRET || "peireirao-express-secret-key";
 const JWT_EXPIRES_IN = "15m";
@@ -219,6 +295,27 @@ export function setupLocalAuth(app: Express) {
         return res.status(400).json({ error: "CPF já cadastrado" });
       }
       
+      // Verify document for providers using AI
+      let documentVerification: DocumentVerificationResult | null = null;
+      if (role === "provider") {
+        if (!documentUrl) {
+          return res.status(400).json({ error: "Prestadores devem enviar um documento de identificação" });
+        }
+        if (!termsAccepted) {
+          return res.status(400).json({ error: "Você deve aceitar os termos de uso" });
+        }
+        
+        documentVerification = await verifyDocumentWithAI(documentUrl);
+        
+        if (!documentVerification.isValid) {
+          return res.status(400).json({ 
+            error: "Documento não reconhecido", 
+            details: documentVerification.reason,
+            code: "INVALID_DOCUMENT"
+          });
+        }
+      }
+      
       const hashedPassword = await bcrypt.hash(password, 12);
       
       const [newUser] = await db.insert(users).values({
@@ -240,9 +337,10 @@ export function setupLocalAuth(app: Express) {
         city,
       };
       
-      if (userRole === "provider") {
+      if (userRole === "provider" && documentVerification) {
         profileData.documentUrl = documentUrl;
-        profileData.documentStatus = documentUrl ? "pending" : null;
+        profileData.documentStatus = "approved"; // AI verified the document
+        profileData.documentNotes = `Verificado automaticamente por IA: ${documentVerification.documentType} (${documentVerification.confidence}% confiança)`;
         profileData.termsAccepted = termsAccepted || false;
         profileData.termsAcceptedAt = termsAccepted ? new Date() : null;
       }

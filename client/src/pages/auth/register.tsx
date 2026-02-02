@@ -173,6 +173,9 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.code === "INVALID_DOCUMENT") {
+          throw new Error(`Documento inválido: ${data.details || data.error}`);
+        }
         throw new Error(data.error || data.details?.join(", ") || "Erro ao criar conta");
       }
 
@@ -182,7 +185,7 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
       toast({
         title: "Conta criada!",
         description: isProvider 
-          ? `Bem-vindo(a), ${data.user.firstName}! Seu cadastro está em análise.`
+          ? `Bem-vindo(a), ${data.user.firstName}! Seu documento foi verificado automaticamente.`
           : `Bem-vindo(a) ao Pereirão Express, ${data.user.firstName}!`,
       });
 
