@@ -13,7 +13,7 @@ import { useLocation } from "wouter";
 import { 
   Send, 
   Image as ImageIcon, 
-  Bot, 
+  Sparkles, 
   User,
   Loader2,
   ArrowLeft,
@@ -339,7 +339,7 @@ export default function NewService() {
                   {message.role === "user" ? (
                     <User className="h-4 w-4 text-primary-foreground" />
                   ) : (
-                    <Bot className="h-4 w-4" />
+                    <Sparkles className="h-4 w-4 text-primary" />
                   )}
                 </div>
                 <div className={`flex flex-col gap-2 max-w-[80%] ${message.role === "user" ? "items-end" : ""}`}>
@@ -363,8 +363,8 @@ export default function NewService() {
             
             {isStreaming && (
               <div className="flex gap-3">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                  <Bot className="h-4 w-4" />
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-primary" />
                 </div>
                 <div className="bg-muted rounded-lg px-4 py-2">
                   <Loader2 className="h-4 w-4 animate-spin" />

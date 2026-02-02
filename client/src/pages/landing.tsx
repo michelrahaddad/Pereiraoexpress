@@ -8,7 +8,6 @@ import {
   Clock, 
   CheckCircle2,
   Sparkles,
-  Bot,
   Wrench,
   ArrowRight,
   Camera,
@@ -83,8 +82,8 @@ export default function Landing() {
               <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl transform rotate-6" />
               <div className="relative rounded-3xl bg-card/80 backdrop-blur-xl p-8 shadow-2xl border border-white/10">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
-                    <Bot className="h-7 w-7 text-primary-foreground" />
+                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                    <Sparkles className="h-7 w-7 text-primary-foreground" />
                   </div>
                   <div>
                     <p className="font-semibold text-lg">Assistente IA</p>
@@ -351,8 +350,7 @@ export default function Landing() {
         <div className="container px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Pereirão Express" className="h-10 w-10" />
-              <span className="font-bold text-lg">Pereirão Express</span>
+              <img src="/logo.png" alt="Pereirão Express" className="h-16 object-contain" />
             </div>
             <p className="text-sm text-muted-foreground">
               © 2024 Pereirão Express. Todos os direitos reservados.
