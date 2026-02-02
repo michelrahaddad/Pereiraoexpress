@@ -42,15 +42,13 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
               <Menu className="h-5 w-5" />
             </Button>
           )}
-          <Link href="/" className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg overflow-hidden">
-              <img
-                src="/logo.png"
-                alt="Pereirão Express"
-                className="h-8 w-8 object-contain"
-              />
-            </div>
-            <span className="font-bold text-lg hidden sm:inline-block bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+          <Link href="/" className="flex items-center gap-2">
+            <img
+              src="/logo.png"
+              alt="Pereirão Express"
+              className="h-10 w-10 object-contain"
+            />
+            <span className="font-bold text-lg bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
               Pereirão Express
             </span>
           </Link>
