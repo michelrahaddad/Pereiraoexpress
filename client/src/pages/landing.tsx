@@ -19,7 +19,9 @@ import {
   Paintbrush,
   Armchair,
   Hammer,
-  Smartphone
+  Smartphone,
+  User,
+  Briefcase
 } from "lucide-react";
 
 export default function Landing() {
@@ -57,7 +59,19 @@ export default function Landing() {
                 >
                   <a href="/api/login">
                     <Wrench className="h-5 w-5" />
-                    Descrever meu problema agora
+                    Descrever meu problema
+                  </a>
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  asChild 
+                  className="gap-3 rounded-2xl" 
+                  data-testid="button-client-login"
+                >
+                  <a href="/api/login">
+                    <User className="h-5 w-5" />
+                    Entrar como cliente
                   </a>
                 </Button>
               </div>
@@ -342,6 +356,34 @@ export default function Landing() {
                 </a>
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 lg:py-20 border-t bg-muted/30">
+        <div className="container px-6">
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            <div className="mx-auto h-16 w-16 rounded-2xl bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center shadow-lg">
+              <Briefcase className="h-8 w-8 text-accent-foreground" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              É prestador de serviços?
+            </h2>
+            <p className="text-muted-foreground leading-relaxed">
+              Cadastre-se e receba chamados na sua região. Você define seus horários e aceita os trabalhos que quiser.
+            </p>
+            <Button 
+              size="lg" 
+              variant="outline"
+              asChild 
+              className="gap-3 rounded-2xl" 
+              data-testid="button-provider-login"
+            >
+              <a href="/api/login">
+                <Wrench className="h-5 w-5" />
+                Entrar como prestador
+              </a>
+            </Button>
           </div>
         </div>
       </section>
