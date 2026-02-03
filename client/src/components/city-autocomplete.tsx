@@ -3,62 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MapPin, Search, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const brazilianCities = [
-  "Abaetetuba", "Açailândia", "Alagoinhas", "Altamira", "Americana", "Ananindeua", 
-  "Anápolis", "Angra dos Reis", "Aparecida de Goiânia", "Apucarana", "Aracaju", 
-  "Araçatuba", "Araguaína", "Araguari", "Arapiraca", "Arapongas", "Araraquara", 
-  "Araras", "Araruama", "Araucária", "Atibaia", "Bagé", "Balneário Camboriú", 
-  "Barbacena", "Barra do Piraí", "Barra Mansa", "Barreiras", "Barretos", 
-  "Barueri", "Bauru", "Belém", "Belford Roxo", "Belo Horizonte", "Betim", 
-  "Birigui", "Blumenau", "Boa Vista", "Botucatu", "Bragança Paulista", "Brasília", 
-  "Brusque", "Buíque", "Cabo de Santo Agostinho", "Cabo Frio", "Cachoeira do Sul", 
-  "Cachoeirinha", "Cachoeiro de Itapemirim", "Cametá", "Camaragibe", "Campina Grande", 
-  "Campinas", "Campo Grande", "Campo Largo", "Campo Mourão", "Campos dos Goytacazes", 
-  "Canoas", "Caraguatatuba", "Carapicuíba", "Caratinga", "Caruaru", "Cascavel", 
-  "Castanhal", "Cataguases", "Catanduva", "Caucaia", "Caxias", "Caxias do Sul", 
-  "Chapecó", "Cianorte", "Codó", "Colatina", "Colombo", "Conselheiro Lafaiete", 
-  "Contagem", "Coronel Fabriciano", "Corumbá", "Cotia", "Crateús", "Criciúma", 
-  "Cruz Alta", "Cubatão", "Cuiabá", "Curitiba", "Diadema", "Divinópolis", 
-  "Dourados", "Duque de Caxias", "Embu das Artes", "Erechim", "Eunápolis", 
-  "Feira de Santana", "Ferraz de Vasconcelos", "Florianópolis", "Formosa", 
-  "Fortaleza", "Foz do Iguaçu", "Franca", "Francisco Morato", "Franco da Rocha", 
-  "Garanhuns", "Goiânia", "Governador Valadares", "Gravataí", "Guarapari", 
-  "Guarapuava", "Guaratinguetá", "Guarujá", "Guarulhos", "Hortolândia", 
-  "Ibirité", "Ibiúna", "Içara", "Igarassu", "Ilhéus", "Imperatriz", "Indaiatuba", 
-  "Ipatinga", "Itabira", "Itaboraí", "Itabuna", "Itaguaí", "Itajaí", "Itanhaém", 
-  "Itapetininga", "Itapevi", "Itapipoca", "Itaquaquecetuba", "Itatiba", "Itu", 
-  "Ituiutaba", "Jacareí", "Jandira", "Jaú", "Jequié", "Ji-Paraná", "João Pessoa", 
-  "Joinville", "Juazeiro", "Juazeiro do Norte", "Juiz de Fora", "Jundiaí", 
-  "Lages", "Lajeado", "Lavras", "Limeira", "Linhares", "Londrina", "Luziânia", 
-  "Macaé", "Macapá", "Maceió", "Magé", "Manaus", "Marabá", "Maracanaú", 
-  "Maranguape", "Marília", "Maringá", "Marituba", "Mauá", "Mesquita", "Mococa", 
-  "Mogi das Cruzes", "Mogi Guaçu", "Mogi Mirim", "Montes Claros", "Mossoró", 
-  "Muriaé", "Natal", "Navegantes", "Niterói", "Nova Friburgo", "Nova Iguaçu", 
-  "Nova Lima", "Nova Serrana", "Novo Hamburgo", "Olinda", "Osasco", "Ourinhos", 
-  "Palhoça", "Palmas", "Paranaguá", "Parauapebas", "Parintins", "Parnaíba", 
-  "Parnamirim", "Passos", "Passo Fundo", "Patos", "Patos de Minas", "Paulínia", 
-  "Paulo Afonso", "Pelotas", "Petrolina", "Petrópolis", "Pindamonhangaba", 
-  "Piracicaba", "Pirassununga", "Poá", "Poços de Caldas", "Ponta Grossa", 
-  "Ponte Nova", "Porto Alegre", "Porto Seguro", "Porto Velho", "Pouso Alegre", 
-  "Praia Grande", "Presidente Prudente", "Queimados", "Recife", "Resende", 
-  "Ribeirão das Neves", "Ribeirão Pires", "Ribeirão Preto", "Rio Branco", 
-  "Rio Claro", "Rio das Ostras", "Rio de Janeiro", "Rio Grande", "Rio Verde", 
-  "Rondonópolis", "Sabará", "Salto", "Salvador", "Santa Bárbara d'Oeste", 
-  "Santa Cruz do Capibaribe", "Santa Cruz do Sul", "Santa Luzia", "Santa Maria", 
-  "Santa Rita", "Santana", "Santana de Parnaíba", "Santarém", "Santo André", 
-  "Santo Antônio de Jesus", "Santos", "São Bernardo do Campo", "São Caetano do Sul", 
-  "São Carlos", "São Gonçalo", "São João de Meriti", "São José", "São José de Ribamar", 
-  "São José do Rio Preto", "São José dos Campos", "São José dos Pinhais", 
-  "São Leopoldo", "São Lourenço da Mata", "São Luís", "São Mateus", "São Paulo", 
-  "São Vicente", "Sapucaia do Sul", "Serra", "Serrana", "Sertãozinho", "Sete Lagoas", 
-  "Sinop", "Sobral", "Sorocaba", "Sumaré", "Suzano", "Taboão da Serra", 
-  "Taubaté", "Teófilo Otoni", "Teresina", "Teresópolis", "Timon", "Toledo", 
-  "Tucuruí", "Tubarão", "Uberaba", "Uberlândia", "Umuarama", "Valinhos", 
-  "Várzea Grande", "Várzea Paulista", "Vespasiano", "Viamão", "Vila Velha", 
-  "Vinhedo", "Vitória", "Vitória da Conquista", "Vitória de Santo Antão", 
-  "Volta Redonda"
-];
+import { brazilianCities } from "@/data/brazilian-cities";
 
 interface CityAutocompleteProps {
   value: string;
@@ -201,4 +146,4 @@ export function CityAutocomplete({
   );
 }
 
-export { brazilianCities };
+export { brazilianCities } from "@/data/brazilian-cities";
