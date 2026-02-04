@@ -401,14 +401,10 @@ export default function Landing() {
           </div>
         </div>
         <a 
-          href="/login/cliente" 
+          href="/login/admin" 
           className="absolute bottom-3 left-3 p-1.5 rounded-md text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
           title="Acesso administrativo"
           data-testid="link-admin-login"
-          onClick={(e) => {
-            e.preventDefault();
-            window.location.href = '/admin';
-          }}
         >
           <Settings className="h-4 w-4" />
         </a>

@@ -11,7 +11,7 @@ import ServiceDetails from "@/pages/client/service-details";
 import ProviderDashboard from "@/pages/provider";
 import AdminDashboard from "@/pages/admin";
 import Settings from "@/pages/settings";
-import { ClientLoginPage, ProviderLoginPage } from "@/pages/auth/login";
+import { ClientLoginPage, ProviderLoginPage, AdminLoginPage } from "@/pages/auth/login";
 import { ClientRegisterPage, ProviderRegisterPage } from "@/pages/auth/register";
 import ForgotPasswordPage, { ResetPasswordPage } from "@/pages/auth/forgot-password";
 
@@ -28,6 +28,7 @@ function Router() {
       
       <Route path="/login/cliente" component={ClientLoginPage} />
       <Route path="/login/prestador" component={ProviderLoginPage} />
+      <Route path="/login/admin" component={AdminLoginPage} />
       <Route path="/cadastro/cliente" component={ClientRegisterPage} />
       <Route path="/cadastro/prestador" component={ProviderRegisterPage} />
       <Route path="/recuperar-senha" component={ForgotPasswordPage} />

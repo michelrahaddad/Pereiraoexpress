@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, User, Wrench } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, User, Wrench, Settings } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 interface LoginPageProps {
-  userType: "client" | "provider";
+  userType: "client" | "provider" | "admin";
 }
 
 export default function LoginPage({ userType }: LoginPageProps) {
@@ -57,10 +57,13 @@ export default function LoginPage({ userType }: LoginPageProps) {
   };
 
   const isClient = userType === "client";
-  const title = isClient ? "Área do Cliente" : "Área do Prestador";
-  const icon = isClient ? <User className="h-8 w-8" /> : <Wrench className="h-8 w-8" />;
+  const isAdmin = userType === "admin";
+  const title = isAdmin ? "Área Administrativa" : isClient ? "Área do Cliente" : "Área do Prestador";
+  const icon = isAdmin ? <Settings className="h-8 w-8" /> : isClient ? <User className="h-8 w-8" /> : <Wrench className="h-8 w-8" />;
   const registerPath = isClient ? "/cadastro/cliente" : "/cadastro/prestador";
-  const gradientClass = isClient 
+  const gradientClass = isAdmin 
+    ? "from-gray-700 to-gray-900"
+    : isClient 
     ? "from-primary to-primary/80" 
     : "from-accent to-accent/80";
 
@@ -159,18 +162,20 @@ export default function LoginPage({ userType }: LoginPageProps) {
                 )}
               </Button>
 
-              <div className="text-center text-sm text-muted-foreground">
-                Não tem conta?{" "}
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  className="p-0 h-auto text-primary hover:underline"
-                  onClick={() => setLocation(registerPath)}
-                  data-testid="link-register"
-                >
-                  Criar conta
-                </Button>
-              </div>
+              {!isAdmin && (
+                <div className="text-center text-sm text-muted-foreground">
+                  Não tem conta?{" "}
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    className="p-0 h-auto text-primary hover:underline"
+                    onClick={() => setLocation(registerPath)}
+                    data-testid="link-register"
+                  >
+                    Criar conta
+                  </Button>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>
@@ -185,4 +190,8 @@ export function ClientLoginPage() {
 
 export function ProviderLoginPage() {
   return <LoginPage userType="provider" />;
+}
+
+export function AdminLoginPage() {
+  return <LoginPage userType="admin" />;
 }
