@@ -66,7 +66,7 @@ const GUIDED_QUESTIONS = [
   {
     id: "problem_type",
     question: "Qual tipo de problema você está enfrentando?",
-    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Outro"]
+    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Passadeira", "Outro"]
   },
   {
     id: "urgency",

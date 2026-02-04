@@ -41,6 +41,7 @@ async function seedCategories() {
       { name: "Marcenaria", icon: "hammer", description: "Móveis, portas, janelas, reparos em madeira", basePrice: 18000 },
       { name: "Ar Condicionado", icon: "wind", description: "Instalação, manutenção e limpeza de AC", basePrice: 25000 },
       { name: "Limpeza", icon: "sparkles", description: "Limpeza residencial e comercial", basePrice: 10000 },
+      { name: "Passadeira", icon: "shirt", description: "Serviço de passar roupas", basePrice: 8000 },
     ];
     for (const cat of categories) {
       await storage.createCategory(cat);
