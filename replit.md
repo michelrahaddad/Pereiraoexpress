@@ -65,7 +65,7 @@ Preferred communication style: Simple, everyday language.
 - **Schema Location**: `shared/schema.ts` contains all table definitions
 - **Auth Schema**: `shared/models/auth.ts` contains users, sessions, and password reset tokens
 - **Migrations**: Drizzle Kit with `db:push` command for schema synchronization
-- **Key Tables**: users, sessions, userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages, systemSettings, payments, passwordResetTokens
+- **Key Tables**: users, sessions, userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages, systemSettings, payments, passwordResetTokens, symptoms, symptomQuestions, symptomDiagnoses, localKnowledge
 
 ### Key Domain Entities
 - **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, and city
@@ -78,6 +78,15 @@ Preferred communication style: Simple, everyday language.
 - **City Overview**: Users grouped by city with stats
 - **Pricing Controls**: AI diagnosis price, service fees, SLA multipliers
 - **Backup**: Data export functionality
+- **Sintomas IA**: Manage symptom knowledge base for AI diagnosis improvement
+
+### AI Symptom Knowledge Base
+- **Symptoms**: Linked to service categories with keywords for matching
+- **Symptom Questions**: Refinement questions per symptom with expected responses
+- **Symptom Diagnoses**: Possible diagnoses with price ranges, materials, and urgency levels
+- **Local Knowledge**: City-specific service information (material suppliers, service particularities)
+- **AI Integration**: Knowledge base is automatically queried during diagnosis to provide context to Gemini
+- **Features**: Accent normalization for Portuguese, safe JSON parsing, token limit protection (2000 chars)
 
 ### Build System
 - **Development**: TSX for running TypeScript directly, Vite dev server with HMR
