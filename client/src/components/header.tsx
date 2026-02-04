@@ -11,6 +11,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { Menu, User, LogOut, Settings, Wrench, Shield } from "lucide-react";
+import logoImg from "@/assets/logo-pereirao.png";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -28,7 +29,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-primary/20 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 backdrop-blur-xl">
       <div className="container flex h-20 items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-3">
           {showMenu && (
@@ -36,7 +37,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className="md:hidden rounded-xl text-white hover:bg-white/10"
+              className="md:hidden rounded-xl text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10"
               data-testid="button-menu"
             >
               <Menu className="h-5 w-5" />
@@ -44,9 +45,9 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
           )}
           <Link href="/" className="flex items-center gap-2">
             <img
-              src="/logo-horizontal.png"
+              src={logoImg}
               alt="Pereirão Express"
-              className="h-16 md:h-20 object-contain"
+              className="h-14 md:h-16 object-contain"
             />
           </Link>
         </div>
