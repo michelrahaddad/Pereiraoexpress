@@ -13,7 +13,7 @@ import { registerObjectStorageRoutes } from "./replit_integrations/object_storag
 // Schemas de validação
 const aiDiagnoseSchema = z.object({
   message: z.string().optional(),
-  imageBase64: z.string().optional(),
+  imageBase64: z.string().nullable().optional(),
   conversationHistory: z.array(z.object({
     role: z.enum(["user", "assistant"]),
     content: z.string(),
