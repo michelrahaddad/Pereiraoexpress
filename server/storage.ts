@@ -1,6 +1,7 @@
 import { 
   userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages,
   systemSettings, payments,
+  aiDiagnoses, providerDiagnoses, digitalAcceptances, serviceExecutionLogs, paymentEscrows, antifraudFlags,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
   type ServiceRequest, type InsertServiceRequest,
@@ -10,6 +11,12 @@ import {
   type Message, type InsertMessage,
   type SystemSetting, type InsertSystemSetting,
   type Payment, type InsertPayment,
+  type AiDiagnosis, type InsertAiDiagnosis,
+  type ProviderDiagnosis, type InsertProviderDiagnosis,
+  type DigitalAcceptance, type InsertDigitalAcceptance,
+  type ServiceExecutionLog, type InsertServiceExecutionLog,
+  type PaymentEscrow, type InsertPaymentEscrow,
+  type AntifraudFlag, type InsertAntifraudFlag,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
@@ -59,6 +66,37 @@ export interface IStorage {
   
   // Admin
   getAllUserProfiles(): Promise<UserProfile[]>;
+  
+  // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
+  
+  // AI Diagnosis
+  createAiDiagnosis(data: InsertAiDiagnosis): Promise<AiDiagnosis>;
+  getAiDiagnosisByServiceId(serviceRequestId: number): Promise<AiDiagnosis | undefined>;
+  
+  // Provider Diagnosis
+  createProviderDiagnosis(data: InsertProviderDiagnosis): Promise<ProviderDiagnosis>;
+  getProviderDiagnosisByServiceId(serviceRequestId: number): Promise<ProviderDiagnosis | undefined>;
+  
+  // Digital Acceptance
+  createDigitalAcceptance(data: InsertDigitalAcceptance): Promise<DigitalAcceptance>;
+  getDigitalAcceptanceByServiceId(serviceRequestId: number): Promise<DigitalAcceptance | undefined>;
+  
+  // Service Execution Logs
+  createServiceExecutionLog(data: InsertServiceExecutionLog): Promise<ServiceExecutionLog>;
+  getServiceExecutionLog(serviceRequestId: number): Promise<ServiceExecutionLog | undefined>;
+  updateServiceExecutionLog(serviceRequestId: number, data: Partial<InsertServiceExecutionLog>): Promise<ServiceExecutionLog | undefined>;
+  
+  // Payment Escrows
+  createPaymentEscrow(data: InsertPaymentEscrow): Promise<PaymentEscrow>;
+  getPaymentEscrowByServiceId(serviceRequestId: number): Promise<PaymentEscrow | undefined>;
+  updatePaymentEscrowStatus(id: number, status: string): Promise<PaymentEscrow | undefined>;
+  releasePaymentEscrow(id: number): Promise<PaymentEscrow | undefined>;
+  
+  // Antifraud
+  createAntifraudFlag(data: InsertAntifraudFlag): Promise<AntifraudFlag>;
+  getAntifraudFlagsByServiceId(serviceRequestId: number): Promise<AntifraudFlag[]>;
+  resolveAntifraudFlag(id: number, resolvedBy: string): Promise<AntifraudFlag | undefined>;
+  getPendingAntifraudFlags(): Promise<AntifraudFlag[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -243,6 +281,118 @@ class DatabaseStorage implements IStorage {
   // Admin
   async getAllUserProfiles(): Promise<UserProfile[]> {
     return db.select().from(userProfiles).orderBy(desc(userProfiles.createdAt));
+  }
+
+  // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
+
+  // AI Diagnosis
+  async createAiDiagnosis(data: InsertAiDiagnosis): Promise<AiDiagnosis> {
+    const [diagnosis] = await db.insert(aiDiagnoses).values(data).returning();
+    return diagnosis;
+  }
+
+  async getAiDiagnosisByServiceId(serviceRequestId: number): Promise<AiDiagnosis | undefined> {
+    const [diagnosis] = await db.select().from(aiDiagnoses)
+      .where(eq(aiDiagnoses.serviceRequestId, serviceRequestId));
+    return diagnosis;
+  }
+
+  // Provider Diagnosis
+  async createProviderDiagnosis(data: InsertProviderDiagnosis): Promise<ProviderDiagnosis> {
+    const [diagnosis] = await db.insert(providerDiagnoses).values(data).returning();
+    return diagnosis;
+  }
+
+  async getProviderDiagnosisByServiceId(serviceRequestId: number): Promise<ProviderDiagnosis | undefined> {
+    const [diagnosis] = await db.select().from(providerDiagnoses)
+      .where(eq(providerDiagnoses.serviceRequestId, serviceRequestId));
+    return diagnosis;
+  }
+
+  // Digital Acceptance
+  async createDigitalAcceptance(data: InsertDigitalAcceptance): Promise<DigitalAcceptance> {
+    const [acceptance] = await db.insert(digitalAcceptances).values(data).returning();
+    return acceptance;
+  }
+
+  async getDigitalAcceptanceByServiceId(serviceRequestId: number): Promise<DigitalAcceptance | undefined> {
+    const [acceptance] = await db.select().from(digitalAcceptances)
+      .where(eq(digitalAcceptances.serviceRequestId, serviceRequestId));
+    return acceptance;
+  }
+
+  // Service Execution Logs
+  async createServiceExecutionLog(data: InsertServiceExecutionLog): Promise<ServiceExecutionLog> {
+    const [log] = await db.insert(serviceExecutionLogs).values(data).returning();
+    return log;
+  }
+
+  async getServiceExecutionLog(serviceRequestId: number): Promise<ServiceExecutionLog | undefined> {
+    const [log] = await db.select().from(serviceExecutionLogs)
+      .where(eq(serviceExecutionLogs.serviceRequestId, serviceRequestId));
+    return log;
+  }
+
+  async updateServiceExecutionLog(serviceRequestId: number, data: Partial<InsertServiceExecutionLog>): Promise<ServiceExecutionLog | undefined> {
+    const [updated] = await db.update(serviceExecutionLogs)
+      .set(data)
+      .where(eq(serviceExecutionLogs.serviceRequestId, serviceRequestId))
+      .returning();
+    return updated;
+  }
+
+  // Payment Escrows
+  async createPaymentEscrow(data: InsertPaymentEscrow): Promise<PaymentEscrow> {
+    const [escrow] = await db.insert(paymentEscrows).values(data).returning();
+    return escrow;
+  }
+
+  async getPaymentEscrowByServiceId(serviceRequestId: number): Promise<PaymentEscrow | undefined> {
+    const [escrow] = await db.select().from(paymentEscrows)
+      .where(eq(paymentEscrows.serviceRequestId, serviceRequestId));
+    return escrow;
+  }
+
+  async updatePaymentEscrowStatus(id: number, status: string): Promise<PaymentEscrow | undefined> {
+    const [updated] = await db.update(paymentEscrows)
+      .set({ status: status as any })
+      .where(eq(paymentEscrows.id, id))
+      .returning();
+    return updated;
+  }
+
+  async releasePaymentEscrow(id: number): Promise<PaymentEscrow | undefined> {
+    const [updated] = await db.update(paymentEscrows)
+      .set({ status: "released" as any, releasedAt: new Date() })
+      .where(eq(paymentEscrows.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Antifraud
+  async createAntifraudFlag(data: InsertAntifraudFlag): Promise<AntifraudFlag> {
+    const [flag] = await db.insert(antifraudFlags).values(data).returning();
+    return flag;
+  }
+
+  async getAntifraudFlagsByServiceId(serviceRequestId: number): Promise<AntifraudFlag[]> {
+    return db.select().from(antifraudFlags)
+      .where(eq(antifraudFlags.serviceRequestId, serviceRequestId))
+      .orderBy(desc(antifraudFlags.createdAt));
+  }
+
+  async resolveAntifraudFlag(id: number, resolvedBy: string): Promise<AntifraudFlag | undefined> {
+    const [updated] = await db.update(antifraudFlags)
+      .set({ resolved: true, resolvedBy, resolvedAt: new Date() })
+      .where(eq(antifraudFlags.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getPendingAntifraudFlags(): Promise<AntifraudFlag[]> {
+    return db.select().from(antifraudFlags)
+      .where(eq(antifraudFlags.resolved, false))
+      .orderBy(desc(antifraudFlags.createdAt));
   }
 }
 
