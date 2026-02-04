@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User } from "lucide-react";
+import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useGeolocation } from "@/hooks/use-geolocation";
 
 interface Provider {
   id: string;
@@ -21,6 +22,7 @@ interface Provider {
   adjustedPrice: number;
   ratingLevel: string;
   basePrice: number;
+  distance: number | null;
 }
 
 export default function SelectProvider() {
@@ -29,6 +31,7 @@ export default function SelectProvider() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
 
   const { data: service } = useQuery<any>({
     queryKey: ["/api/services", serviceId],
@@ -36,9 +39,13 @@ export default function SelectProvider() {
   });
 
   const { data: providers = [], isLoading } = useQuery<Provider[]>({
-    queryKey: ["/api/providers/available", { serviceId }],
+    queryKey: ["/api/providers/available", { serviceId, lat: latitude, lon: longitude }],
     queryFn: async () => {
-      const res = await fetch(`/api/providers/available?serviceId=${serviceId}`, {
+      let url = `/api/providers/available?serviceId=${serviceId}`;
+      if (latitude && longitude) {
+        url += `&lat=${latitude}&lon=${longitude}`;
+      }
+      const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
@@ -46,7 +53,7 @@ export default function SelectProvider() {
       if (!res.ok) throw new Error("Failed to fetch providers");
       return res.json();
     },
-    enabled: !!serviceId,
+    enabled: !!serviceId && !locationLoading,
   });
 
   const selectMutation = useMutation({
@@ -137,6 +144,18 @@ export default function SelectProvider() {
           Selecione o profissional que melhor atende às suas necessidades. 
           Profissionais com notas mais altas cobram valores ajustados pela qualidade do serviço.
         </p>
+        {latitude !== null && longitude !== null && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+            <Navigation className="h-4 w-4" />
+            Mostrando profissionais em até 30km da sua localização
+          </div>
+        )}
+        {locationError && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-amber-600">
+            <MapPin className="h-4 w-4" />
+            {locationError} - mostrando todos os profissionais disponíveis
+          </div>
+        )}
       </div>
 
       <Card className="mb-6 bg-gradient-to-r from-blue-50 to-yellow-50 dark:from-blue-900/20 dark:to-yellow-900/20">
@@ -225,6 +244,13 @@ export default function SelectProvider() {
                             <span className="flex items-center gap-1">
                               <MapPin className="h-4 w-4" />
                               {provider.city}
+                            </span>
+                          )}
+                          
+                          {provider.distance !== null && (
+                            <span className="flex items-center gap-1 text-green-600">
+                              <Navigation className="h-4 w-4" />
+                              {provider.distance.toFixed(1)} km
                             </span>
                           )}
                           

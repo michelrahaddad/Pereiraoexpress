@@ -26,6 +26,7 @@ import {
   type SymptomDiagnosis, type InsertSymptomDiagnosis,
   type LocalKnowledge, type InsertLocalKnowledge,
 } from "@shared/schema";
+import { users } from "@shared/models/auth";
 import { db } from "./db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -76,7 +77,7 @@ export interface IStorage {
   getAllUserProfiles(): Promise<UserProfile[]>;
   
   // Providers
-  getAvailableProviders(city?: string, categoryId?: number): Promise<UserProfile[]>;
+  getAvailableProviders(city?: string, categoryId?: number): Promise<(UserProfile & { latitude?: string | null; longitude?: string | null })[]>;
   updateProviderRating(userId: string, newRating: number, totalRatings: number): Promise<UserProfile | undefined>;
   
   // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
@@ -355,8 +356,14 @@ class DatabaseStorage implements IStorage {
     return db.select().from(userProfiles).orderBy(desc(userProfiles.createdAt));
   }
 
-  async getAvailableProviders(city?: string, categoryId?: number): Promise<UserProfile[]> {
-    let query = db.select().from(userProfiles)
+  async getAvailableProviders(city?: string, categoryId?: number): Promise<(UserProfile & { latitude?: string | null; longitude?: string | null })[]> {
+    const results = await db.select({
+      profile: userProfiles,
+      latitude: users.latitude,
+      longitude: users.longitude,
+    })
+      .from(userProfiles)
+      .leftJoin(users, eq(userProfiles.userId, users.id))
       .where(
         and(
           eq(userProfiles.role, "provider"),
@@ -365,14 +372,19 @@ class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(userProfiles.rating));
     
-    const results = await query;
+    // Flatten the results to include latitude/longitude
+    const providers = results.map(r => ({
+      ...r.profile,
+      latitude: r.latitude,
+      longitude: r.longitude,
+    }));
     
     // Filter by city if provided
     if (city) {
-      return results.filter(p => p.city?.toLowerCase() === city.toLowerCase());
+      return providers.filter(p => p.city?.toLowerCase() === city.toLowerCase());
     }
     
-    return results;
+    return providers;
   }
 
   async updateProviderRating(userId: string, newRating: number, totalRatings: number): Promise<UserProfile | undefined> {

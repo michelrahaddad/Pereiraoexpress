@@ -638,10 +638,19 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
   // Provider selection routes - Client selects provider after fee payment
   app.get("/api/providers/available", isAuthenticated, async (req: any, res) => {
     try {
-      const { city, categoryId, serviceId } = req.query;
+      const { city, categoryId, serviceId, lat, lon } = req.query;
+      const clientLat = lat !== undefined ? parseFloat(lat as string) : null;
+      const clientLon = lon !== undefined ? parseFloat(lon as string) : null;
       
       // Get available providers, optionally filtered by city
-      const providers = await storage.getAvailableProviders(city as string);
+      let providers = await storage.getAvailableProviders(city as string);
+      
+      // Filter by distance if client location provided (30km radius)
+      let filteredProviders: any[] = providers;
+      if (clientLat !== null && clientLon !== null && !isNaN(clientLat) && !isNaN(clientLon)) {
+        const { filterProvidersByDistance } = await import("@shared/geolocation");
+        filteredProviders = filterProvidersByDistance(providers, clientLat, clientLon, 30);
+      }
       
       // Get base price from service if serviceId provided
       let basePrice = 0;
@@ -659,7 +668,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
       // Calculate adjusted price for each provider based on rating
       const { getAdjustedPrice, getRatingLevel } = await import("@shared/priceMultiplier");
       
-      const providersWithPricing = providers.map(provider => {
+      const providersWithPricing = filteredProviders.map(provider => {
         const rating = parseFloat(provider.rating || "10");
         const totalRatings = provider.totalRatings || 0;
         return {
@@ -667,11 +676,17 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
           adjustedPrice: getAdjustedPrice(basePrice, rating, totalRatings),
           ratingLevel: getRatingLevel(rating, totalRatings),
           basePrice,
+          distance: provider.distance ? Math.round(provider.distance * 10) / 10 : null,
         };
       });
       
-      // Sort: rated providers first (by rating desc), then new providers
+      // Sort: by distance first (if available), then rated providers, then new
       providersWithPricing.sort((a, b) => {
+        // If both have distance, sort by distance first
+        if (a.distance !== null && b.distance !== null) {
+          return a.distance - b.distance;
+        }
+        
         const aHasRatings = (a.totalRatings || 0) > 0;
         const bHasRatings = (b.totalRatings || 0) > 0;
         
@@ -1996,6 +2011,30 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     } catch (error) {
       console.error("Error updating profile image:", error);
       res.status(500).json({ error: "Failed to update profile image" });
+    }
+  });
+
+  // Update user location (latitude/longitude)
+  app.patch("/api/user/location", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { latitude, longitude } = req.body;
+      
+      if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ error: "Latitude and longitude are required" });
+      }
+
+      await db.update(users)
+        .set({ 
+          latitude: latitude.toString(),
+          longitude: longitude.toString()
+        })
+        .where(eq(users.id, userId));
+
+      res.json({ success: true, latitude, longitude });
+    } catch (error) {
+      console.error("Error updating user location:", error);
+      res.status(500).json({ error: "Failed to update location" });
     }
   });
 
