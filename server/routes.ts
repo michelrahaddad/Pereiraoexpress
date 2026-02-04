@@ -79,7 +79,7 @@ export async function registerRoutes(
         slaPriority: slaPriority || "standard",
         estimatedPrice,
         address,
-        status: "waiting_provider",
+        status: "fee_paid",
       });
       
       res.status(201).json(service);
@@ -551,7 +551,7 @@ Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
       const stats = {
         totalServices: services.length,
         completedServices: services.filter(s => s.status === "completed").length,
-        pendingServices: services.filter(s => s.status === "pending" || s.status === "diagnosed").length,
+        pendingServices: services.filter(s => s.status === "pending" || s.status === "ai_diagnosed" || s.status === "fee_paid").length,
         totalUsers: profiles.length,
         totalClients: profiles.filter(p => p.role === "client").length,
         totalProviders: profiles.filter(p => p.role === "provider").length,
@@ -580,6 +580,475 @@ Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
 
   app.get("/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
+
+  // Criar diagnóstico IA completo e persistir
+  app.post("/api/diagnosis/ai", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { 
+        description, 
+        guidedAnswers, 
+        mediaUrls, 
+        categoryId,
+        title 
+      } = req.body;
+
+      // Criar serviço inicial
+      const service = await storage.createService({
+        clientId: userId,
+        title: title || "Novo Serviço",
+        description,
+        categoryId: categoryId || 1,
+        status: "pending",
+        slaPriority: "standard",
+      });
+
+      // Preparar prompt para IA
+      const systemPrompt = `Você é um especialista em diagnóstico de problemas residenciais. Analise a descrição do problema e forneça:
+
+1. Classificação do tipo de serviço
+2. Nível de urgência (baixa, média, alta, urgente)
+3. Tempo estimado de execução
+4. Materiais provavelmente necessários
+5. Faixa de preço estimada (mínimo e máximo em centavos)
+
+Responda em JSON com este formato:
+{
+  "classification": "tipo de serviço",
+  "urgencyLevel": "média",
+  "estimatedDuration": "2-4 horas",
+  "materialsSuggested": ["material1", "material2"],
+  "priceRangeMin": 15000,
+  "priceRangeMax": 30000,
+  "diagnosis": "Explicação detalhada do problema e possível solução"
+}
+
+Descrição do problema: ${description}
+${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+      });
+
+      let aiResult;
+      try {
+        const text = response.text || "";
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        aiResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+      } catch {
+        aiResult = {
+          classification: "Geral",
+          urgencyLevel: "média",
+          estimatedDuration: "2-4 horas",
+          materialsSuggested: [],
+          priceRangeMin: 15000,
+          priceRangeMax: 30000,
+          diagnosis: response.text || "Diagnóstico em análise",
+        };
+      }
+
+      // Calcular taxa de diagnóstico (15% do preço mínimo)
+      const diagnosisFee = Math.round(aiResult.priceRangeMin * 0.15);
+
+      // Criar diagnóstico IA
+      const aiDiagnosis = await storage.createAiDiagnosis({
+        serviceRequestId: service.id,
+        inputDescription: description,
+        guidedAnswers: guidedAnswers ? JSON.stringify(guidedAnswers) : null,
+        mediaUrls: mediaUrls ? JSON.stringify(mediaUrls) : null,
+        classification: aiResult.classification,
+        urgencyLevel: aiResult.urgencyLevel,
+        estimatedDuration: aiResult.estimatedDuration,
+        materialsSuggested: JSON.stringify(aiResult.materialsSuggested),
+        priceRangeMin: aiResult.priceRangeMin,
+        priceRangeMax: aiResult.priceRangeMax,
+        diagnosisFee,
+        aiResponse: aiResult.diagnosis,
+      });
+
+      // Atualizar status do serviço
+      await storage.updateService(service.id, { status: "ai_diagnosed" });
+
+      res.json({
+        service,
+        aiDiagnosis,
+        diagnosisFee,
+      });
+    } catch (error) {
+      console.error("Error creating AI diagnosis:", error);
+      res.status(500).json({ error: "Failed to create AI diagnosis" });
+    }
+  });
+
+  // Obter diagnóstico IA de um serviço
+  app.get("/api/diagnosis/ai/:serviceId", isAuthenticated, async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.serviceId as string);
+      const diagnosis = await storage.getAiDiagnosisByServiceId(serviceId);
+      if (!diagnosis) {
+        return res.status(404).json({ error: "Diagnosis not found" });
+      }
+      res.json(diagnosis);
+    } catch (error) {
+      console.error("Error fetching AI diagnosis:", error);
+      res.status(500).json({ error: "Failed to fetch AI diagnosis" });
+    }
+  });
+
+  // Pagar taxa de diagnóstico
+  app.post("/api/diagnosis/pay-fee/:serviceId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.serviceId);
+      const { method } = req.body;
+
+      const diagnosis = await storage.getAiDiagnosisByServiceId(serviceId);
+      if (!diagnosis) {
+        return res.status(404).json({ error: "Diagnosis not found" });
+      }
+
+      // Criar pagamento da taxa
+      const pixCode = method === "pix" ? `00020126580014br.gov.bcb.pix0136${Date.now()}` : null;
+      const payment = await storage.createPayment({
+        userId,
+        amount: diagnosis.diagnosisFee || 0,
+        method,
+        description: "Taxa de diagnóstico IA",
+        serviceRequestId: serviceId,
+        pixCode,
+        status: "pending",
+      });
+
+      // Simular confirmação do pagamento
+      setTimeout(async () => {
+        await storage.updatePaymentStatus(payment.id, "completed");
+        await storage.updateService(serviceId, { status: "fee_paid" });
+      }, 2000);
+
+      res.json({ payment, message: "Pagamento em processamento" });
+    } catch (error) {
+      console.error("Error paying diagnosis fee:", error);
+      res.status(500).json({ error: "Failed to process payment" });
+    }
+  });
+
+  // Prestador: Criar diagnóstico final
+  app.post("/api/provider/diagnosis/:serviceId", isAuthenticated, async (req: any, res) => {
+    try {
+      const providerId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.serviceId);
+      const { findings, laborCost, materialsCost, materialsList, estimatedDuration, mediaUrls, notes } = req.body;
+
+      // Verificar se serviço existe e está no status correto
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Criar diagnóstico do prestador
+      const providerDiagnosis = await storage.createProviderDiagnosis({
+        serviceRequestId: serviceId,
+        providerId,
+        findings,
+        laborCost,
+        materialsCost: materialsCost || 0,
+        materialsList: materialsList ? JSON.stringify(materialsList) : null,
+        estimatedDuration,
+        mediaUrls: mediaUrls ? JSON.stringify(mediaUrls) : null,
+        notes,
+      });
+
+      // Atualizar serviço
+      await storage.updateService(serviceId, {
+        providerId,
+        status: "provider_diagnosed",
+        estimatedPrice: laborCost + (materialsCost || 0),
+      });
+
+      res.json(providerDiagnosis);
+    } catch (error) {
+      console.error("Error creating provider diagnosis:", error);
+      res.status(500).json({ error: "Failed to create diagnosis" });
+    }
+  });
+
+  // Obter diagnóstico do prestador
+  app.get("/api/provider/diagnosis/:serviceId", isAuthenticated, async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.serviceId as string);
+      const diagnosis = await storage.getProviderDiagnosisByServiceId(serviceId);
+      if (!diagnosis) {
+        return res.status(404).json({ error: "Provider diagnosis not found" });
+      }
+      res.json(diagnosis);
+    } catch (error) {
+      console.error("Error fetching provider diagnosis:", error);
+      res.status(500).json({ error: "Failed to fetch diagnosis" });
+    }
+  });
+
+  // Enviar orçamento ao cliente
+  app.post("/api/service/:id/quote", isAuthenticated, async (req: any, res) => {
+    try {
+      const serviceId = parseInt(req.params.id);
+      
+      // Atualizar status para orçamento enviado
+      const service = await storage.updateService(serviceId, {
+        status: "quote_sent",
+      });
+
+      res.json(service);
+    } catch (error) {
+      console.error("Error sending quote:", error);
+      res.status(500).json({ error: "Failed to send quote" });
+    }
+  });
+
+  // Cliente: Aceitar orçamento (termo digital)
+  app.post("/api/service/:id/accept", isAuthenticated, async (req: any, res) => {
+    try {
+      const clientId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.id);
+      const { method } = req.body;
+
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const providerDiagnosis = await storage.getProviderDiagnosisByServiceId(serviceId);
+      const aiDiagnosis = await storage.getAiDiagnosisByServiceId(serviceId);
+
+      const laborCost = providerDiagnosis?.laborCost || 0;
+      const materialsCost = providerDiagnosis?.materialsCost || 0;
+      const platformFee = Math.round((laborCost + materialsCost) * 0.10); // 10% taxa plataforma
+      const totalPrice = laborCost + materialsCost + platformFee;
+
+      // Criar aceite digital
+      const acceptance = await storage.createDigitalAcceptance({
+        serviceRequestId: serviceId,
+        clientId,
+        aiDiagnosisId: aiDiagnosis?.id,
+        providerDiagnosisId: providerDiagnosis?.id,
+        totalPrice,
+        laborCost,
+        materialsCost,
+        platformFee,
+        estimatedDuration: providerDiagnosis?.estimatedDuration,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+      });
+
+      // Criar pagamento
+      const pixCode = method === "pix" ? `00020126580014br.gov.bcb.pix0136${Date.now()}` : null;
+      const payment = await storage.createPayment({
+        userId: clientId,
+        amount: totalPrice,
+        method,
+        description: `Serviço: ${service.title}`,
+        serviceRequestId: serviceId,
+        pixCode,
+        status: "pending",
+      });
+
+      // Criar escrow
+      const escrow = await storage.createPaymentEscrow({
+        serviceRequestId: serviceId,
+        paymentId: payment.id,
+        holdAmount: totalPrice,
+        platformShare: platformFee,
+        providerShare: laborCost,
+        supplierShare: materialsCost,
+        status: "holding",
+      });
+
+      // Simular pagamento
+      setTimeout(async () => {
+        await storage.updatePaymentStatus(payment.id, "completed");
+        await storage.updateService(serviceId, { 
+          status: "accepted",
+          finalPrice: totalPrice,
+        });
+      }, 2000);
+
+      res.json({ acceptance, payment, escrow });
+    } catch (error) {
+      console.error("Error accepting service:", error);
+      res.status(500).json({ error: "Failed to accept service" });
+    }
+  });
+
+  // Prestador: Iniciar execução do serviço
+  app.post("/api/service/:id/start", isAuthenticated, async (req: any, res) => {
+    try {
+      const providerId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.id);
+      const { latitude, longitude, beforePhotos } = req.body;
+
+      const service = await storage.getServiceById(serviceId);
+      if (!service || service.providerId !== providerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Criar log de execução
+      const executionLog = await storage.createServiceExecutionLog({
+        serviceRequestId: serviceId,
+        providerId,
+        startedAt: new Date(),
+        startLatitude: latitude,
+        startLongitude: longitude,
+        beforePhotos: beforePhotos ? JSON.stringify(beforePhotos) : null,
+      });
+
+      // Atualizar status
+      await storage.updateService(serviceId, { status: "in_progress" });
+
+      res.json(executionLog);
+    } catch (error) {
+      console.error("Error starting service:", error);
+      res.status(500).json({ error: "Failed to start service" });
+    }
+  });
+
+  // Prestador: Finalizar execução do serviço
+  app.post("/api/service/:id/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const providerId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.id);
+      const { latitude, longitude, afterPhotos, notes } = req.body;
+
+      const service = await storage.getServiceById(serviceId);
+      if (!service || service.providerId !== providerId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Atualizar log de execução
+      const executionLog = await storage.getServiceExecutionLog(serviceId);
+      if (executionLog) {
+        const startTime = executionLog.startedAt ? new Date(executionLog.startedAt).getTime() : Date.now();
+        const durationMinutes = Math.round((Date.now() - startTime) / 60000);
+
+        await storage.updateServiceExecutionLog(serviceId, {
+          completedAt: new Date(),
+          endLatitude: latitude,
+          endLongitude: longitude,
+          afterPhotos: afterPhotos ? JSON.stringify(afterPhotos) : null,
+          notes,
+          durationMinutes,
+        });
+
+        // Verificar antifraude: tempo mínimo de execução (30 minutos)
+        if (durationMinutes < 30) {
+          await storage.createAntifraudFlag({
+            serviceRequestId: serviceId,
+            userId: providerId,
+            reason: "tempo_execucao_curto",
+            severity: "medium",
+            details: `Serviço concluído em ${durationMinutes} minutos (mínimo: 30)`,
+          });
+        }
+      }
+
+      // Atualizar status
+      await storage.updateService(serviceId, { status: "awaiting_confirmation" });
+
+      res.json({ message: "Service completed, awaiting client confirmation" });
+    } catch (error) {
+      console.error("Error completing service:", error);
+      res.status(500).json({ error: "Failed to complete service" });
+    }
+  });
+
+  // Cliente: Confirmar conclusão do serviço
+  app.post("/api/service/:id/confirm", isAuthenticated, async (req: any, res) => {
+    try {
+      const clientId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.id);
+
+      const service = await storage.getServiceById(serviceId);
+      if (!service || service.clientId !== clientId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Atualizar serviço
+      await storage.updateService(serviceId, { 
+        status: "completed",
+        completedAt: new Date(),
+      });
+
+      // Liberar escrow após período de segurança (simulado)
+      const escrow = await storage.getPaymentEscrowByServiceId(serviceId);
+      if (escrow) {
+        // Em produção, aguardar 48h para liberar
+        setTimeout(async () => {
+          await storage.releasePaymentEscrow(escrow.id);
+        }, 5000);
+      }
+
+      res.json({ message: "Service confirmed, payment will be released" });
+    } catch (error) {
+      console.error("Error confirming service:", error);
+      res.status(500).json({ error: "Failed to confirm service" });
+    }
+  });
+
+  // Obter detalhes completos do serviço (diagnósticos, aceite, execução)
+  app.get("/api/service/:id/full", isAuthenticated, async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.id as string);
+
+      const service = await storage.getServiceById(serviceId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const aiDiagnosis = await storage.getAiDiagnosisByServiceId(serviceId);
+      const providerDiagnosis = await storage.getProviderDiagnosisByServiceId(serviceId);
+      const acceptance = await storage.getDigitalAcceptanceByServiceId(serviceId);
+      const executionLog = await storage.getServiceExecutionLog(serviceId);
+      const escrow = await storage.getPaymentEscrowByServiceId(serviceId);
+
+      res.json({
+        service,
+        aiDiagnosis,
+        providerDiagnosis,
+        acceptance,
+        executionLog,
+        escrow,
+      });
+    } catch (error) {
+      console.error("Error fetching full service:", error);
+      res.status(500).json({ error: "Failed to fetch service details" });
+    }
+  });
+
+  // Admin: Obter flags de antifraude pendentes
+  app.get("/api/admin/antifraud", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const flags = await storage.getPendingAntifraudFlags();
+      res.json(flags);
+    } catch (error) {
+      console.error("Error fetching antifraud flags:", error);
+      res.status(500).json({ error: "Failed to fetch antifraud flags" });
+    }
+  });
+
+  // Admin: Resolver flag de antifraude
+  app.post("/api/admin/antifraud/:id/resolve", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const flagId = parseInt(req.params.id);
+      const adminId = req.user.claims.sub;
+
+      const flag = await storage.resolveAntifraudFlag(flagId, adminId);
+      res.json(flag);
+    } catch (error) {
+      console.error("Error resolving antifraud flag:", error);
+      res.status(500).json({ error: "Failed to resolve flag" });
+    }
   });
 
   return httpServer;

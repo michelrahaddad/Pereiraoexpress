@@ -145,7 +145,7 @@ class DatabaseStorage implements IStorage {
 
   async getAvailableServices(): Promise<ServiceRequest[]> {
     return db.select().from(serviceRequests)
-      .where(eq(serviceRequests.status, "waiting_provider"))
+      .where(eq(serviceRequests.status, "fee_paid"))
       .orderBy(desc(serviceRequests.createdAt));
   }
 
