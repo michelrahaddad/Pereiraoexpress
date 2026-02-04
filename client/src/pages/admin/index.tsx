@@ -48,6 +48,7 @@ import {
   FileText,
   CheckCircle2,
   XCircle,
+  ArrowLeft,
   Clock,
   Eye,
   AlertTriangle
@@ -299,6 +300,17 @@ export default function AdminDashboard() {
       <Header />
       
       <main className="container px-6 py-8">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mb-4 gap-2" 
+          onClick={() => window.history.back()}
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold tracking-tight mb-2">Painel Administrativo</h1>

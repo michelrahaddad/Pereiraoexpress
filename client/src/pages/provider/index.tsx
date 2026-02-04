@@ -29,7 +29,8 @@ import {
   StopCircle,
   FileText,
   X,
-  Navigation
+  Navigation,
+  ArrowLeft
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
@@ -394,6 +395,17 @@ export default function ProviderDashboard() {
       <Header />
       
       <main className="container px-4 py-6 max-w-4xl mx-auto">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mb-4 gap-2" 
+          onClick={() => window.history.back()}
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">

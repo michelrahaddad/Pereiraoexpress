@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { User, Phone, MapPin, Bell, Shield, Moon, Sun, Camera, Loader2 } from "lucide-react";
+import { User, Phone, MapPin, Bell, Shield, Moon, Sun, Camera, Loader2, ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "@/components/theme-provider";
 import { useUpload } from "@/hooks/use-upload";
@@ -118,6 +118,17 @@ export default function Settings() {
       <Header />
       
       <main className="container px-6 py-8 max-w-2xl mx-auto">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mb-4 gap-2" 
+          onClick={() => window.history.back()}
+          data-testid="button-back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold">Configurações</h1>
           <p className="text-muted-foreground mt-1">Gerencie seu perfil e preferências</p>
