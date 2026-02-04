@@ -29,7 +29,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 backdrop-blur-xl overflow-visible">
       <div className="container flex h-14 items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-3">
           {showMenu && (
@@ -47,7 +47,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
             <img
               src={logoImg}
               alt="Pereirão Express"
-              className="h-12 md:h-14 object-contain"
+              className="h-24 md:h-28 object-contain"
             />
           </Link>
         </div>
