@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum, serial, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -9,7 +9,8 @@ export const userRoleEnum = pgEnum("user_role", ["client", "provider", "admin"])
 export const serviceStatusEnum = pgEnum("service_status", [
   "pending",           // Aguardando diagnóstico IA
   "ai_diagnosed",      // IA gerou diagnóstico, aguardando pagamento taxa
-  "fee_paid",          // Taxa de diagnóstico paga, aguardando prestador
+  "fee_paid",          // Taxa de diagnóstico paga, aguardando seleção profissional
+  "selecting_provider",// Cliente selecionando profissional
   "provider_assigned", // Prestador designado, aguardando visita
   "provider_diagnosed",// Prestador fez diagnóstico final
   "quote_sent",        // Orçamento enviado ao cliente
@@ -34,7 +35,8 @@ export const userProfiles = pgTable("user_profiles", {
   city: varchar("city"),
   bio: text("bio"),
   specialties: text("specialties"),
-  rating: integer("rating").default(0),
+  rating: decimal("rating", { precision: 3, scale: 1 }).default("10.0"), // Nota 0-10, inicia com 10
+  totalRatings: integer("total_ratings").default(0), // Total de avaliações recebidas
   totalServices: integer("total_services").default(0),
   isAvailable: boolean("is_available").default(true),
   documentUrl: text("document_url"),
