@@ -34,24 +34,35 @@ export const MAX_PROVIDER_DISTANCE_KM = 30;
 
 /**
  * Filtra prestadores por distância do cliente
+ * Retorna prestadores dentro do raio máximo primeiro, depois os sem localização
  */
 export function filterProvidersByDistance<T extends { latitude?: string | null; longitude?: string | null }>(
   providers: T[],
   clientLat: number,
   clientLon: number,
   maxDistanceKm: number = MAX_PROVIDER_DISTANCE_KM
-): (T & { distance: number })[] {
-  return providers
-    .filter(provider => provider.latitude && provider.longitude)
-    .map(provider => ({
-      ...provider,
-      distance: calculateDistance(
+): (T & { distance: number | null })[] {
+  const withLocation: (T & { distance: number })[] = [];
+  const withoutLocation: (T & { distance: null })[] = [];
+  
+  for (const provider of providers) {
+    if (provider.latitude && provider.longitude) {
+      const distance = calculateDistance(
         clientLat,
         clientLon,
-        parseFloat(provider.latitude!),
-        parseFloat(provider.longitude!)
-      )
-    }))
-    .filter(provider => provider.distance <= maxDistanceKm)
-    .sort((a, b) => a.distance - b.distance);
+        parseFloat(provider.latitude),
+        parseFloat(provider.longitude)
+      );
+      if (distance <= maxDistanceKm) {
+        withLocation.push({ ...provider, distance });
+      }
+    } else {
+      withoutLocation.push({ ...provider, distance: null });
+    }
+  }
+  
+  // Sort by distance, then append providers without location
+  withLocation.sort((a, b) => a.distance - b.distance);
+  
+  return [...withLocation, ...withoutLocation];
 }

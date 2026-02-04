@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { LoadingSkeleton, CardSkeleton } from "@/components/loading-skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useGeolocation } from "@/hooks/use-geolocation";
 import { 
   Wrench, 
   Clock, 
@@ -200,6 +201,7 @@ export default function ProviderDashboard() {
   const [showStartModal, setShowStartModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { latitude, longitude, loading: locationLoading, error: locationError, requestLocation } = useGeolocation();
   
   const [diagnosisForm, setDiagnosisForm] = useState<DiagnosisFormData>({
     findings: "",
@@ -481,6 +483,50 @@ export default function ProviderDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Location card */}
+        <Card className="mb-8">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <Navigation className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Sua Localização</p>
+                  {latitude !== null && longitude !== null ? (
+                    <p className="text-sm font-medium text-green-600" data-testid="text-location-active">
+                      Localização ativa - clientes próximos podem te encontrar
+                    </p>
+                  ) : locationError ? (
+                    <p className="text-sm text-amber-600" data-testid="text-location-error">
+                      {locationError}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground" data-testid="text-location-inactive">
+                      Ative para aparecer para clientes próximos (30km)
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button
+                variant={latitude !== null ? "outline" : "default"}
+                size="sm"
+                onClick={requestLocation}
+                disabled={locationLoading}
+                data-testid="button-update-location"
+              >
+                {locationLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : latitude !== null ? (
+                  "Atualizar"
+                ) : (
+                  "Ativar localização"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Reviews section */}
         {reviews && reviews.length > 0 && (
