@@ -237,13 +237,88 @@ export async function registerRoutes(
 
   app.post("/api/ai/diagnose", isAuthenticated, async (req: any, res) => {
     try {
-      const { message, imageBase64, conversationHistory } = req.body;
+      const { message, imageBase64, conversationHistory, categoryId } = req.body;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const systemPrompt = `Você é o assistente do Pereirão Express. Seu trabalho é entender o problema do cliente em MÁXIMO 3 PERGUNTAS rápidas e simples.
+      // Buscar sintomas do banco de conhecimento baseados na mensagem e categoria
+      let knowledgeBaseContext = "";
+      try {
+        const allSymptoms = await storage.getSymptoms();
+        const relevantSymptoms = allSymptoms.filter((s) => {
+          // Filtrar por categoria se fornecida
+          if (categoryId && s.categoryId !== categoryId) return false;
+          
+          // Buscar por palavras-chave
+          if (s.keywords) {
+            const keywords = JSON.parse(s.keywords) as string[];
+            const messageLower = message?.toLowerCase() || "";
+            const historyText = conversationHistory?.map((m: any) => m.content).join(" ").toLowerCase() || "";
+            const fullText = `${messageLower} ${historyText}`;
+            
+            return keywords.some((kw) => fullText.includes(kw.toLowerCase()));
+          }
+          return false;
+        });
+
+        if (relevantSymptoms.length > 0) {
+          // Buscar detalhes dos sintomas encontrados (perguntas e diagnósticos)
+          const symptomDetails = await Promise.all(
+            relevantSymptoms.slice(0, 3).map(async (s) => {
+              const details = await storage.getSymptomWithDetails(s.id);
+              return details;
+            })
+          );
+
+          const validDetails = symptomDetails.filter(Boolean);
+          if (validDetails.length > 0) {
+            knowledgeBaseContext = `\n\nBASE DE CONHECIMENTO (use para guiar o diagnóstico):\n`;
+            for (const detail of validDetails) {
+              knowledgeBaseContext += `\nSINTOMA: ${detail.name}\n`;
+              if (detail.description) {
+                knowledgeBaseContext += `Descrição: ${detail.description}\n`;
+              }
+              if (detail.questions && detail.questions.length > 0) {
+                knowledgeBaseContext += `Perguntas sugeridas:\n`;
+                for (const q of detail.questions) {
+                  knowledgeBaseContext += `- ${q.question}\n`;
+                }
+              }
+              if (detail.diagnoses && detail.diagnoses.length > 0) {
+                knowledgeBaseContext += `Diagnósticos possíveis:\n`;
+                for (const d of detail.diagnoses) {
+                  knowledgeBaseContext += `- ${d.title}: ${d.description}`;
+                  if (d.estimatedPriceMin && d.estimatedPriceMax) {
+                    knowledgeBaseContext += ` (R$ ${d.estimatedPriceMin / 100} - R$ ${d.estimatedPriceMax / 100})`;
+                  }
+                  if (d.urgencyLevel !== "normal") {
+                    knowledgeBaseContext += ` [${d.urgencyLevel.toUpperCase()}]`;
+                  }
+                  knowledgeBaseContext += `\n`;
+                  if (d.providerMaterials) {
+                    const materials = JSON.parse(d.providerMaterials) as string[];
+                    if (materials.length > 0) {
+                      knowledgeBaseContext += `  Materiais do prestador: ${materials.join(", ")}\n`;
+                    }
+                  }
+                  if (d.clientMaterials) {
+                    const materials = JSON.parse(d.clientMaterials) as string[];
+                    if (materials.length > 0) {
+                      knowledgeBaseContext += `  Materiais do cliente: ${materials.join(", ")}\n`;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching knowledge base:", err);
+      }
+
+      const systemPrompt = `Você é o assistente do Pereirão Express. Seu trabalho é entender o problema do cliente em MÁXIMO 3 PERGUNTAS rápidas e simples.${knowledgeBaseContext}
 
 REGRAS OBRIGATÓRIAS:
 - Máximo 3 perguntas curtas e diretas
