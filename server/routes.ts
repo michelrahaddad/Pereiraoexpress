@@ -1080,6 +1080,211 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     }
   });
 
+  // ==================== BANCO DE SINTOMAS PARA DIAGNÓSTICO ====================
+
+  // Listar todos os sintomas
+  app.get("/api/symptoms", isAuthenticated, async (req, res) => {
+    try {
+      const allSymptoms = await storage.getSymptoms();
+      res.json(allSymptoms);
+    } catch (error) {
+      console.error("Error fetching symptoms:", error);
+      res.status(500).json({ error: "Failed to fetch symptoms" });
+    }
+  });
+
+  // Listar sintomas por categoria
+  app.get("/api/symptoms/category/:categoryId", isAuthenticated, async (req, res) => {
+    try {
+      const categoryId = parseInt(req.params.categoryId as string);
+      const categorySymptoms = await storage.getSymptomsByCategoryId(categoryId);
+      res.json(categorySymptoms);
+    } catch (error) {
+      console.error("Error fetching symptoms by category:", error);
+      res.status(500).json({ error: "Failed to fetch symptoms" });
+    }
+  });
+
+  // Obter sintoma com perguntas e diagnósticos
+  app.get("/api/symptoms/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const symptom = await storage.getSymptomById(id);
+      if (!symptom) {
+        return res.status(404).json({ error: "Symptom not found" });
+      }
+      const questions = await storage.getSymptomQuestions(id);
+      const diagnoses = await storage.getSymptomDiagnoses(id);
+      res.json({ ...symptom, questions, diagnoses });
+    } catch (error) {
+      console.error("Error fetching symptom:", error);
+      res.status(500).json({ error: "Failed to fetch symptom" });
+    }
+  });
+
+  // Admin: Criar sintoma
+  app.post("/api/admin/symptoms", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const symptom = await storage.createSymptom(req.body);
+      res.json(symptom);
+    } catch (error) {
+      console.error("Error creating symptom:", error);
+      res.status(500).json({ error: "Failed to create symptom" });
+    }
+  });
+
+  // Admin: Atualizar sintoma
+  app.put("/api/admin/symptoms/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const symptom = await storage.updateSymptom(id, req.body);
+      res.json(symptom);
+    } catch (error) {
+      console.error("Error updating symptom:", error);
+      res.status(500).json({ error: "Failed to update symptom" });
+    }
+  });
+
+  // Admin: Deletar sintoma (soft delete)
+  app.delete("/api/admin/symptoms/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteSymptom(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting symptom:", error);
+      res.status(500).json({ error: "Failed to delete symptom" });
+    }
+  });
+
+  // Admin: Criar pergunta de sintoma
+  app.post("/api/admin/symptom-questions", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const question = await storage.createSymptomQuestion(req.body);
+      res.json(question);
+    } catch (error) {
+      console.error("Error creating symptom question:", error);
+      res.status(500).json({ error: "Failed to create question" });
+    }
+  });
+
+  // Admin: Atualizar pergunta de sintoma
+  app.put("/api/admin/symptom-questions/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const question = await storage.updateSymptomQuestion(id, req.body);
+      res.json(question);
+    } catch (error) {
+      console.error("Error updating symptom question:", error);
+      res.status(500).json({ error: "Failed to update question" });
+    }
+  });
+
+  // Admin: Deletar pergunta de sintoma
+  app.delete("/api/admin/symptom-questions/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteSymptomQuestion(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting symptom question:", error);
+      res.status(500).json({ error: "Failed to delete question" });
+    }
+  });
+
+  // Admin: Criar diagnóstico de sintoma
+  app.post("/api/admin/symptom-diagnoses", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const diagnosis = await storage.createSymptomDiagnosis(req.body);
+      res.json(diagnosis);
+    } catch (error) {
+      console.error("Error creating symptom diagnosis:", error);
+      res.status(500).json({ error: "Failed to create diagnosis" });
+    }
+  });
+
+  // Admin: Atualizar diagnóstico de sintoma
+  app.put("/api/admin/symptom-diagnoses/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const diagnosis = await storage.updateSymptomDiagnosis(id, req.body);
+      res.json(diagnosis);
+    } catch (error) {
+      console.error("Error updating symptom diagnosis:", error);
+      res.status(500).json({ error: "Failed to update diagnosis" });
+    }
+  });
+
+  // Admin: Deletar diagnóstico de sintoma
+  app.delete("/api/admin/symptom-diagnoses/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteSymptomDiagnosis(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting symptom diagnosis:", error);
+      res.status(500).json({ error: "Failed to delete diagnosis" });
+    }
+  });
+
+  // Admin: Listar conhecimento local
+  app.get("/api/admin/local-knowledge", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const knowledge = await storage.getLocalKnowledge();
+      res.json(knowledge);
+    } catch (error) {
+      console.error("Error fetching local knowledge:", error);
+      res.status(500).json({ error: "Failed to fetch local knowledge" });
+    }
+  });
+
+  // Admin: Criar conhecimento local
+  app.post("/api/admin/local-knowledge", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const knowledge = await storage.createLocalKnowledge(req.body);
+      res.json(knowledge);
+    } catch (error) {
+      console.error("Error creating local knowledge:", error);
+      res.status(500).json({ error: "Failed to create local knowledge" });
+    }
+  });
+
+  // Admin: Atualizar conhecimento local
+  app.put("/api/admin/local-knowledge/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const knowledge = await storage.updateLocalKnowledge(id, req.body);
+      res.json(knowledge);
+    } catch (error) {
+      console.error("Error updating local knowledge:", error);
+      res.status(500).json({ error: "Failed to update local knowledge" });
+    }
+  });
+
+  // Admin: Deletar conhecimento local
+  app.delete("/api/admin/local-knowledge/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteLocalKnowledge(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting local knowledge:", error);
+      res.status(500).json({ error: "Failed to delete local knowledge" });
+    }
+  });
+
+  // Helper: Obter dados completos de sintomas para IA
+  app.get("/api/symptoms/data/full", isAuthenticated, async (req, res) => {
+    try {
+      const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
+      const data = await storage.getFullSymptomData(categoryId);
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching full symptom data:", error);
+      res.status(500).json({ error: "Failed to fetch symptom data" });
+    }
+  });
+
   // ==================== FORNECEDORES E MATERIAIS ====================
 
   // Listar fornecedores ativos
