@@ -342,16 +342,66 @@ export const localKnowledge = pgTable("local_knowledge", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Tabela de Preços de Referência (SINAPI, regional, mercado)
+export const referencePrices = pgTable("reference_prices", {
+  id: serial("id").primaryKey(),
+  code: varchar("code"), // Código SINAPI ou interno
+  source: varchar("source").notNull(), // "sinapi", "regional", "mercado", "manual"
+  categoryId: integer("category_id"), // Categoria de serviço relacionada
+  state: varchar("state", { length: 2 }), // UF (SP, MG, etc) ou null para nacional
+  city: varchar("city"), // Cidade específica ou null para estadual/nacional
+  itemType: varchar("item_type").notNull(), // "service", "material", "labor"
+  name: varchar("name").notNull(), // Nome do item
+  description: text("description"), // Descrição detalhada
+  unit: varchar("unit").notNull(), // Unidade (m², h, un, kg, etc)
+  priceMin: integer("price_min").notNull(), // Preço mínimo em centavos
+  priceMax: integer("price_max"), // Preço máximo em centavos (opcional)
+  priceAvg: integer("price_avg"), // Preço médio em centavos
+  laborPercent: integer("labor_percent"), // % de mão de obra no preço
+  keywords: text("keywords"), // Palavras-chave para matching (JSON array)
+  referenceDate: timestamp("reference_date"), // Data de referência do preço
+  isDesonerated: boolean("is_desonerated").default(false), // Preço desonerado (sem INSS)
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Fornecedores de materiais por região
+export const materialSuppliers = pgTable("material_suppliers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(), // Nome da loja/fornecedor
+  city: varchar("city").notNull(), // Cidade
+  state: varchar("state", { length: 2 }).notNull(), // UF
+  address: text("address"), // Endereço completo
+  phone: varchar("phone"), // Telefone
+  whatsapp: varchar("whatsapp"), // WhatsApp
+  website: varchar("website"), // Site
+  specialties: text("specialties"), // Especialidades (JSON array: elétrica, hidráulica, etc)
+  deliveryAvailable: boolean("delivery_available").default(false),
+  priceLevel: varchar("price_level"), // "economico", "medio", "premium"
+  rating: decimal("rating", { precision: 3, scale: 1 }), // Avaliação 0-10
+  notes: text("notes"), // Observações
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas para sintomas
 export const insertSymptomSchema = createInsertSchema(symptoms).omit({ id: true, createdAt: true });
 export const insertSymptomQuestionSchema = createInsertSchema(symptomQuestions).omit({ id: true, createdAt: true });
 export const insertSymptomDiagnosisSchema = createInsertSchema(symptomDiagnoses).omit({ id: true, createdAt: true });
 export const insertLocalKnowledgeSchema = createInsertSchema(localKnowledge).omit({ id: true, createdAt: true });
+export const insertReferencePriceSchema = createInsertSchema(referencePrices).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMaterialSupplierSchema = createInsertSchema(materialSuppliers).omit({ id: true, createdAt: true });
 
 export type InsertSymptom = z.infer<typeof insertSymptomSchema>;
 export type InsertSymptomQuestion = z.infer<typeof insertSymptomQuestionSchema>;
 export type InsertSymptomDiagnosis = z.infer<typeof insertSymptomDiagnosisSchema>;
 export type InsertLocalKnowledge = z.infer<typeof insertLocalKnowledgeSchema>;
+export type InsertReferencePrice = z.infer<typeof insertReferencePriceSchema>;
+export type InsertMaterialSupplier = z.infer<typeof insertMaterialSupplierSchema>;
+
+export type ReferencePrice = typeof referencePrices.$inferSelect;
+export type MaterialSupplier = typeof materialSuppliers.$inferSelect;
 
 export type Symptom = typeof symptoms.$inferSelect;
 export type SymptomQuestion = typeof symptomQuestions.$inferSelect;

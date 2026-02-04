@@ -429,6 +429,27 @@ export async function registerRoutes(
             knowledgeBaseContext = contextBuilder;
           }
         }
+        
+        // Buscar preços de referência relevantes usando palavras do texto
+        const textKeywords = fullText.split(/\s+/).filter(w => w.length > 3);
+        const referencePriceData = await storage.getReferencePricesByKeywords(textKeywords);
+        if (referencePriceData.length > 0) {
+          knowledgeBaseContext += `\n\nPREÇOS DE REFERÊNCIA (SINAPI/Mercado Regional):\n`;
+          for (const rp of referencePriceData.slice(0, 10)) {
+            const priceMin = rp.priceMin / 100;
+            const priceMax = rp.priceMax ? rp.priceMax / 100 : priceMin * 1.5;
+            const priceAvg = rp.priceAvg ? rp.priceAvg / 100 : (priceMin + priceMax) / 2;
+            knowledgeBaseContext += `- ${rp.name} (${rp.unit}): R$ ${priceMin.toFixed(2)} - R$ ${priceMax.toFixed(2)} (média: R$ ${priceAvg.toFixed(2)})`;
+            if (rp.laborPercent) {
+              knowledgeBaseContext += ` [${rp.laborPercent}% mão de obra]`;
+            }
+            if (rp.source === "sinapi") {
+              knowledgeBaseContext += ` [SINAPI]`;
+            }
+            knowledgeBaseContext += `\n`;
+          }
+          knowledgeBaseContext += `\nUSE estes preços como referência para suas estimativas. Ajuste conforme complexidade do problema.`;
+        }
       } catch (err) {
         console.error("Error fetching knowledge base:", err);
       }
@@ -1805,6 +1826,112 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     } catch (error) {
       console.error("Error fetching full symptom data:", error);
       res.status(500).json({ error: "Failed to fetch symptom data" });
+    }
+  });
+
+  // ==================== PREÇOS DE REFERÊNCIA (SINAPI/REGIONAL) ====================
+
+  // Admin: Listar preços de referência
+  app.get("/api/admin/reference-prices", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { categoryId, state, city, itemType } = req.query;
+      const prices = await storage.getReferencePrices({
+        categoryId: categoryId ? parseInt(categoryId as string) : undefined,
+        state: state as string | undefined,
+        city: city as string | undefined,
+        itemType: itemType as string | undefined,
+      });
+      res.json(prices);
+    } catch (error) {
+      console.error("Error fetching reference prices:", error);
+      res.status(500).json({ error: "Failed to fetch reference prices" });
+    }
+  });
+
+  // Admin: Criar preço de referência
+  app.post("/api/admin/reference-prices", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const price = await storage.createReferencePrice(req.body);
+      res.json(price);
+    } catch (error) {
+      console.error("Error creating reference price:", error);
+      res.status(500).json({ error: "Failed to create reference price" });
+    }
+  });
+
+  // Admin: Atualizar preço de referência
+  app.put("/api/admin/reference-prices/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const price = await storage.updateReferencePrice(id, req.body);
+      res.json(price);
+    } catch (error) {
+      console.error("Error updating reference price:", error);
+      res.status(500).json({ error: "Failed to update reference price" });
+    }
+  });
+
+  // Admin: Deletar preço de referência
+  app.delete("/api/admin/reference-prices/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteReferencePrice(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting reference price:", error);
+      res.status(500).json({ error: "Failed to delete reference price" });
+    }
+  });
+
+  // ==================== FORNECEDORES DE MATERIAIS ====================
+
+  // Admin: Listar fornecedores de materiais
+  app.get("/api/admin/material-suppliers", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { city, state } = req.query;
+      const suppliers = await storage.getMaterialSuppliers({
+        city: city as string | undefined,
+        state: state as string | undefined,
+      });
+      res.json(suppliers);
+    } catch (error) {
+      console.error("Error fetching material suppliers:", error);
+      res.status(500).json({ error: "Failed to fetch material suppliers" });
+    }
+  });
+
+  // Admin: Criar fornecedor de materiais
+  app.post("/api/admin/material-suppliers", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const supplier = await storage.createMaterialSupplier(req.body);
+      res.json(supplier);
+    } catch (error) {
+      console.error("Error creating material supplier:", error);
+      res.status(500).json({ error: "Failed to create material supplier" });
+    }
+  });
+
+  // Admin: Atualizar fornecedor de materiais
+  app.put("/api/admin/material-suppliers/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const supplier = await storage.updateMaterialSupplier(id, req.body);
+      res.json(supplier);
+    } catch (error) {
+      console.error("Error updating material supplier:", error);
+      res.status(500).json({ error: "Failed to update material supplier" });
+    }
+  });
+
+  // Admin: Deletar fornecedor de materiais
+  app.delete("/api/admin/material-suppliers/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteMaterialSupplier(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting material supplier:", error);
+      res.status(500).json({ error: "Failed to delete material supplier" });
     }
   });
 

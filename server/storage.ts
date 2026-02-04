@@ -2,7 +2,7 @@ import {
   userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages,
   systemSettings, payments, suppliers, materials, materialOrders,
   aiDiagnoses, providerDiagnoses, digitalAcceptances, serviceExecutionLogs, paymentEscrows, antifraudFlags,
-  symptoms, symptomQuestions, symptomDiagnoses, localKnowledge,
+  symptoms, symptomQuestions, symptomDiagnoses, localKnowledge, referencePrices, materialSuppliers,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
   type ServiceRequest, type InsertServiceRequest,
@@ -25,6 +25,8 @@ import {
   type SymptomQuestion, type InsertSymptomQuestion,
   type SymptomDiagnosis, type InsertSymptomDiagnosis,
   type LocalKnowledge, type InsertLocalKnowledge,
+  type ReferencePrice, type InsertReferencePrice,
+  type MaterialSupplier, type InsertMaterialSupplier,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { db } from "./db";
@@ -163,6 +165,19 @@ export interface IStorage {
   createLocalKnowledge(data: InsertLocalKnowledge): Promise<LocalKnowledge>;
   updateLocalKnowledge(id: number, data: Partial<InsertLocalKnowledge>): Promise<LocalKnowledge | undefined>;
   deleteLocalKnowledge(id: number): Promise<void>;
+  
+  // Reference Prices (SINAPI, regional, market)
+  getReferencePrices(filters?: { categoryId?: number; state?: string; city?: string; itemType?: string }): Promise<ReferencePrice[]>;
+  getReferencePricesByKeywords(keywords: string[], state?: string): Promise<ReferencePrice[]>;
+  createReferencePrice(data: InsertReferencePrice): Promise<ReferencePrice>;
+  updateReferencePrice(id: number, data: Partial<InsertReferencePrice>): Promise<ReferencePrice | undefined>;
+  deleteReferencePrice(id: number): Promise<void>;
+  
+  // Material Suppliers
+  getMaterialSuppliers(filters?: { city?: string; state?: string }): Promise<MaterialSupplier[]>;
+  createMaterialSupplier(data: InsertMaterialSupplier): Promise<MaterialSupplier>;
+  updateMaterialSupplier(id: number, data: Partial<InsertMaterialSupplier>): Promise<MaterialSupplier | undefined>;
+  deleteMaterialSupplier(id: number): Promise<void>;
   
   // Helper: Get full symptom data for AI
   getFullSymptomData(categoryId?: number): Promise<{
@@ -771,6 +786,97 @@ class DatabaseStorage implements IStorage {
       questions: allQuestions,
       diagnoses: allDiagnoses,
     };
+  }
+  
+  // Reference Prices
+  async getReferencePrices(filters?: { categoryId?: number; state?: string; city?: string; itemType?: string }): Promise<ReferencePrice[]> {
+    const conditions = [eq(referencePrices.isActive, true)];
+    
+    if (filters?.categoryId) {
+      conditions.push(eq(referencePrices.categoryId, filters.categoryId));
+    }
+    if (filters?.state) {
+      conditions.push(or(eq(referencePrices.state, filters.state), sql`${referencePrices.state} IS NULL`)!);
+    }
+    if (filters?.city) {
+      conditions.push(or(eq(referencePrices.city, filters.city), sql`${referencePrices.city} IS NULL`)!);
+    }
+    if (filters?.itemType) {
+      conditions.push(eq(referencePrices.itemType, filters.itemType));
+    }
+    
+    return db.select().from(referencePrices)
+      .where(and(...conditions))
+      .orderBy(referencePrices.name);
+  }
+  
+  async getReferencePricesByKeywords(keywords: string[], state?: string): Promise<ReferencePrice[]> {
+    const keywordConditions = keywords.map(kw => 
+      sql`LOWER(${referencePrices.name}) LIKE LOWER(${'%' + kw + '%'}) OR LOWER(${referencePrices.keywords}) LIKE LOWER(${'%' + kw + '%'})`
+    );
+    
+    const conditions = [
+      eq(referencePrices.isActive, true),
+      or(...keywordConditions)!
+    ];
+    
+    if (state) {
+      conditions.push(or(eq(referencePrices.state, state), sql`${referencePrices.state} IS NULL`)!);
+    }
+    
+    return db.select().from(referencePrices)
+      .where(and(...conditions))
+      .limit(20);
+  }
+  
+  async createReferencePrice(data: InsertReferencePrice): Promise<ReferencePrice> {
+    const [price] = await db.insert(referencePrices).values(data).returning();
+    return price;
+  }
+  
+  async updateReferencePrice(id: number, data: Partial<InsertReferencePrice>): Promise<ReferencePrice | undefined> {
+    const [updated] = await db.update(referencePrices)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(referencePrices.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteReferencePrice(id: number): Promise<void> {
+    await db.update(referencePrices).set({ isActive: false }).where(eq(referencePrices.id, id));
+  }
+  
+  // Material Suppliers
+  async getMaterialSuppliers(filters?: { city?: string; state?: string }): Promise<MaterialSupplier[]> {
+    const conditions = [eq(materialSuppliers.isActive, true)];
+    
+    if (filters?.city) {
+      conditions.push(eq(materialSuppliers.city, filters.city));
+    }
+    if (filters?.state) {
+      conditions.push(eq(materialSuppliers.state, filters.state));
+    }
+    
+    return db.select().from(materialSuppliers)
+      .where(and(...conditions))
+      .orderBy(desc(materialSuppliers.rating));
+  }
+  
+  async createMaterialSupplier(data: InsertMaterialSupplier): Promise<MaterialSupplier> {
+    const [supplier] = await db.insert(materialSuppliers).values(data).returning();
+    return supplier;
+  }
+  
+  async updateMaterialSupplier(id: number, data: Partial<InsertMaterialSupplier>): Promise<MaterialSupplier | undefined> {
+    const [updated] = await db.update(materialSuppliers)
+      .set(data)
+      .where(eq(materialSuppliers.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteMaterialSupplier(id: number): Promise<void> {
+    await db.update(materialSuppliers).set({ isActive: false }).where(eq(materialSuppliers.id, id));
   }
 }
 

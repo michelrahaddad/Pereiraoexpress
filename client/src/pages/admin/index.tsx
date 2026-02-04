@@ -568,6 +568,10 @@ export default function AdminDashboard() {
               <UserCheck className="h-4 w-4" />
               Clientes
             </TabsTrigger>
+            <TabsTrigger value="reference-prices" className="rounded-lg gap-2" data-testid="tab-reference-prices">
+              <BarChart3 className="h-4 w-4" />
+              Preços SINAPI
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-6">
@@ -1363,9 +1367,363 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="reference-prices" className="space-y-6">
+            <ReferencePricesManager />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
+  );
+}
+
+// ==================== COMPONENTE DE GERENCIAMENTO DE PREÇOS SINAPI ====================
+
+interface ReferencePrice {
+  id: number;
+  code: string | null;
+  source: string;
+  categoryId: number | null;
+  state: string | null;
+  city: string | null;
+  itemType: string;
+  name: string;
+  description: string | null;
+  unit: string;
+  priceMin: number;
+  priceMax: number | null;
+  priceAvg: number | null;
+  laborPercent: number | null;
+  keywords: string | null;
+  isActive: boolean;
+}
+
+function ReferencePricesManager() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [filterType, setFilterType] = useState<string>("all");
+  const [filterSource, setFilterSource] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  const [newPrice, setNewPrice] = useState({
+    code: "",
+    source: "regional",
+    itemType: "service",
+    name: "",
+    description: "",
+    unit: "serv",
+    priceMin: "",
+    priceMax: "",
+    laborPercent: "",
+    keywords: "",
+    state: "",
+  });
+
+  const { data: prices = [], isLoading } = useQuery<ReferencePrice[]>({
+    queryKey: ["/api/admin/reference-prices"],
+  });
+
+  const createPrice = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest("POST", "/api/admin/reference-prices", {
+        ...data,
+        priceMin: parseInt(data.priceMin) * 100,
+        priceMax: data.priceMax ? parseInt(data.priceMax) * 100 : null,
+        laborPercent: data.laborPercent ? parseInt(data.laborPercent) : null,
+        keywords: data.keywords ? JSON.stringify(data.keywords.split(",").map((k: string) => k.trim())) : null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reference-prices"] });
+      setShowAddDialog(false);
+      setNewPrice({ code: "", source: "regional", itemType: "service", name: "", description: "", unit: "serv", priceMin: "", priceMax: "", laborPercent: "", keywords: "", state: "" });
+      toast({ title: "Preço adicionado!", description: "Preço de referência cadastrado com sucesso." });
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Não foi possível adicionar o preço.", variant: "destructive" });
+    },
+  });
+
+  const deletePrice = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/admin/reference-prices/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/reference-prices"] });
+      toast({ title: "Preço removido!", description: "Preço de referência excluído." });
+    },
+  });
+
+  const filteredPrices = useMemo(() => {
+    return prices.filter(p => {
+      if (filterType !== "all" && p.itemType !== filterType) return false;
+      if (filterSource !== "all" && p.source !== filterSource) return false;
+      if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    });
+  }, [prices, filterType, filterSource, searchTerm]);
+
+  const formatPrice = (cents: number) => {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <BarChart3 className="h-5 w-5" />
+          Preços de Referência (SINAPI/Regional)
+        </CardTitle>
+        <CardDescription>
+          Gerencie preços de referência para melhorar as estimativas da IA. Dados podem ser do SINAPI ou regionais.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex flex-wrap gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 w-48"
+                data-testid="input-search-prices"
+              />
+            </div>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-32" data-testid="select-filter-type">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="service">Serviço</SelectItem>
+                <SelectItem value="material">Material</SelectItem>
+                <SelectItem value="labor">Mão de obra</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterSource} onValueChange={setFilterSource}>
+              <SelectTrigger className="w-32" data-testid="select-filter-source">
+                <SelectValue placeholder="Fonte" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="sinapi">SINAPI</SelectItem>
+                <SelectItem value="regional">Regional</SelectItem>
+                <SelectItem value="mercado">Mercado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button data-testid="btn-add-price">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Preço
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Adicionar Preço de Referência</DialogTitle>
+                <DialogDescription>
+                  Cadastre um novo preço de serviço ou material para melhorar as estimativas da IA.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Fonte</Label>
+                    <Select value={newPrice.source} onValueChange={(v) => setNewPrice({ ...newPrice, source: v })}>
+                      <SelectTrigger data-testid="select-new-source">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sinapi">SINAPI</SelectItem>
+                        <SelectItem value="regional">Regional</SelectItem>
+                        <SelectItem value="mercado">Mercado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <Select value={newPrice.itemType} onValueChange={(v) => setNewPrice({ ...newPrice, itemType: v })}>
+                      <SelectTrigger data-testid="select-new-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="service">Serviço</SelectItem>
+                        <SelectItem value="material">Material</SelectItem>
+                        <SelectItem value="labor">Mão de obra</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Nome *</Label>
+                  <Input
+                    value={newPrice.name}
+                    onChange={(e) => setNewPrice({ ...newPrice, name: e.target.value })}
+                    placeholder="Ex: Desentupimento de pia"
+                    data-testid="input-new-name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <Textarea
+                    value={newPrice.description}
+                    onChange={(e) => setNewPrice({ ...newPrice, description: e.target.value })}
+                    placeholder="Descrição detalhada..."
+                    rows={2}
+                    data-testid="input-new-description"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Unidade</Label>
+                    <Select value={newPrice.unit} onValueChange={(v) => setNewPrice({ ...newPrice, unit: v })}>
+                      <SelectTrigger data-testid="select-new-unit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="serv">Serviço</SelectItem>
+                        <SelectItem value="un">Unidade</SelectItem>
+                        <SelectItem value="m²">m²</SelectItem>
+                        <SelectItem value="m">Metro</SelectItem>
+                        <SelectItem value="h">Hora</SelectItem>
+                        <SelectItem value="kg">kg</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preço Mín (R$) *</Label>
+                    <Input
+                      type="number"
+                      value={newPrice.priceMin}
+                      onChange={(e) => setNewPrice({ ...newPrice, priceMin: e.target.value })}
+                      placeholder="80"
+                      data-testid="input-new-price-min"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preço Máx (R$)</Label>
+                    <Input
+                      type="number"
+                      value={newPrice.priceMax}
+                      onChange={(e) => setNewPrice({ ...newPrice, priceMax: e.target.value })}
+                      placeholder="180"
+                      data-testid="input-new-price-max"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>% Mão de Obra</Label>
+                    <Input
+                      type="number"
+                      value={newPrice.laborPercent}
+                      onChange={(e) => setNewPrice({ ...newPrice, laborPercent: e.target.value })}
+                      placeholder="70"
+                      data-testid="input-new-labor"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Estado (UF)</Label>
+                    <Input
+                      value={newPrice.state}
+                      onChange={(e) => setNewPrice({ ...newPrice, state: e.target.value.toUpperCase().slice(0, 2) })}
+                      placeholder="SP"
+                      maxLength={2}
+                      data-testid="input-new-state"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Palavras-chave (separadas por vírgula)</Label>
+                  <Input
+                    value={newPrice.keywords}
+                    onChange={(e) => setNewPrice({ ...newPrice, keywords: e.target.value })}
+                    placeholder="entupido, pia, desentupir"
+                    data-testid="input-new-keywords"
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => createPrice.mutate(newPrice)}
+                  disabled={!newPrice.name || !newPrice.priceMin || createPrice.isPending}
+                  data-testid="btn-submit-price"
+                >
+                  {createPrice.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Adicionar Preço
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-16 bg-muted rounded animate-pulse" />
+            ))}
+          </div>
+        ) : filteredPrices.length > 0 ? (
+          <div className="space-y-2">
+            <div className="text-sm text-muted-foreground mb-2">
+              {filteredPrices.length} preços encontrados
+            </div>
+            {filteredPrices.map((price) => (
+              <div key={price.id} className="p-3 border rounded-lg hover-elevate flex items-center justify-between gap-4" data-testid={`price-row-${price.id}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium truncate">{price.name}</span>
+                    <Badge variant={price.source === "sinapi" ? "default" : "outline"} className="text-xs">
+                      {price.source.toUpperCase()}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {price.itemType === "service" ? "Serviço" : price.itemType === "material" ? "Material" : "Mão de obra"}
+                    </Badge>
+                    {price.state && (
+                      <Badge variant="outline" className="text-xs">{price.state}</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                    <span className="font-medium text-foreground">
+                      {formatPrice(price.priceMin)}
+                      {price.priceMax && ` - ${formatPrice(price.priceMax)}`}
+                    </span>
+                    <span>/{price.unit}</span>
+                    {price.laborPercent && (
+                      <span>{price.laborPercent}% mão de obra</span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => deletePrice.mutate(price.id)}
+                  data-testid={`btn-delete-price-${price.id}`}
+                >
+                  <XCircle className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-muted-foreground">
+            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum preço cadastrado</p>
+            <p className="text-sm mt-2">Clique em "Novo Preço" para adicionar</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
