@@ -7,6 +7,18 @@ import { db } from "./db";
 import { users, userProfiles } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { serviceRequests, serviceCategories } from "@shared/schema";
+import { z } from "zod";
+
+// Schemas de validação
+const aiDiagnoseSchema = z.object({
+  message: z.string().optional(),
+  imageBase64: z.string().optional(),
+  conversationHistory: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+  })).optional(),
+  categoryId: z.number().optional(),
+});
 
 const isAuthenticated = isLocalAuthenticated;
 
@@ -237,81 +249,132 @@ export async function registerRoutes(
 
   app.post("/api/ai/diagnose", isAuthenticated, async (req: any, res) => {
     try {
-      const { message, imageBase64, conversationHistory, categoryId } = req.body;
+      // Validar entrada
+      const validationResult = aiDiagnoseSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Dados inválidos", 
+          details: validationResult.error.flatten() 
+        });
+      }
+      
+      const { message, imageBase64, conversationHistory, categoryId } = validationResult.data;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
+      // Função para normalizar texto (remover acentos e converter para minúsculo)
+      const normalizeText = (text: string): string => {
+        return text
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+      };
+
+      // Função para parsing seguro de JSON
+      const safeJsonParse = (str: string | null): string[] => {
+        if (!str) return [];
+        try {
+          const parsed = JSON.parse(str);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      };
+
+      // Limite de caracteres para o contexto de conhecimento
+      const MAX_CONTEXT_LENGTH = 2000;
+
       // Buscar sintomas do banco de conhecimento baseados na mensagem e categoria
       let knowledgeBaseContext = "";
       try {
         const allSymptoms = await storage.getSymptoms();
+        
+        // Normalizar texto completo para busca
+        const messageLower = normalizeText(message || "");
+        const historyText = normalizeText(
+          conversationHistory?.map((m: any) => m.content).join(" ") || ""
+        );
+        const fullText = `${messageLower} ${historyText}`;
+
+        // Buscar sintomas relevantes com tratamento seguro
         const relevantSymptoms = allSymptoms.filter((s) => {
-          // Filtrar por categoria se fornecida
-          if (categoryId && s.categoryId !== categoryId) return false;
-          
-          // Buscar por palavras-chave
-          if (s.keywords) {
-            const keywords = JSON.parse(s.keywords) as string[];
-            const messageLower = message?.toLowerCase() || "";
-            const historyText = conversationHistory?.map((m: any) => m.content).join(" ").toLowerCase() || "";
-            const fullText = `${messageLower} ${historyText}`;
+          try {
+            if (categoryId && s.categoryId !== categoryId) return false;
             
-            return keywords.some((kw) => fullText.includes(kw.toLowerCase()));
+            const keywords = safeJsonParse(s.keywords);
+            if (keywords.length === 0) return false;
+            
+            return keywords.some((kw) => {
+              const normalizedKw = normalizeText(kw);
+              return fullText.includes(normalizedKw);
+            });
+          } catch {
+            return false;
           }
-          return false;
         });
 
         if (relevantSymptoms.length > 0) {
-          // Buscar detalhes dos sintomas encontrados (perguntas e diagnósticos)
           const symptomDetails = await Promise.all(
             relevantSymptoms.slice(0, 3).map(async (s) => {
-              const details = await storage.getSymptomWithDetails(s.id);
-              return details;
+              try {
+                return await storage.getSymptomWithDetails(s.id);
+              } catch {
+                return null;
+              }
             })
           );
 
           const validDetails = symptomDetails.filter(Boolean);
           if (validDetails.length > 0) {
-            knowledgeBaseContext = `\n\nBASE DE CONHECIMENTO (use para guiar o diagnóstico):\n`;
+            let contextBuilder = `\n\nBASE DE CONHECIMENTO (use para guiar o diagnóstico):\n`;
+            
             for (const detail of validDetails) {
-              knowledgeBaseContext += `\nSINTOMA: ${detail.name}\n`;
+              if (contextBuilder.length >= MAX_CONTEXT_LENGTH) break;
+              
+              let symptomContext = `\nSINTOMA: ${detail.name}\n`;
               if (detail.description) {
-                knowledgeBaseContext += `Descrição: ${detail.description}\n`;
+                symptomContext += `Descrição: ${detail.description}\n`;
               }
+              
               if (detail.questions && detail.questions.length > 0) {
-                knowledgeBaseContext += `Perguntas sugeridas:\n`;
-                for (const q of detail.questions) {
-                  knowledgeBaseContext += `- ${q.question}\n`;
+                symptomContext += `Perguntas sugeridas:\n`;
+                for (const q of detail.questions.slice(0, 3)) {
+                  symptomContext += `- ${q.question}\n`;
                 }
               }
+              
               if (detail.diagnoses && detail.diagnoses.length > 0) {
-                knowledgeBaseContext += `Diagnósticos possíveis:\n`;
-                for (const d of detail.diagnoses) {
-                  knowledgeBaseContext += `- ${d.title}: ${d.description}`;
+                symptomContext += `Diagnósticos possíveis:\n`;
+                for (const d of detail.diagnoses.slice(0, 3)) {
+                  symptomContext += `- ${d.title}: ${d.description}`;
                   if (d.estimatedPriceMin && d.estimatedPriceMax) {
-                    knowledgeBaseContext += ` (R$ ${d.estimatedPriceMin / 100} - R$ ${d.estimatedPriceMax / 100})`;
+                    symptomContext += ` (R$ ${d.estimatedPriceMin / 100} - R$ ${d.estimatedPriceMax / 100})`;
                   }
                   if (d.urgencyLevel !== "normal") {
-                    knowledgeBaseContext += ` [${d.urgencyLevel.toUpperCase()}]`;
+                    symptomContext += ` [${d.urgencyLevel.toUpperCase()}]`;
                   }
-                  knowledgeBaseContext += `\n`;
-                  if (d.providerMaterials) {
-                    const materials = JSON.parse(d.providerMaterials) as string[];
-                    if (materials.length > 0) {
-                      knowledgeBaseContext += `  Materiais do prestador: ${materials.join(", ")}\n`;
-                    }
+                  symptomContext += `\n`;
+                  
+                  const providerMats = safeJsonParse(d.providerMaterials);
+                  if (providerMats.length > 0) {
+                    symptomContext += `  Materiais do prestador: ${providerMats.join(", ")}\n`;
                   }
-                  if (d.clientMaterials) {
-                    const materials = JSON.parse(d.clientMaterials) as string[];
-                    if (materials.length > 0) {
-                      knowledgeBaseContext += `  Materiais do cliente: ${materials.join(", ")}\n`;
-                    }
+                  
+                  const clientMats = safeJsonParse(d.clientMaterials);
+                  if (clientMats.length > 0) {
+                    symptomContext += `  Materiais do cliente: ${clientMats.join(", ")}\n`;
                   }
                 }
               }
+              
+              if (contextBuilder.length + symptomContext.length <= MAX_CONTEXT_LENGTH) {
+                contextBuilder += symptomContext;
+              }
             }
+            
+            knowledgeBaseContext = contextBuilder;
           }
         }
       } catch (err) {
@@ -398,7 +461,13 @@ Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
             data: base64Data,
           },
         });
-        userParts.push({ text: "Analise esta imagem do problema." });
+        userParts.push({ text: `Analise esta imagem do problema com atenção. Identifique:
+1. O tipo de problema visível (vazamento, dano, desgaste, ferrugem, manchas, etc)
+2. A gravidade aparente (leve, moderado, grave, urgente)
+3. Materiais e equipamentos visíveis que podem ajudar no diagnóstico
+4. Se há sinais de tentativas anteriores de reparo
+
+Baseie seu diagnóstico no que você vê na imagem combinado com a descrição do cliente.` });
       }
 
       chatMessages.push({ role: "user", parts: userParts });
