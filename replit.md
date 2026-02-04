@@ -82,10 +82,16 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Symptom Knowledge Base
 - **Symptoms**: Linked to service categories with keywords for matching
-- **Symptom Questions**: Refinement questions per symptom with expected responses
+- **Symptom Questions**: Refinement questions per symptom with expected responses and trigger keywords
+- **Conditional Questions**: Questions can be configured with trigger keywords (e.g., "vazamento" triggers water pressure/color questions)
 - **Symptom Diagnoses**: Possible diagnoses with price ranges, materials, and urgency levels
 - **Local Knowledge**: City-specific service information (material suppliers, service particularities)
 - **AI Integration**: Knowledge base is automatically queried during diagnosis to provide context to Gemini
+- **Conditional Question Logic**:
+  - If user mentions "vazamento/água" → AI asks about water pressure and color
+  - If user mentions "elétrica/tomada" → AI asks about circuit breaker and burning smell
+  - If user mentions "entupimento" → AI asks about location and water backflow
+  - If user mentions "portão/motor" → AI asks about gate type and motor sounds
 - **Features**: Accent normalization for Portuguese, safe JSON parsing, token limit protection (2000 chars)
 
 ### Build System

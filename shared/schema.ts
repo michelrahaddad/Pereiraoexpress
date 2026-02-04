@@ -304,6 +304,8 @@ export const symptomQuestions = pgTable("symptom_questions", {
   question: text("question").notNull(), // Ex: "A água está limpa ou suja?"
   questionOrder: integer("question_order").default(1), // Ordem da pergunta
   expectedResponses: text("expected_responses"), // Respostas esperadas (JSON array)
+  triggerKeywords: text("trigger_keywords"), // Palavras que ativam esta pergunta (JSON array) Ex: ["vazamento", "vazando", "goteira"]
+  triggerCondition: text("trigger_condition"), // Condição baseada em resposta anterior (JSON) Ex: {"questionId": 1, "answer": "sim"}
   isRequired: boolean("is_required").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

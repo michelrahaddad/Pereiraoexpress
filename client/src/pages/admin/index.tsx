@@ -1177,6 +1177,7 @@ interface SymptomQuestion {
   question: string;
   questionOrder: number;
   expectedResponses: string | null;
+  triggerKeywords: string | null;
   isRequired: boolean;
 }
 
@@ -1221,6 +1222,7 @@ function SymptomsManager() {
     question: "",
     questionOrder: 1,
     expectedResponses: "",
+    triggerKeywords: "",
     isRequired: true,
   });
   const [diagnosisForm, setDiagnosisForm] = useState({
@@ -1287,7 +1289,7 @@ function SymptomsManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/symptoms", selectedSymptom?.id] });
       setIsAddQuestionOpen(false);
-      setQuestionForm({ question: "", questionOrder: 1, expectedResponses: "", isRequired: true });
+      setQuestionForm({ question: "", questionOrder: 1, expectedResponses: "", triggerKeywords: "", isRequired: true });
       toast({ title: "Pergunta criada!" });
     },
   });
@@ -1354,6 +1356,7 @@ function SymptomsManager() {
       question: questionForm.question,
       questionOrder: questionForm.questionOrder,
       expectedResponses: questionForm.expectedResponses ? JSON.stringify(questionForm.expectedResponses.split(",").map(r => r.trim())) : null,
+      triggerKeywords: questionForm.triggerKeywords ? JSON.stringify(questionForm.triggerKeywords.split(",").map(k => k.trim())) : null,
       isRequired: questionForm.isRequired,
     });
   };
@@ -1572,6 +1575,18 @@ function SymptomsManager() {
                           data-testid="input-question-responses"
                         />
                       </div>
+                      <div>
+                        <Label>Palavras que ativam esta pergunta (separadas por vírgula)</Label>
+                        <Input
+                          value={questionForm.triggerKeywords}
+                          onChange={(e) => setQuestionForm({ ...questionForm, triggerKeywords: e.target.value })}
+                          placeholder="vazamento, vazando, goteira"
+                          data-testid="input-question-triggers"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Se preenchido, esta pergunta só será sugerida quando o cliente mencionar essas palavras
+                        </p>
+                      </div>
                       <Button onClick={handleAddQuestion} disabled={createQuestion.isPending} data-testid="btn-save-question">
                         {createQuestion.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         Salvar Pergunta
@@ -1592,6 +1607,11 @@ function SymptomsManager() {
                           {q.expectedResponses && (
                             <p className="text-sm text-muted-foreground mt-1">
                               Respostas: {JSON.parse(q.expectedResponses).join(", ")}
+                            </p>
+                          )}
+                          {q.triggerKeywords && (
+                            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                              Ativa quando: {JSON.parse(q.triggerKeywords).join(", ")}
                             </p>
                           )}
                         </div>
