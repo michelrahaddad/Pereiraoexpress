@@ -2,12 +2,18 @@
  * Calcula o multiplicador de preço baseado na nota do profissional
  * 
  * Lógica:
+ * - Profissional novo (sem avaliações): 1.0x (preço base)
  * - Nota 0-5: 0.8x (desconto de 20%)
  * - Nota 5.1-8: 1.2x (aumento de 20%)
  * - Nota 8.1-9: 1.3x (aumento de 30%)
  * - Nota 9.1-10: 1.5x (aumento de 50%)
  */
-export function getPriceMultiplier(rating: number): number {
+export function getPriceMultiplier(rating: number, totalRatings: number = 0): number {
+  // Profissionais novos (sem avaliações) usam preço base
+  if (totalRatings === 0) {
+    return 1.0;
+  }
+  
   if (rating <= 5) {
     return 0.8;
   } else if (rating <= 8) {
@@ -22,15 +28,18 @@ export function getPriceMultiplier(rating: number): number {
 /**
  * Calcula o preço ajustado baseado na nota do profissional
  */
-export function getAdjustedPrice(basePrice: number, rating: number): number {
-  const multiplier = getPriceMultiplier(rating);
+export function getAdjustedPrice(basePrice: number, rating: number, totalRatings: number = 0): number {
+  const multiplier = getPriceMultiplier(rating, totalRatings);
   return Math.round(basePrice * multiplier);
 }
 
 /**
  * Retorna o texto descritivo do nível de experiência baseado na nota
  */
-export function getRatingLevel(rating: number): string {
+export function getRatingLevel(rating: number, totalRatings: number = 0): string {
+  if (totalRatings === 0) {
+    return "Novo";
+  }
   if (rating >= 9.1) {
     return "Premium";
   } else if (rating >= 8.1) {

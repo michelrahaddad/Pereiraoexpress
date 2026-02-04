@@ -586,6 +586,98 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
     }
   });
 
+  // Provider selection routes - Client selects provider after fee payment
+  app.get("/api/providers/available", isAuthenticated, async (req: any, res) => {
+    try {
+      const { city, categoryId, serviceId } = req.query;
+      
+      // Get available providers, optionally filtered by city
+      const providers = await storage.getAvailableProviders(city as string);
+      
+      // Get base price from service if serviceId provided
+      let basePrice = 0;
+      if (serviceId) {
+        const service = await storage.getServiceById(parseInt(serviceId as string));
+        if (service) {
+          const category = await storage.getCategoryById(service.categoryId);
+          basePrice = category?.basePrice || 0;
+        }
+      } else if (categoryId) {
+        const category = await storage.getCategoryById(parseInt(categoryId as string));
+        basePrice = category?.basePrice || 0;
+      }
+      
+      // Calculate adjusted price for each provider based on rating
+      const { getAdjustedPrice, getRatingLevel } = await import("@shared/priceMultiplier");
+      
+      const providersWithPricing = providers.map(provider => {
+        const rating = parseFloat(provider.rating || "10");
+        const totalRatings = provider.totalRatings || 0;
+        return {
+          ...provider,
+          adjustedPrice: getAdjustedPrice(basePrice, rating, totalRatings),
+          ratingLevel: getRatingLevel(rating, totalRatings),
+          basePrice,
+        };
+      });
+      
+      res.json(providersWithPricing);
+    } catch (error) {
+      console.error("Error fetching available providers:", error);
+      res.status(500).json({ error: "Failed to fetch providers" });
+    }
+  });
+
+  app.post("/api/services/:id/select-provider", isAuthenticated, async (req: any, res) => {
+    try {
+      const serviceId = parseInt(req.params.id);
+      const { providerId } = req.body;
+      const clientId = req.user.claims.sub;
+      
+      const service = await storage.getServiceById(serviceId);
+      
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      if (service.clientId !== clientId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+      
+      // Verify service is in the correct status for provider selection
+      if (service.status !== "fee_paid" && service.status !== "selecting_provider") {
+        return res.status(400).json({ error: "Service is not ready for provider selection" });
+      }
+      
+      // Get provider to calculate adjusted price
+      const provider = await storage.getUserProfile(providerId);
+      if (!provider || provider.role !== "provider") {
+        return res.status(400).json({ error: "Invalid provider" });
+      }
+      
+      // Calculate adjusted price
+      const category = await storage.getCategoryById(service.categoryId);
+      const { getAdjustedPrice } = await import("@shared/priceMultiplier");
+      const adjustedPrice = getAdjustedPrice(
+        category?.basePrice || 0, 
+        parseFloat(provider.rating || "10"),
+        provider.totalRatings || 0
+      );
+      
+      // Update service with selected provider
+      const updatedService = await storage.updateService(serviceId, {
+        providerId,
+        status: "provider_assigned",
+        estimatedPrice: adjustedPrice,
+      });
+      
+      res.json(updatedService);
+    } catch (error) {
+      console.error("Error selecting provider:", error);
+      res.status(500).json({ error: "Failed to select provider" });
+    }
+  });
+
   // Payment routes
   app.post("/api/payments", isAuthenticated, async (req: any, res) => {
     try {
@@ -625,6 +717,79 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
     } catch (error) {
       console.error("Error fetching payments:", error);
       res.status(500).json({ error: "Failed to fetch payments" });
+    }
+  });
+
+  // Review routes - Client rates provider after service completion
+  app.post("/api/reviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const clientId = req.user.claims.sub;
+      const { serviceRequestId, rating, comment } = req.body;
+      
+      // Validate rating (0-10 scale)
+      if (rating < 0 || rating > 10) {
+        return res.status(400).json({ error: "Rating must be between 0 and 10" });
+      }
+      
+      // Get service to verify ownership and completion
+      const service = await storage.getServiceById(serviceRequestId);
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+      
+      if (service.clientId !== clientId) {
+        return res.status(403).json({ error: "Not authorized to review this service" });
+      }
+      
+      if (service.status !== "completed" && service.status !== "awaiting_confirmation") {
+        return res.status(400).json({ error: "Service must be completed to leave a review" });
+      }
+      
+      if (!service.providerId) {
+        return res.status(400).json({ error: "No provider assigned to this service" });
+      }
+      
+      // Create review
+      const review = await storage.createReview({
+        serviceRequestId,
+        clientId,
+        providerId: service.providerId,
+        rating,
+        comment,
+      });
+      
+      // Update provider's rating
+      const { calculateNewRating } = await import("@shared/priceMultiplier");
+      const provider = await storage.getUserProfile(service.providerId);
+      
+      if (provider) {
+        const currentRating = parseFloat(provider.rating || "10");
+        const totalRatings = provider.totalRatings || 0;
+        const newRating = calculateNewRating(currentRating, totalRatings, rating);
+        
+        await storage.updateProviderRating(service.providerId, newRating, totalRatings + 1);
+      }
+      
+      // Mark service as completed if it was awaiting confirmation
+      if (service.status === "awaiting_confirmation") {
+        await storage.updateService(serviceRequestId, { status: "completed" });
+      }
+      
+      res.json(review);
+    } catch (error) {
+      console.error("Error creating review:", error);
+      res.status(500).json({ error: "Failed to create review" });
+    }
+  });
+
+  app.get("/api/reviews/provider/:providerId", async (req, res) => {
+    try {
+      const { providerId } = req.params;
+      const reviews = await storage.getReviewsByProvider(providerId);
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      res.status(500).json({ error: "Failed to fetch reviews" });
     }
   });
 

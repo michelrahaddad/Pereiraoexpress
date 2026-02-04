@@ -75,6 +75,10 @@ export interface IStorage {
   // Admin
   getAllUserProfiles(): Promise<UserProfile[]>;
   
+  // Providers
+  getAvailableProviders(city?: string, categoryId?: number): Promise<UserProfile[]>;
+  updateProviderRating(userId: string, newRating: number, totalRatings: number): Promise<UserProfile | undefined>;
+  
   // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
   
   // AI Diagnosis
@@ -349,6 +353,37 @@ class DatabaseStorage implements IStorage {
   // Admin
   async getAllUserProfiles(): Promise<UserProfile[]> {
     return db.select().from(userProfiles).orderBy(desc(userProfiles.createdAt));
+  }
+
+  async getAvailableProviders(city?: string, categoryId?: number): Promise<UserProfile[]> {
+    let query = db.select().from(userProfiles)
+      .where(
+        and(
+          eq(userProfiles.role, "provider"),
+          eq(userProfiles.isAvailable, true)
+        )
+      )
+      .orderBy(desc(userProfiles.rating));
+    
+    const results = await query;
+    
+    // Filter by city if provided
+    if (city) {
+      return results.filter(p => p.city?.toLowerCase() === city.toLowerCase());
+    }
+    
+    return results;
+  }
+
+  async updateProviderRating(userId: string, newRating: number, totalRatings: number): Promise<UserProfile | undefined> {
+    const [updated] = await db.update(userProfiles)
+      .set({ 
+        rating: newRating.toFixed(1),
+        totalRatings 
+      })
+      .where(eq(userProfiles.userId, userId))
+      .returning();
+    return updated;
   }
 
   // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
