@@ -181,6 +181,26 @@ export default function NewService() {
     };
   }, []);
 
+  useEffect(() => {
+    const userMessageCount = messages.filter(m => m.role === "user").length;
+    if (userMessageCount >= 3 && !isStreaming && !createAIDiagnosisMutation.isPending && step === "chat") {
+      const description = messages
+        .filter(m => m.role === "user")
+        .map(m => m.content)
+        .join("\n");
+      
+      const contextSummary = guidedAnswers.map(a => `${a.question}: ${a.answer}`).join(". ");
+      const title = `${guidedAnswers[0]?.answer || "Serviço"} - ${guidedAnswers[2]?.answer || "Geral"}`;
+
+      createAIDiagnosisMutation.mutate({
+        description: `${contextSummary}\n\nDetalhes: ${description}`,
+        guidedAnswers,
+        mediaUrls: selectedPhotos,
+        title,
+      });
+    }
+  }, [messages, isStreaming]);
+
   if (!authLoading && !isAuthenticated) {
     return (
       <div className="min-h-screen bg-background">
@@ -590,21 +610,11 @@ export default function NewService() {
             </ScrollArea>
 
             <div className="border-t p-4 space-y-3">
-              {messages.filter(m => m.role === "user").length >= 1 && (
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleGenerateDiagnosis}
-                  disabled={createAIDiagnosisMutation.isPending}
-                  data-testid="button-generate-diagnosis"
-                >
-                  {createAIDiagnosisMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 mr-2" />
-                  )}
-                  Gerar diagnóstico IA
-                </Button>
+              {createAIDiagnosisMutation.isPending && (
+                <div className="flex items-center justify-center gap-2 py-2 text-primary">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm font-medium">Gerando diagnóstico...</span>
+                </div>
               )}
 
               {selectedImage && (
