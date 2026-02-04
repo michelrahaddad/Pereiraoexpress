@@ -2,6 +2,7 @@ import {
   userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages,
   systemSettings, payments, suppliers, materials, materialOrders,
   aiDiagnoses, providerDiagnoses, digitalAcceptances, serviceExecutionLogs, paymentEscrows, antifraudFlags,
+  symptoms, symptomQuestions, symptomDiagnoses, localKnowledge,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
   type ServiceRequest, type InsertServiceRequest,
@@ -20,6 +21,10 @@ import {
   type ServiceExecutionLog, type InsertServiceExecutionLog,
   type PaymentEscrow, type InsertPaymentEscrow,
   type AntifraudFlag, type InsertAntifraudFlag,
+  type Symptom, type InsertSymptom,
+  type SymptomQuestion, type InsertSymptomQuestion,
+  type SymptomDiagnosis, type InsertSymptomDiagnosis,
+  type LocalKnowledge, type InsertLocalKnowledge,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
@@ -123,6 +128,42 @@ export interface IStorage {
   getMaterialOrderByServiceId(serviceRequestId: number): Promise<MaterialOrder | undefined>;
   getMaterialOrdersBySupplierId(supplierId: number): Promise<MaterialOrder[]>;
   updateMaterialOrderStatus(id: number, status: string): Promise<MaterialOrder | undefined>;
+  
+  // ==================== BANCO DE SINTOMAS PARA DIAGNÓSTICO ====================
+  
+  // Symptoms
+  getSymptoms(): Promise<Symptom[]>;
+  getSymptomById(id: number): Promise<Symptom | undefined>;
+  getSymptomsByCategoryId(categoryId: number): Promise<Symptom[]>;
+  createSymptom(data: InsertSymptom): Promise<Symptom>;
+  updateSymptom(id: number, data: Partial<InsertSymptom>): Promise<Symptom | undefined>;
+  deleteSymptom(id: number): Promise<void>;
+  
+  // Symptom Questions
+  getSymptomQuestions(symptomId: number): Promise<SymptomQuestion[]>;
+  createSymptomQuestion(data: InsertSymptomQuestion): Promise<SymptomQuestion>;
+  updateSymptomQuestion(id: number, data: Partial<InsertSymptomQuestion>): Promise<SymptomQuestion | undefined>;
+  deleteSymptomQuestion(id: number): Promise<void>;
+  
+  // Symptom Diagnoses
+  getSymptomDiagnoses(symptomId: number): Promise<SymptomDiagnosis[]>;
+  createSymptomDiagnosis(data: InsertSymptomDiagnosis): Promise<SymptomDiagnosis>;
+  updateSymptomDiagnosis(id: number, data: Partial<InsertSymptomDiagnosis>): Promise<SymptomDiagnosis | undefined>;
+  deleteSymptomDiagnosis(id: number): Promise<void>;
+  
+  // Local Knowledge
+  getLocalKnowledge(): Promise<LocalKnowledge[]>;
+  getLocalKnowledgeByCity(city: string): Promise<LocalKnowledge[]>;
+  createLocalKnowledge(data: InsertLocalKnowledge): Promise<LocalKnowledge>;
+  updateLocalKnowledge(id: number, data: Partial<InsertLocalKnowledge>): Promise<LocalKnowledge | undefined>;
+  deleteLocalKnowledge(id: number): Promise<void>;
+  
+  // Helper: Get full symptom data for AI
+  getFullSymptomData(categoryId?: number): Promise<{
+    symptoms: Symptom[];
+    questions: SymptomQuestion[];
+    diagnoses: SymptomDiagnosis[];
+  }>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -520,6 +561,151 @@ class DatabaseStorage implements IStorage {
       .where(eq(materialOrders.id, id))
       .returning();
     return updated;
+  }
+  
+  // ==================== BANCO DE SINTOMAS PARA DIAGNÓSTICO ====================
+  
+  // Symptoms
+  async getSymptoms(): Promise<Symptom[]> {
+    return db.select().from(symptoms).where(eq(symptoms.isActive, true)).orderBy(symptoms.name);
+  }
+  
+  async getSymptomById(id: number): Promise<Symptom | undefined> {
+    const [symptom] = await db.select().from(symptoms).where(eq(symptoms.id, id));
+    return symptom;
+  }
+  
+  async getSymptomsByCategoryId(categoryId: number): Promise<Symptom[]> {
+    return db.select().from(symptoms)
+      .where(and(eq(symptoms.categoryId, categoryId), eq(symptoms.isActive, true)))
+      .orderBy(symptoms.name);
+  }
+  
+  async createSymptom(data: InsertSymptom): Promise<Symptom> {
+    const [symptom] = await db.insert(symptoms).values(data).returning();
+    return symptom;
+  }
+  
+  async updateSymptom(id: number, data: Partial<InsertSymptom>): Promise<Symptom | undefined> {
+    const [updated] = await db.update(symptoms)
+      .set(data)
+      .where(eq(symptoms.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteSymptom(id: number): Promise<void> {
+    await db.update(symptoms).set({ isActive: false }).where(eq(symptoms.id, id));
+  }
+  
+  // Symptom Questions
+  async getSymptomQuestions(symptomId: number): Promise<SymptomQuestion[]> {
+    return db.select().from(symptomQuestions)
+      .where(eq(symptomQuestions.symptomId, symptomId))
+      .orderBy(symptomQuestions.questionOrder);
+  }
+  
+  async createSymptomQuestion(data: InsertSymptomQuestion): Promise<SymptomQuestion> {
+    const [question] = await db.insert(symptomQuestions).values(data).returning();
+    return question;
+  }
+  
+  async updateSymptomQuestion(id: number, data: Partial<InsertSymptomQuestion>): Promise<SymptomQuestion | undefined> {
+    const [updated] = await db.update(symptomQuestions)
+      .set(data)
+      .where(eq(symptomQuestions.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteSymptomQuestion(id: number): Promise<void> {
+    await db.delete(symptomQuestions).where(eq(symptomQuestions.id, id));
+  }
+  
+  // Symptom Diagnoses
+  async getSymptomDiagnoses(symptomId: number): Promise<SymptomDiagnosis[]> {
+    return db.select().from(symptomDiagnoses)
+      .where(and(eq(symptomDiagnoses.symptomId, symptomId), eq(symptomDiagnoses.isActive, true)));
+  }
+  
+  async createSymptomDiagnosis(data: InsertSymptomDiagnosis): Promise<SymptomDiagnosis> {
+    const [diagnosis] = await db.insert(symptomDiagnoses).values(data).returning();
+    return diagnosis;
+  }
+  
+  async updateSymptomDiagnosis(id: number, data: Partial<InsertSymptomDiagnosis>): Promise<SymptomDiagnosis | undefined> {
+    const [updated] = await db.update(symptomDiagnoses)
+      .set(data)
+      .where(eq(symptomDiagnoses.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteSymptomDiagnosis(id: number): Promise<void> {
+    await db.update(symptomDiagnoses).set({ isActive: false }).where(eq(symptomDiagnoses.id, id));
+  }
+  
+  // Local Knowledge
+  async getLocalKnowledge(): Promise<LocalKnowledge[]> {
+    return db.select().from(localKnowledge).where(eq(localKnowledge.isActive, true));
+  }
+  
+  async getLocalKnowledgeByCity(city: string): Promise<LocalKnowledge[]> {
+    return db.select().from(localKnowledge)
+      .where(and(
+        or(eq(localKnowledge.city, city), sql`${localKnowledge.city} IS NULL`),
+        eq(localKnowledge.isActive, true)
+      ));
+  }
+  
+  async createLocalKnowledge(data: InsertLocalKnowledge): Promise<LocalKnowledge> {
+    const [knowledge] = await db.insert(localKnowledge).values(data).returning();
+    return knowledge;
+  }
+  
+  async updateLocalKnowledge(id: number, data: Partial<InsertLocalKnowledge>): Promise<LocalKnowledge | undefined> {
+    const [updated] = await db.update(localKnowledge)
+      .set(data)
+      .where(eq(localKnowledge.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteLocalKnowledge(id: number): Promise<void> {
+    await db.update(localKnowledge).set({ isActive: false }).where(eq(localKnowledge.id, id));
+  }
+  
+  // Helper: Get full symptom data for AI
+  async getFullSymptomData(categoryId?: number): Promise<{
+    symptoms: Symptom[];
+    questions: SymptomQuestion[];
+    diagnoses: SymptomDiagnosis[];
+  }> {
+    const allSymptoms = categoryId 
+      ? await this.getSymptomsByCategoryId(categoryId)
+      : await this.getSymptoms();
+    
+    const symptomIds = allSymptoms.map(s => s.id);
+    
+    const allQuestions = symptomIds.length > 0
+      ? await db.select().from(symptomQuestions)
+          .where(sql`${symptomQuestions.symptomId} IN (${sql.join(symptomIds.map(id => sql`${id}`), sql`, `)})`)
+          .orderBy(symptomQuestions.questionOrder)
+      : [];
+    
+    const allDiagnoses = symptomIds.length > 0
+      ? await db.select().from(symptomDiagnoses)
+          .where(and(
+            sql`${symptomDiagnoses.symptomId} IN (${sql.join(symptomIds.map(id => sql`${id}`), sql`, `)})`,
+            eq(symptomDiagnoses.isActive, true)
+          ))
+      : [];
+    
+    return {
+      symptoms: allSymptoms,
+      questions: allQuestions,
+      diagnoses: allDiagnoses,
+    };
   }
 }
 
