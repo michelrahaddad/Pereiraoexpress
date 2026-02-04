@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -304,11 +305,13 @@ export default function AdminDashboard() {
           variant="ghost" 
           size="sm" 
           className="mb-4 gap-2" 
-          onClick={() => window.history.back()}
+          asChild
           data-testid="button-back"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
+          <Link href="/">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
         </Button>
 
         <div className="flex items-center justify-between mb-8">

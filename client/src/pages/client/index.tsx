@@ -117,11 +117,13 @@ export default function ClientDashboard() {
           variant="ghost" 
           size="sm" 
           className="mb-4 gap-2" 
-          onClick={() => window.history.back()}
+          asChild
           data-testid="button-back"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
+          <Link href="/">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
         </Button>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">

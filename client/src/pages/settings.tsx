@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ export default function Settings() {
   const { user, isAuthenticated, refetch } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -122,7 +123,7 @@ export default function Settings() {
           variant="ghost" 
           size="sm" 
           className="mb-4 gap-2" 
-          onClick={() => window.history.back()}
+          onClick={() => setLocation(user?.role === "provider" ? "/provider" : user?.role === "admin" ? "/admin" : "/client")}
           data-testid="button-back"
         >
           <ArrowLeft className="h-4 w-4" />
