@@ -113,12 +113,7 @@ export default function ServiceDetails() {
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   const { data: serviceDetails, isLoading } = useQuery<ServiceDetails>({
-    queryKey: ["/api/service", params?.id, "full"],
-    queryFn: async () => {
-      const res = await fetch(`/api/service/${params?.id}/full`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch service");
-      return res.json();
-    },
+    queryKey: [`/api/service/${params?.id}/full`],
     enabled: !!params?.id && isAuthenticated,
   });
 
@@ -128,7 +123,7 @@ export default function ServiceDetails() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service", params?.id, "full"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/service/${params?.id}/full`] });
       toast({
         title: "Orçamento aceito!",
         description: "Pagamento processado. O profissional iniciará o serviço em breve.",
@@ -150,7 +145,7 @@ export default function ServiceDetails() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service", params?.id, "full"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/service/${params?.id}/full`] });
       toast({
         title: "Serviço confirmado!",
         description: "O pagamento será liberado ao profissional.",
@@ -167,10 +162,10 @@ export default function ServiceDetails() {
 
   const cancelMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("PATCH", `/api/services/${params?.id}/status`, { status: "cancelled" });
+      return apiRequest("PATCH", `/api/service/${params?.id}/status`, { status: "cancelled" });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/service", params?.id, "full"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/service/${params?.id}/full`] });
       toast({
         title: "Serviço cancelado",
         description: "O serviço foi cancelado com sucesso.",

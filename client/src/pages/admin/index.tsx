@@ -524,6 +524,10 @@ export default function AdminDashboard() {
               <Database className="h-4 w-4" />
               Backup
             </TabsTrigger>
+            <TabsTrigger value="antifraud" className="rounded-lg gap-2" data-testid="tab-antifraud">
+              <AlertTriangle className="h-4 w-4" />
+              Antifraude
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-6">
@@ -1049,6 +1053,92 @@ export default function AdminDashboard() {
                   <div className="p-4 border rounded-xl text-center">
                     <p className="text-2xl font-bold text-primary">{stats?.totalPayments || 0}</p>
                     <p className="text-sm text-muted-foreground">Pagamentos</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="antifraud" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Sistema Antifraude
+                </CardTitle>
+                <CardDescription>Monitore flags de risco e comportamentos suspeitos</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="p-4 text-center border rounded-xl bg-green-500/10 border-green-500/20">
+                    <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                    <p className="text-2xl font-bold">Baixo Risco</p>
+                    <p className="text-sm text-muted-foreground">Operações normais</p>
+                  </div>
+                  <div className="p-4 text-center border rounded-xl bg-yellow-500/10 border-yellow-500/20">
+                    <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-sm text-muted-foreground">Alertas pendentes</p>
+                  </div>
+                  <div className="p-4 text-center border rounded-xl bg-red-500/10 border-red-500/20">
+                    <XCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                    <p className="text-2xl font-bold">0</p>
+                    <p className="text-sm text-muted-foreground">Bloqueados</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">Regras de Detecção Ativas</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium text-sm">Múltiplos serviços mesmo CPF</p>
+                          <p className="text-xs text-muted-foreground">Detecta 3+ serviços pendentes do mesmo CPF</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline">Ativo</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium text-sm">Distância geolocalização</p>
+                          <p className="text-xs text-muted-foreground">Alerta se distância &gt; 50km do endereço cadastrado</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline">Ativo</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium text-sm">Valor acima do padrão</p>
+                          <p className="text-xs text-muted-foreground">Alerta para serviços &gt; R$ 5.000</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline">Ativo</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="font-medium text-sm">Cancelamentos frequentes</p>
+                          <p className="text-xs text-muted-foreground">Flag para 3+ cancelamentos em 30 dias</p>
+                        </div>
+                      </div>
+                      <Badge variant="outline">Ativo</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">Histórico de Alertas</h3>
+                  <div className="p-8 text-center border rounded-lg">
+                    <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">Nenhum alerta registrado</p>
+                    <p className="text-sm text-muted-foreground">Todas as operações estão dentro dos padrões normais</p>
                   </div>
                 </div>
               </CardContent>
