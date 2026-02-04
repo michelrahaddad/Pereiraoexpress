@@ -44,9 +44,9 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
           )}
           <Link href="/" className="flex items-center gap-2">
             <img
-              src="/logo.png"
+              src="/logo-horizontal.png"
               alt="Pereirão Express"
-              className="h-20 object-contain"
+              className="h-14 object-contain"
             />
           </Link>
         </div>

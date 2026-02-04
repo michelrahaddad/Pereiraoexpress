@@ -393,7 +393,7 @@ export default function Landing() {
         <div className="container px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Pereirão Express" className="h-16 object-contain" />
+              <img src="/logo-vertical.png" alt="Pereirão Express" className="h-24 object-contain" />
             </div>
             <p className="text-sm text-muted-foreground">
               © 2024 Pereirão Express. Todos os direitos reservados.
