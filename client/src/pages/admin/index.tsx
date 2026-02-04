@@ -528,6 +528,10 @@ export default function AdminDashboard() {
               <AlertTriangle className="h-4 w-4" />
               Antifraude
             </TabsTrigger>
+            <TabsTrigger value="symptoms" className="rounded-lg gap-2" data-testid="tab-symptoms">
+              <Sparkles className="h-4 w-4" />
+              Sintomas IA
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-6">
@@ -1144,8 +1148,641 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="symptoms" className="space-y-6">
+            <SymptomsManager />
+          </TabsContent>
         </Tabs>
       </main>
+    </div>
+  );
+}
+
+// ==================== COMPONENTE DE GERENCIAMENTO DE SINTOMAS ====================
+
+interface Symptom {
+  id: number;
+  categoryId: number;
+  name: string;
+  description: string | null;
+  keywords: string | null;
+  isActive: boolean;
+  questions?: SymptomQuestion[];
+  diagnoses?: SymptomDiagnosis[];
+}
+
+interface SymptomQuestion {
+  id: number;
+  symptomId: number;
+  question: string;
+  questionOrder: number;
+  expectedResponses: string | null;
+  isRequired: boolean;
+}
+
+interface SymptomDiagnosis {
+  id: number;
+  symptomId: number;
+  title: string;
+  description: string;
+  solution: string | null;
+  providerMaterials: string | null;
+  clientMaterials: string | null;
+  estimatedPriceMin: number | null;
+  estimatedPriceMax: number | null;
+  urgencyLevel: string;
+  matchConditions: string | null;
+  isActive: boolean;
+}
+
+interface ServiceCategory {
+  id: number;
+  name: string;
+  icon: string;
+  description: string | null;
+}
+
+function SymptomsManager() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedSymptom, setSelectedSymptom] = useState<Symptom | null>(null);
+  const [isAddSymptomOpen, setIsAddSymptomOpen] = useState(false);
+  const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false);
+  const [isAddDiagnosisOpen, setIsAddDiagnosisOpen] = useState(false);
+
+  // Form states
+  const [symptomForm, setSymptomForm] = useState({
+    name: "",
+    description: "",
+    keywords: "",
+  });
+  const [questionForm, setQuestionForm] = useState({
+    question: "",
+    questionOrder: 1,
+    expectedResponses: "",
+    isRequired: true,
+  });
+  const [diagnosisForm, setDiagnosisForm] = useState({
+    title: "",
+    description: "",
+    solution: "",
+    providerMaterials: "",
+    clientMaterials: "",
+    estimatedPriceMin: "",
+    estimatedPriceMax: "",
+    urgencyLevel: "normal",
+  });
+
+  // Fetch categories
+  const { data: categories = [] } = useQuery<ServiceCategory[]>({
+    queryKey: ["/api/categories"],
+  });
+
+  // Fetch symptoms
+  const { data: symptoms = [], isLoading: symptomsLoading } = useQuery<Symptom[]>({
+    queryKey: ["/api/symptoms"],
+  });
+
+  // Fetch selected symptom details
+  const { data: symptomDetails } = useQuery<Symptom>({
+    queryKey: ["/api/symptoms", selectedSymptom?.id],
+    enabled: !!selectedSymptom?.id,
+  });
+
+  // Mutations
+  const createSymptom = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/admin/symptoms", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
+      setIsAddSymptomOpen(false);
+      setSymptomForm({ name: "", description: "", keywords: "" });
+      toast({ title: "Sintoma criado com sucesso!" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao criar sintoma", variant: "destructive" });
+    },
+  });
+
+  const deleteSymptom = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/symptoms/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
+      setSelectedSymptom(null);
+      toast({ title: "Sintoma removido!" });
+    },
+  });
+
+  const createQuestion = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/admin/symptom-questions", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/symptoms", selectedSymptom?.id] });
+      setIsAddQuestionOpen(false);
+      setQuestionForm({ question: "", questionOrder: 1, expectedResponses: "", isRequired: true });
+      toast({ title: "Pergunta criada!" });
+    },
+  });
+
+  const deleteQuestion = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/symptom-questions/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/symptoms", selectedSymptom?.id] });
+      toast({ title: "Pergunta removida!" });
+    },
+  });
+
+  const createDiagnosis = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/admin/symptom-diagnoses", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/symptoms", selectedSymptom?.id] });
+      setIsAddDiagnosisOpen(false);
+      setDiagnosisForm({
+        title: "", description: "", solution: "", providerMaterials: "",
+        clientMaterials: "", estimatedPriceMin: "", estimatedPriceMax: "", urgencyLevel: "normal"
+      });
+      toast({ title: "Diagnóstico criado!" });
+    },
+  });
+
+  const deleteDiagnosis = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/symptom-diagnoses/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/symptoms", selectedSymptom?.id] });
+      toast({ title: "Diagnóstico removido!" });
+    },
+  });
+
+  const filteredSymptoms = selectedCategory
+    ? symptoms.filter((s) => s.categoryId === selectedCategory)
+    : symptoms;
+
+  const handleAddSymptom = () => {
+    if (!selectedCategory) {
+      toast({ title: "Selecione uma categoria primeiro", variant: "destructive" });
+      return;
+    }
+    createSymptom.mutate({
+      categoryId: selectedCategory,
+      name: symptomForm.name,
+      description: symptomForm.description || null,
+      keywords: symptomForm.keywords ? JSON.stringify(symptomForm.keywords.split(",").map(k => k.trim())) : null,
+    });
+  };
+
+  const handleAddQuestion = () => {
+    if (!selectedSymptom) return;
+    createQuestion.mutate({
+      symptomId: selectedSymptom.id,
+      question: questionForm.question,
+      questionOrder: questionForm.questionOrder,
+      expectedResponses: questionForm.expectedResponses ? JSON.stringify(questionForm.expectedResponses.split(",").map(r => r.trim())) : null,
+      isRequired: questionForm.isRequired,
+    });
+  };
+
+  const handleAddDiagnosis = () => {
+    if (!selectedSymptom) return;
+    createDiagnosis.mutate({
+      symptomId: selectedSymptom.id,
+      title: diagnosisForm.title,
+      description: diagnosisForm.description,
+      solution: diagnosisForm.solution || null,
+      providerMaterials: diagnosisForm.providerMaterials ? JSON.stringify(diagnosisForm.providerMaterials.split(",").map(m => m.trim())) : null,
+      clientMaterials: diagnosisForm.clientMaterials ? JSON.stringify(diagnosisForm.clientMaterials.split(",").map(m => m.trim())) : null,
+      estimatedPriceMin: diagnosisForm.estimatedPriceMin ? parseInt(diagnosisForm.estimatedPriceMin) * 100 : null,
+      estimatedPriceMax: diagnosisForm.estimatedPriceMax ? parseInt(diagnosisForm.estimatedPriceMax) * 100 : null,
+      urgencyLevel: diagnosisForm.urgencyLevel,
+    });
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Coluna 1: Categorias e Sintomas */}
+      <Card className="lg:col-span-1">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Banco de Sintomas
+          </CardTitle>
+          <CardDescription>
+            Selecione uma categoria para gerenciar sintomas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Seletor de Categoria */}
+          <div>
+            <Label>Categoria de Serviço</Label>
+            <Select
+              value={selectedCategory?.toString() || ""}
+              onValueChange={(val) => {
+                setSelectedCategory(val ? parseInt(val) : null);
+                setSelectedSymptom(null);
+              }}
+            >
+              <SelectTrigger data-testid="select-category">
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id.toString()}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Lista de Sintomas */}
+          {selectedCategory && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Sintomas</Label>
+                <Dialog open={isAddSymptomOpen} onOpenChange={setIsAddSymptomOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="btn-add-symptom">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Novo
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Novo Sintoma</DialogTitle>
+                      <DialogDescription>
+                        Adicione um novo sintoma para esta categoria
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Nome do Sintoma</Label>
+                        <Input
+                          value={symptomForm.name}
+                          onChange={(e) => setSymptomForm({ ...symptomForm, name: e.target.value })}
+                          placeholder="Ex: Vazamento de água"
+                          data-testid="input-symptom-name"
+                        />
+                      </div>
+                      <div>
+                        <Label>Descrição</Label>
+                        <Textarea
+                          value={symptomForm.description}
+                          onChange={(e) => setSymptomForm({ ...symptomForm, description: e.target.value })}
+                          placeholder="Descrição detalhada do sintoma"
+                          data-testid="input-symptom-description"
+                        />
+                      </div>
+                      <div>
+                        <Label>Palavras-chave (separadas por vírgula)</Label>
+                        <Input
+                          value={symptomForm.keywords}
+                          onChange={(e) => setSymptomForm({ ...symptomForm, keywords: e.target.value })}
+                          placeholder="vazando, goteira, molhado, úmido"
+                          data-testid="input-symptom-keywords"
+                        />
+                      </div>
+                      <Button onClick={handleAddSymptom} disabled={createSymptom.isPending} data-testid="btn-save-symptom">
+                        {createSymptom.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Salvar Sintoma
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {symptomsLoading ? (
+                <div className="p-4 text-center text-muted-foreground">Carregando...</div>
+              ) : filteredSymptoms.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground border rounded-lg">
+                  Nenhum sintoma cadastrado
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {filteredSymptoms.map((symptom) => (
+                    <div
+                      key={symptom.id}
+                      className={`p-3 rounded-lg border cursor-pointer hover-elevate ${
+                        selectedSymptom?.id === symptom.id ? "bg-primary/10 border-primary" : ""
+                      }`}
+                      onClick={() => setSelectedSymptom(symptom)}
+                      data-testid={`symptom-item-${symptom.id}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{symptom.name}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSymptom.mutate(symptom.id);
+                          }}
+                          data-testid={`btn-delete-symptom-${symptom.id}`}
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                      {symptom.description && (
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                          {symptom.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Coluna 2: Perguntas do Sintoma */}
+      <Card className="lg:col-span-1">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Perguntas
+          </CardTitle>
+          <CardDescription>
+            {selectedSymptom ? `Perguntas para: ${selectedSymptom.name}` : "Selecione um sintoma"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!selectedSymptom ? (
+            <div className="p-8 text-center text-muted-foreground border rounded-lg">
+              Selecione um sintoma para ver as perguntas
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Dialog open={isAddQuestionOpen} onOpenChange={setIsAddQuestionOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="btn-add-question">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Nova Pergunta
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Nova Pergunta</DialogTitle>
+                      <DialogDescription>
+                        Adicione uma pergunta de refinamento para o sintoma
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Pergunta</Label>
+                        <Textarea
+                          value={questionForm.question}
+                          onChange={(e) => setQuestionForm({ ...questionForm, question: e.target.value })}
+                          placeholder="A água está limpa ou suja?"
+                          data-testid="input-question-text"
+                        />
+                      </div>
+                      <div>
+                        <Label>Ordem</Label>
+                        <Input
+                          type="number"
+                          value={questionForm.questionOrder}
+                          onChange={(e) => setQuestionForm({ ...questionForm, questionOrder: parseInt(e.target.value) || 1 })}
+                          data-testid="input-question-order"
+                        />
+                      </div>
+                      <div>
+                        <Label>Respostas esperadas (separadas por vírgula)</Label>
+                        <Input
+                          value={questionForm.expectedResponses}
+                          onChange={(e) => setQuestionForm({ ...questionForm, expectedResponses: e.target.value })}
+                          placeholder="limpa, suja, marrom"
+                          data-testid="input-question-responses"
+                        />
+                      </div>
+                      <Button onClick={handleAddQuestion} disabled={createQuestion.isPending} data-testid="btn-save-question">
+                        {createQuestion.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Salvar Pergunta
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {symptomDetails?.questions && symptomDetails.questions.length > 0 ? (
+                <div className="space-y-2">
+                  {symptomDetails.questions.map((q) => (
+                    <div key={q.id} className="p-3 border rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <Badge variant="outline" className="mb-2">Ordem: {q.questionOrder}</Badge>
+                          <p className="font-medium">{q.question}</p>
+                          {q.expectedResponses && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Respostas: {JSON.parse(q.expectedResponses).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteQuestion.mutate(q.id)}
+                          data-testid={`btn-delete-question-${q.id}`}
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-muted-foreground border rounded-lg">
+                  Nenhuma pergunta cadastrada
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Coluna 3: Diagnósticos Possíveis */}
+      <Card className="lg:col-span-1">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5" />
+            Diagnósticos Possíveis
+          </CardTitle>
+          <CardDescription>
+            {selectedSymptom ? `Diagnósticos para: ${selectedSymptom.name}` : "Selecione um sintoma"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!selectedSymptom ? (
+            <div className="p-8 text-center text-muted-foreground border rounded-lg">
+              Selecione um sintoma para ver os diagnósticos
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Dialog open={isAddDiagnosisOpen} onOpenChange={setIsAddDiagnosisOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="btn-add-diagnosis">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Novo Diagnóstico
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Novo Diagnóstico</DialogTitle>
+                      <DialogDescription>
+                        Adicione um diagnóstico possível para este sintoma
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                      <div>
+                        <Label>Título</Label>
+                        <Input
+                          value={diagnosisForm.title}
+                          onChange={(e) => setDiagnosisForm({ ...diagnosisForm, title: e.target.value })}
+                          placeholder="Ex: Cano furado"
+                          data-testid="input-diagnosis-title"
+                        />
+                      </div>
+                      <div>
+                        <Label>Descrição do Problema</Label>
+                        <Textarea
+                          value={diagnosisForm.description}
+                          onChange={(e) => setDiagnosisForm({ ...diagnosisForm, description: e.target.value })}
+                          placeholder="Explicação do problema para o cliente"
+                          data-testid="input-diagnosis-description"
+                        />
+                      </div>
+                      <div>
+                        <Label>Solução Recomendada</Label>
+                        <Textarea
+                          value={diagnosisForm.solution}
+                          onChange={(e) => setDiagnosisForm({ ...diagnosisForm, solution: e.target.value })}
+                          placeholder="Como o problema será resolvido"
+                          data-testid="input-diagnosis-solution"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Preço Mínimo (R$)</Label>
+                          <Input
+                            type="number"
+                            value={diagnosisForm.estimatedPriceMin}
+                            onChange={(e) => setDiagnosisForm({ ...diagnosisForm, estimatedPriceMin: e.target.value })}
+                            placeholder="100"
+                            data-testid="input-diagnosis-price-min"
+                          />
+                        </div>
+                        <div>
+                          <Label>Preço Máximo (R$)</Label>
+                          <Input
+                            type="number"
+                            value={diagnosisForm.estimatedPriceMax}
+                            onChange={(e) => setDiagnosisForm({ ...diagnosisForm, estimatedPriceMax: e.target.value })}
+                            placeholder="300"
+                            data-testid="input-diagnosis-price-max"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Materiais do Prestador (separados por vírgula)</Label>
+                        <Input
+                          value={diagnosisForm.providerMaterials}
+                          onChange={(e) => setDiagnosisForm({ ...diagnosisForm, providerMaterials: e.target.value })}
+                          placeholder="Chave de fenda, alicate, fita veda rosca"
+                          data-testid="input-diagnosis-provider-materials"
+                        />
+                      </div>
+                      <div>
+                        <Label>Materiais do Cliente (separados por vírgula)</Label>
+                        <Input
+                          value={diagnosisForm.clientMaterials}
+                          onChange={(e) => setDiagnosisForm({ ...diagnosisForm, clientMaterials: e.target.value })}
+                          placeholder="Cano PVC, cola, conexão"
+                          data-testid="input-diagnosis-client-materials"
+                        />
+                      </div>
+                      <div>
+                        <Label>Nível de Urgência</Label>
+                        <Select
+                          value={diagnosisForm.urgencyLevel}
+                          onValueChange={(val) => setDiagnosisForm({ ...diagnosisForm, urgencyLevel: val })}
+                        >
+                          <SelectTrigger data-testid="select-urgency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="urgente">Urgente</SelectItem>
+                            <SelectItem value="emergencia">Emergência</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={handleAddDiagnosis} disabled={createDiagnosis.isPending} className="w-full" data-testid="btn-save-diagnosis">
+                        {createDiagnosis.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Salvar Diagnóstico
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {symptomDetails?.diagnoses && symptomDetails.diagnoses.length > 0 ? (
+                <div className="space-y-2">
+                  {symptomDetails.diagnoses.map((d) => (
+                    <div key={d.id} className="p-3 border rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">{d.title}</span>
+                            <Badge variant={d.urgencyLevel === "emergencia" ? "destructive" : d.urgencyLevel === "urgente" ? "default" : "secondary"}>
+                              {d.urgencyLevel}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{d.description}</p>
+                          {(d.estimatedPriceMin || d.estimatedPriceMax) && (
+                            <p className="text-sm font-medium text-primary mt-1">
+                              R$ {((d.estimatedPriceMin || 0) / 100).toFixed(0)} - R$ {((d.estimatedPriceMax || 0) / 100).toFixed(0)}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteDiagnosis.mutate(d.id)}
+                          data-testid={`btn-delete-diagnosis-${d.id}`}
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-muted-foreground border rounded-lg">
+                  Nenhum diagnóstico cadastrado
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
