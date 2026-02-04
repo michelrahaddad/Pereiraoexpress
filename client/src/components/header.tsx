@@ -30,7 +30,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 backdrop-blur-xl">
-      <div className="container flex h-20 items-center justify-between gap-4 px-6">
+      <div className="container flex h-auto py-4 items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-3">
           {showMenu && (
             <Button
@@ -47,7 +47,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
             <img
               src={logoImg}
               alt="Pereirão Express"
-              className="h-28 md:h-32 object-contain"
+              className="h-56 md:h-64 object-contain"
             />
           </Link>
         </div>
