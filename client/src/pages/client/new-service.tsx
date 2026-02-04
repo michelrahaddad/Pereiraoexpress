@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { PaymentModal } from "@/components/payment-modal";
+import { Progress } from "@/components/ui/progress";
 import { 
   Send, 
   Image as ImageIcon, 
@@ -18,13 +19,17 @@ import {
   User,
   Loader2,
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Clock,
   Zap,
   AlertTriangle,
   X,
   Mic,
-  MicOff
+  MicOff,
+  FileText,
+  CreditCard,
+  Shield
 } from "lucide-react";
 
 interface Message {
@@ -34,19 +39,46 @@ interface Message {
   imageUrl?: string;
 }
 
-interface DiagnosisResult {
-  title: string;
-  category: string;
-  diagnosis: string;
-  providerMaterials: string[];
-  clientMaterials: string[];
-  materials?: string[]; // backwards compatibility
-  estimatedPrices: {
-    standard: number;
-    express: number;
-    urgent: number;
-  };
+interface GuidedAnswer {
+  question: string;
+  answer: string;
 }
+
+interface AIDiagnosisResult {
+  id: number;
+  classification: string;
+  urgencyLevel: string;
+  estimatedDuration: string;
+  materialsSuggested: string[];
+  priceRangeMin: number;
+  priceRangeMax: number;
+  diagnosisFee: number;
+  aiResponse: string;
+}
+
+interface ServiceWithDiagnosis {
+  service: { id: number; title: string };
+  aiDiagnosis: AIDiagnosisResult;
+  diagnosisFee: number;
+}
+
+const GUIDED_QUESTIONS = [
+  {
+    id: "problem_type",
+    question: "Qual tipo de problema você está enfrentando?",
+    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Outro"]
+  },
+  {
+    id: "urgency",
+    question: "Qual a urgência do problema?",
+    options: ["Não é urgente", "Preciso resolver esta semana", "Preciso resolver hoje", "É emergência!"]
+  },
+  {
+    id: "location",
+    question: "Onde está o problema?",
+    options: ["Sala", "Quarto", "Cozinha", "Banheiro", "Área externa", "Outro"]
+  }
+];
 
 function cleanMessageContent(content: string): string {
   return content.replace(/###DIAGNOSIS###[\s\S]*?###END_DIAGNOSIS###/g, '').trim();
@@ -60,51 +92,77 @@ export default function NewService() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [step, setStep] = useState<"guided" | "chat" | "diagnosis" | "payment">("guided");
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [guidedAnswers, setGuidedAnswers] = useState<GuidedAnswer[]>([]);
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
-      content: "Olá! Sou o assistente do Pereirão Express. Descreva o problema que você está enfrentando. Pode enviar fotos também para um diagnóstico mais preciso!"
+      content: "Agora me conte mais detalhes sobre o problema. Quanto mais informações, melhor será meu diagnóstico!"
     }
   ]);
   const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [diagnosis, setDiagnosis] = useState<DiagnosisResult | null>(null);
+  const [aiDiagnosis, setAiDiagnosis] = useState<ServiceWithDiagnosis | null>(null);
   const [selectedSLA, setSelectedSLA] = useState<"standard" | "express" | "urgent" | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentType, setPaymentType] = useState<"fee" | "service">("fee");
+  const [feePaid, setFeePaid] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
-  const createServiceMutation = useMutation({
-    mutationFn: async (data: { diagnosis: DiagnosisResult; sla: string }) => {
-      const allMaterials = {
-        providerMaterials: data.diagnosis.providerMaterials || [],
-        clientMaterials: data.diagnosis.clientMaterials || []
-      };
-      const response = await apiRequest("POST", "/api/services", {
-        title: data.diagnosis.title,
-        description: messages.filter(m => m.role === "user").map(m => m.content).join("\n"),
-        categoryId: 1,
-        diagnosis: data.diagnosis.diagnosis,
-        materials: JSON.stringify(allMaterials),
-        slaPriority: data.sla,
-        estimatedPrice: data.diagnosis.estimatedPrices[data.sla as keyof typeof data.diagnosis.estimatedPrices],
-      });
-      return response;
+  const createAIDiagnosisMutation = useMutation({
+    mutationFn: async (data: { 
+      description: string; 
+      guidedAnswers: GuidedAnswer[]; 
+      mediaUrls: string[];
+      title: string;
+    }): Promise<ServiceWithDiagnosis> => {
+      const response = await apiRequest("POST", "/api/diagnosis/ai", data);
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+    onSuccess: (data) => {
+      setAiDiagnosis(data);
+      setStep("diagnosis");
       toast({
-        title: "Serviço criado!",
-        description: "Já estamos buscando um profissional para você.",
+        title: "Diagnóstico IA concluído!",
+        description: "Analise o resultado e pague a taxa para continuar.",
       });
-      setLocation("/client");
     },
     onError: () => {
       toast({
         title: "Erro",
-        description: "Não foi possível criar o serviço. Tente novamente.",
+        description: "Não foi possível gerar o diagnóstico. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const payDiagnosisFeeMutation = useMutation({
+    mutationFn: async (data: { serviceId: number; method: string }) => {
+      const response = await apiRequest("POST", `/api/diagnosis/pay-fee/${data.serviceId}`, {
+        method: data.method
+      });
+      return response;
+    },
+    onSuccess: () => {
+      setFeePaid(true);
+      toast({
+        title: "Taxa paga!",
+        description: "Agora estamos buscando profissionais na sua região.",
+      });
+      setTimeout(() => {
+        setLocation("/client");
+      }, 2000);
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível processar o pagamento. Tente novamente.",
         variant: "destructive",
       });
     },
@@ -131,7 +189,7 @@ export default function NewService() {
           <h1 className="text-2xl font-bold mb-4">Acesso necessário</h1>
           <p className="text-muted-foreground mb-6">Faça login para solicitar um serviço</p>
           <Button asChild className="rounded-xl">
-            <a href="/api/login">Fazer login</a>
+            <a href="/login/cliente">Fazer login</a>
           </Button>
         </div>
       </div>
@@ -139,13 +197,30 @@ export default function NewService() {
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (step === "guided") {
+            setSelectedPhotos(prev => [...prev, reader.result as string]);
+          } else {
+            setSelectedImage(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleGuidedAnswer = (answer: string) => {
+    const question = GUIDED_QUESTIONS[currentQuestion];
+    setGuidedAnswers(prev => [...prev, { question: question.question, answer }]);
+    
+    if (currentQuestion < GUIDED_QUESTIONS.length - 1) {
+      setCurrentQuestion(prev => prev + 1);
+    } else {
+      setStep("chat");
     }
   };
 
@@ -172,6 +247,7 @@ export default function NewService() {
           message: input,
           imageBase64: selectedImage,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
+          guidedContext: guidedAnswers,
         }),
       });
 
@@ -204,9 +280,6 @@ export default function NewService() {
                   prev.map(m => m.id === assistantMessage.id ? { ...m, content: assistantMessage.content } : m)
                 );
               }
-              if (data.diagnosis) {
-                setDiagnosis(data.diagnosis);
-              }
               if (data.done) {
                 setIsStreaming(false);
               }
@@ -222,6 +295,23 @@ export default function NewService() {
       });
       setIsStreaming(false);
     }
+  };
+
+  const handleGenerateDiagnosis = () => {
+    const description = messages
+      .filter(m => m.role === "user")
+      .map(m => m.content)
+      .join("\n");
+    
+    const contextSummary = guidedAnswers.map(a => `${a.question}: ${a.answer}`).join(". ");
+    const title = `${guidedAnswers[0]?.answer || "Serviço"} - ${guidedAnswers[2]?.answer || "Geral"}`;
+
+    createAIDiagnosisMutation.mutate({
+      description: `${contextSummary}\n\nDetalhes: ${description}`,
+      guidedAnswers,
+      mediaUrls: selectedPhotos,
+      title,
+    });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -254,14 +344,11 @@ export default function NewService() {
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = "";
-      let interimTranscript = "";
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
         }
       }
 
@@ -308,15 +395,19 @@ export default function NewService() {
     }
   };
 
-  const handleConfirmClick = () => {
-    if (!diagnosis || !selectedSLA) return;
+  const handlePayFee = () => {
+    setPaymentType("fee");
     setShowPaymentModal(true);
   };
 
-  const handlePaymentComplete = (paymentId: number) => {
-    if (!diagnosis || !selectedSLA) return;
+  const handleFeePaymentComplete = (paymentId: number) => {
     setShowPaymentModal(false);
-    createServiceMutation.mutate({ diagnosis, sla: selectedSLA });
+    if (aiDiagnosis) {
+      payDiagnosisFeeMutation.mutate({
+        serviceId: aiDiagnosis.service.id,
+        method: "pix"
+      });
+    }
   };
 
   if (authLoading) {
@@ -326,6 +417,14 @@ export default function NewService() {
       </div>
     );
   }
+
+  const progressValue = step === "guided" 
+    ? ((currentQuestion + 1) / GUIDED_QUESTIONS.length) * 33
+    : step === "chat" 
+    ? 66 
+    : step === "diagnosis"
+    ? 85
+    : 100;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -338,240 +437,368 @@ export default function NewService() {
               <ArrowLeft className="h-5 w-5" />
             </a>
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="font-semibold">Novo serviço</h1>
-            <p className="text-sm text-muted-foreground">Descreva seu problema para o Pereirão</p>
+            <p className="text-sm text-muted-foreground">
+              {step === "guided" && "Responda algumas perguntas rápidas"}
+              {step === "chat" && "Descreva mais detalhes do problema"}
+              {step === "diagnosis" && "Análise do diagnóstico"}
+              {step === "payment" && "Pagamento"}
+            </p>
           </div>
         </div>
 
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
-              >
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
-                  message.role === "user" ? "bg-primary" : "bg-muted"
-                }`}>
-                  {message.role === "user" ? (
-                    <User className="h-4 w-4 text-primary-foreground" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 text-primary" />
-                  )}
-                </div>
-                <div className={`flex flex-col gap-2 max-w-[80%] ${message.role === "user" ? "items-end" : ""}`}>
-                  {message.imageUrl && (
-                    <img 
-                      src={message.imageUrl} 
-                      alt="Uploaded" 
-                      className="max-w-[200px] rounded-lg"
-                    />
-                  )}
-                  <div className={`rounded-lg px-4 py-2 ${
-                    message.role === "user" 
-                      ? "bg-primary text-primary-foreground" 
-                      : "bg-muted"
-                  }`}>
-                    <p className="text-sm whitespace-pre-wrap">{cleanMessageContent(message.content)}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {isStreaming && (
-              <div className="flex gap-3">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                </div>
-                <div className="bg-muted rounded-lg px-4 py-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
+        <div className="px-4 pt-3">
+          <Progress value={progressValue} className="h-2" />
+          <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+            <span>Perguntas</span>
+            <span>Chat</span>
+            <span>Diagnóstico</span>
           </div>
+        </div>
 
-          {diagnosis && (
-            <Card className="mt-6">
+        {step === "guided" && (
+          <div className="flex-1 p-4 flex flex-col">
+            <Card className="flex-1 flex flex-col">
               <CardHeader>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Diagnóstico pronto!</CardTitle>
+                <div className="flex items-center gap-2 text-primary">
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-sm font-medium">Passo {currentQuestion + 1} de {GUIDED_QUESTIONS.length}</span>
                 </div>
-                <CardDescription>{diagnosis.diagnosis}</CardDescription>
+                <CardTitle className="text-xl mt-2">
+                  {GUIDED_QUESTIONS[currentQuestion].question}
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {diagnosis.providerMaterials && diagnosis.providerMaterials.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Equipamentos do prestador:</p>
+              <CardContent className="flex-1">
+                <div className="grid gap-3">
+                  {GUIDED_QUESTIONS[currentQuestion].options.map((option) => (
+                    <Button
+                      key={option}
+                      variant="outline"
+                      className="justify-start h-auto py-4 px-4 text-left"
+                      onClick={() => handleGuidedAnswer(option)}
+                      data-testid={`button-option-${option.toLowerCase().replace(/\s/g, '-')}`}
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </div>
+
+                {currentQuestion === GUIDED_QUESTIONS.length - 1 && (
+                  <div className="mt-6">
+                    <p className="text-sm font-medium mb-3">Adicione fotos do problema (opcional)</p>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageUpload}
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full"
+                      data-testid="button-add-photos"
+                    >
+                      <ImageIcon className="h-5 w-5 mr-2" />
+                      Adicionar fotos
+                    </Button>
+                    {selectedPhotos.length > 0 && (
+                      <div className="flex gap-2 mt-3 flex-wrap">
+                        {selectedPhotos.map((photo, i) => (
+                          <div key={i} className="relative">
+                            <img src={photo} alt={`Foto ${i+1}`} className="h-16 w-16 object-cover rounded-lg" />
+                            <button 
+                              onClick={() => setSelectedPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                              className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {step === "chat" && (
+          <>
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="p-3">
+                    <p className="text-sm font-medium mb-2">Suas respostas:</p>
                     <div className="flex flex-wrap gap-2">
-                      {diagnosis.providerMaterials.map((material, i) => (
-                        <Badge key={i} variant="outline">{material}</Badge>
+                      {guidedAnswers.map((a, i) => (
+                        <Badge key={i} variant="secondary">{a.answer}</Badge>
                       ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                  >
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${
+                      message.role === "user" ? "bg-primary" : "bg-muted"
+                    }`}>
+                      {message.role === "user" ? (
+                        <User className="h-4 w-4 text-primary-foreground" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                    <div className={`flex flex-col gap-2 max-w-[80%] ${message.role === "user" ? "items-end" : ""}`}>
+                      {message.imageUrl && (
+                        <img 
+                          src={message.imageUrl} 
+                          alt="Uploaded" 
+                          className="max-w-[200px] rounded-lg"
+                        />
+                      )}
+                      <div className={`rounded-lg px-4 py-2 ${
+                        message.role === "user" 
+                          ? "bg-primary text-primary-foreground" 
+                          : "bg-muted"
+                      }`}>
+                        <p className="text-sm whitespace-pre-wrap">{cleanMessageContent(message.content)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {isStreaming && (
+                  <div className="flex gap-3">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="bg-muted rounded-lg px-4 py-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     </div>
                   </div>
                 )}
                 
-                {diagnosis.clientMaterials && diagnosis.clientMaterials.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Materiais para você comprar:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {diagnosis.clientMaterials.map((material, i) => (
-                        <Badge key={i} variant="secondary">{material}</Badge>
-                      ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+
+            <div className="border-t p-4 space-y-3">
+              {messages.filter(m => m.role === "user").length >= 1 && (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleGenerateDiagnosis}
+                  disabled={createAIDiagnosisMutation.isPending}
+                  data-testid="button-generate-diagnosis"
+                >
+                  {createAIDiagnosisMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Gerar diagnóstico IA
+                </Button>
+              )}
+
+              {selectedImage && (
+                <div className="relative inline-block">
+                  <img src={selectedImage} alt="Preview" className="h-20 rounded-lg" />
+                  <button 
+                    onClick={() => setSelectedImage(null)}
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  data-testid="button-upload-image"
+                >
+                  <ImageIcon className="h-5 w-5" />
+                </Button>
+                
+                <Button
+                  variant={isRecording ? "destructive" : "outline"}
+                  size="icon"
+                  onClick={toggleVoiceRecording}
+                  disabled={isStreaming}
+                  data-testid="button-voice-record"
+                  title={isRecording ? "Parar gravação" : "Gravar áudio"}
+                >
+                  {isRecording ? (
+                    <MicOff className="h-5 w-5 animate-pulse" />
+                  ) : (
+                    <Mic className="h-5 w-5" />
+                  )}
+                </Button>
+                
+                <Textarea
+                  placeholder="Descreva o problema..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  disabled={isStreaming}
+                  className="min-h-[44px] max-h-32 resize-none"
+                  rows={1}
+                  data-testid="input-message"
+                />
+                
+                <Button
+                  onClick={sendMessage}
+                  disabled={isStreaming || (!input.trim() && !selectedImage)}
+                  data-testid="button-send"
+                >
+                  {isStreaming ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {step === "diagnosis" && aiDiagnosis && (
+          <ScrollArea className="flex-1 p-4">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    <CardTitle>Diagnóstico IA</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Análise automática do seu problema
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-muted/50 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground">Classificação</p>
+                      <p className="font-medium">{aiDiagnosis.aiDiagnosis.classification}</p>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground">Urgência</p>
+                      <Badge variant={
+                        aiDiagnosis.aiDiagnosis.urgencyLevel === "urgente" ? "destructive" :
+                        aiDiagnosis.aiDiagnosis.urgencyLevel === "alta" ? "default" : "secondary"
+                      }>
+                        {aiDiagnosis.aiDiagnosis.urgencyLevel}
+                      </Badge>
                     </div>
                   </div>
-                )}
 
-                <div>
-                  <p className="text-sm font-medium mb-3">Escolha o prazo de atendimento:</p>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <Card 
-                      className={`cursor-pointer transition-all ${selectedSLA === "standard" ? "ring-2 ring-primary" : "hover-elevate"}`}
-                      onClick={() => setSelectedSLA("standard")}
-                      data-testid="card-sla-standard"
-                    >
-                      <CardContent className="p-4 text-center">
-                        <Clock className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
-                        <p className="font-medium">Standard</p>
-                        <p className="text-xs text-muted-foreground mb-2">Até 48h</p>
-                        <p className="text-lg font-bold text-primary">
-                          R$ {(diagnosis.estimatedPrices.standard / 100).toFixed(2)}
-                        </p>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card 
-                      className={`cursor-pointer transition-all ${selectedSLA === "express" ? "ring-2 ring-accent" : "hover-elevate"}`}
-                      onClick={() => setSelectedSLA("express")}
-                      data-testid="card-sla-express"
-                    >
-                      <CardContent className="p-4 text-center">
-                        <Zap className="h-6 w-6 mx-auto mb-2 text-accent-foreground" />
-                        <p className="font-medium">Express</p>
-                        <p className="text-xs text-muted-foreground mb-2">Até 12h</p>
-                        <p className="text-lg font-bold text-accent-foreground">
-                          R$ {(diagnosis.estimatedPrices.express / 100).toFixed(2)}
-                        </p>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card 
-                      className={`cursor-pointer transition-all ${selectedSLA === "urgent" ? "ring-2 ring-destructive" : "hover-elevate"}`}
-                      onClick={() => setSelectedSLA("urgent")}
-                      data-testid="card-sla-urgent"
-                    >
-                      <CardContent className="p-4 text-center">
-                        <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-destructive" />
-                        <p className="font-medium">Urgente</p>
-                        <p className="text-xs text-muted-foreground mb-2">Até 2h</p>
-                        <p className="text-lg font-bold text-destructive">
-                          R$ {(diagnosis.estimatedPrices.urgent / 100).toFixed(2)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                  <div>
+                    <p className="text-sm font-medium mb-2">Análise:</p>
+                    <p className="text-sm text-muted-foreground">{aiDiagnosis.aiDiagnosis.aiResponse}</p>
                   </div>
-                </div>
 
-                <Button 
-                  className="w-full" 
-                  size="lg"
-                  disabled={!selectedSLA || createServiceMutation.isPending}
-                  onClick={handleConfirmClick}
-                  data-testid="button-confirm-service"
-                >
-                  {createServiceMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
-                  Pagar e buscar profissional
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-muted/50 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground">Tempo estimado</p>
+                      <p className="font-medium">{aiDiagnosis.aiDiagnosis.estimatedDuration}</p>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground">Faixa de preço</p>
+                      <p className="font-medium">
+                        R$ {(aiDiagnosis.aiDiagnosis.priceRangeMin / 100).toFixed(0)} - R$ {(aiDiagnosis.aiDiagnosis.priceRangeMax / 100).toFixed(0)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {diagnosis && selectedSLA && (
-            <PaymentModal
-              open={showPaymentModal}
-              onOpenChange={setShowPaymentModal}
-              amount={diagnosis.estimatedPrices[selectedSLA]}
-              description={`Serviço: ${diagnosis.title}`}
-              onPaymentComplete={handlePaymentComplete}
-            />
-          )}
-        </ScrollArea>
+              <Card className="border-primary">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-primary" />
+                    <CardTitle>Taxa de Diagnóstico</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Pague a taxa para buscarmos profissionais qualificados na sua região
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-2xl font-bold text-primary">
+                        R$ {(aiDiagnosis.diagnosisFee / 100).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        15% do valor mínimo estimado
+                      </p>
+                    </div>
+                    <Shield className="h-10 w-10 text-primary/30" />
+                  </div>
 
-        <div className="border-t p-4">
-          {selectedImage && (
-            <div className="relative inline-block mb-3">
-              <img src={selectedImage} alt="Preview" className="h-20 rounded-lg" />
-              <button 
-                onClick={() => setSelectedImage(null)}
-                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
-              >
-                <X className="h-4 w-4" />
-              </button>
+                  <div className="space-y-2 text-sm text-muted-foreground mb-4">
+                    <p className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      Acesso a profissionais verificados
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      Orçamento detalhado presencial
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      Garantia de atendimento
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    className="w-full" 
+                    size="lg"
+                    onClick={handlePayFee}
+                    disabled={feePaid || payDiagnosisFeeMutation.isPending}
+                    data-testid="button-pay-fee"
+                  >
+                    {payDiagnosisFeeMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : feePaid ? (
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                    ) : (
+                      <CreditCard className="h-4 w-4 mr-2" />
+                    )}
+                    {feePaid ? "Taxa paga! Buscando profissionais..." : "Pagar taxa e continuar"}
+                  </Button>
+                </CardFooter>
+              </Card>
             </div>
-          )}
-          
-          <div className="flex gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={handleImageUpload}
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isStreaming}
-              data-testid="button-upload-image"
-            >
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-            
-            <Button
-              variant={isRecording ? "destructive" : "outline"}
-              size="icon"
-              onClick={toggleVoiceRecording}
-              disabled={isStreaming}
-              data-testid="button-voice-record"
-              title={isRecording ? "Parar gravação" : "Gravar áudio"}
-            >
-              {isRecording ? (
-                <MicOff className="h-5 w-5 animate-pulse" />
-              ) : (
-                <Mic className="h-5 w-5" />
-              )}
-            </Button>
-            
-            <Textarea
-              placeholder="Descreva o problema..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyPress}
-              disabled={isStreaming}
-              className="min-h-[44px] max-h-32 resize-none"
-              rows={1}
-              data-testid="input-message"
-            />
-            
-            <Button
-              onClick={sendMessage}
-              disabled={isStreaming || (!input.trim() && !selectedImage)}
-              data-testid="button-send"
-            >
-              {isStreaming ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-        </div>
+
+            {aiDiagnosis && (
+              <PaymentModal
+                open={showPaymentModal}
+                onOpenChange={setShowPaymentModal}
+                amount={aiDiagnosis.diagnosisFee}
+                description="Taxa de diagnóstico IA"
+                onPaymentComplete={handleFeePaymentComplete}
+              />
+            )}
+          </ScrollArea>
+        )}
       </main>
     </div>
   );
