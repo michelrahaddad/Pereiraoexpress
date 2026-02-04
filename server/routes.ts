@@ -326,7 +326,7 @@ export async function registerRoutes(
             })
           );
 
-          const validDetails = symptomDetails.filter(Boolean);
+          const validDetails = symptomDetails.filter((d): d is NonNullable<typeof d> => d !== null);
           if (validDetails.length > 0) {
             let contextBuilder = `\n\nBASE DE CONHECIMENTO (use para guiar o diagnóstico):\n`;
             
@@ -352,7 +352,7 @@ export async function registerRoutes(
                   if (d.estimatedPriceMin && d.estimatedPriceMax) {
                     symptomContext += ` (R$ ${d.estimatedPriceMin / 100} - R$ ${d.estimatedPriceMax / 100})`;
                   }
-                  if (d.urgencyLevel !== "normal") {
+                  if (d.urgencyLevel && d.urgencyLevel !== "normal") {
                     symptomContext += ` [${d.urgencyLevel.toUpperCase()}]`;
                   }
                   symptomContext += `\n`;
@@ -461,11 +461,47 @@ Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
             data: base64Data,
           },
         });
-        userParts.push({ text: `Analise esta imagem do problema com atenção. Identifique:
-1. O tipo de problema visível (vazamento, dano, desgaste, ferrugem, manchas, etc)
-2. A gravidade aparente (leve, moderado, grave, urgente)
-3. Materiais e equipamentos visíveis que podem ajudar no diagnóstico
-4. Se há sinais de tentativas anteriores de reparo
+        userParts.push({ text: `ANÁLISE DE IMAGEM DETALHADA:
+
+Analise esta foto do problema e forneça uma avaliação técnica detalhada. Examine cuidadosamente:
+
+**IDENTIFICAÇÃO DO PROBLEMA:**
+- Tipo de instalação/equipamento visível (encanamento, elétrica, estrutura, etc)
+- Problema principal detectado na imagem
+
+**SINAIS VISUAIS A IDENTIFICAR:**
+- Manchas de água ou umidade (cor, extensão, padrão)
+- Ferrugem ou oxidação (localização, intensidade)
+- Rachaduras ou fissuras (tamanho, direção, profundidade aparente)
+- Desgaste ou deterioração (peças gastas, pintura descascando)
+- Mofo ou bolor (cor, área afetada)
+- Danos estruturais (afundamentos, desníveis)
+- Instalações improvisadas ou "gambiarras"
+- Peças soltas, quebradas ou faltando
+
+**ESTIMATIVA DE GRAVIDADE:**
+Classifique de 1 a 5:
+1 = Cosmético (estético, não urgente)
+2 = Leve (funcionando, mas precisa atenção em breve)
+3 = Moderado (problema ativo, resolver em dias)
+4 = Grave (risco de piora, resolver urgente)
+5 = Crítico (risco de segurança, parar uso imediato)
+
+**AÇÃO RECOMENDADA:**
+Com base na gravidade visual, indique a urgência do reparo.
+
+Após analisar a imagem, também adicione os dados estruturados:
+###IMAGE_ANALYSIS###
+{
+  "problemType": "tipo do problema identificado",
+  "visualSigns": ["sinal1", "sinal2", "sinal3"],
+  "severity": 1-5,
+  "severityLabel": "cosmético|leve|moderado|grave|crítico",
+  "affectedArea": "descrição da área afetada",
+  "urgencyRecommendation": "imediato|urgente|programar|monitorar",
+  "additionalObservations": "observações extras importantes"
+}
+###END_IMAGE_ANALYSIS###
 
 Baseie seu diagnóstico no que você vê na imagem combinado com a descrição do cliente.` });
       }
@@ -491,6 +527,18 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         }
       }
 
+      // Parse análise de imagem estruturada
+      const imageAnalysisMatch = fullResponse.match(/###IMAGE_ANALYSIS###([\s\S]*?)###END_IMAGE_ANALYSIS###/);
+      if (imageAnalysisMatch) {
+        try {
+          const imageAnalysis = JSON.parse(imageAnalysisMatch[1].trim());
+          res.write(`data: ${JSON.stringify({ imageAnalysis })}\n\n`);
+        } catch (e) {
+          console.error("Failed to parse image analysis:", e);
+        }
+      }
+
+      // Parse diagnóstico estruturado
       const diagnosisMatch = fullResponse.match(/###DIAGNOSIS###([\s\S]*?)###END_DIAGNOSIS###/);
       if (diagnosisMatch) {
         try {

@@ -135,6 +135,7 @@ export interface IStorage {
   getSymptoms(): Promise<Symptom[]>;
   getSymptomById(id: number): Promise<Symptom | undefined>;
   getSymptomsByCategoryId(categoryId: number): Promise<Symptom[]>;
+  getSymptomWithDetails(id: number): Promise<{ name: string; description: string | null; questions: SymptomQuestion[]; diagnoses: SymptomDiagnosis[] } | null>;
   createSymptom(data: InsertSymptom): Promise<Symptom>;
   updateSymptom(id: number, data: Partial<InsertSymptom>): Promise<Symptom | undefined>;
   deleteSymptom(id: number): Promise<void>;
@@ -579,6 +580,23 @@ class DatabaseStorage implements IStorage {
     return db.select().from(symptoms)
       .where(and(eq(symptoms.categoryId, categoryId), eq(symptoms.isActive, true)))
       .orderBy(symptoms.name);
+  }
+  
+  async getSymptomWithDetails(id: number): Promise<{ name: string; description: string | null; questions: SymptomQuestion[]; diagnoses: SymptomDiagnosis[] } | null> {
+    const symptom = await this.getSymptomById(id);
+    if (!symptom) return null;
+    
+    const [questions, diagnoses] = await Promise.all([
+      this.getSymptomQuestions(id),
+      this.getSymptomDiagnoses(id),
+    ]);
+    
+    return {
+      name: symptom.name,
+      description: symptom.description,
+      questions,
+      diagnoses,
+    };
   }
   
   async createSymptom(data: InsertSymptom): Promise<Symptom> {
