@@ -621,6 +621,23 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         };
       });
       
+      // Sort: rated providers first (by rating desc), then new providers
+      providersWithPricing.sort((a, b) => {
+        const aHasRatings = (a.totalRatings || 0) > 0;
+        const bHasRatings = (b.totalRatings || 0) > 0;
+        
+        // Rated providers come first
+        if (aHasRatings && !bHasRatings) return -1;
+        if (!aHasRatings && bHasRatings) return 1;
+        
+        // Among rated providers, sort by rating descending
+        if (aHasRatings && bHasRatings) {
+          return parseFloat(b.rating || "0") - parseFloat(a.rating || "0");
+        }
+        
+        return 0;
+      });
+      
       res.json(providersWithPricing);
     } catch (error) {
       console.error("Error fetching available providers:", error);

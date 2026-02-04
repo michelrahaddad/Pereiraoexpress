@@ -3,10 +3,10 @@
  * 
  * Lógica:
  * - Profissional novo (sem avaliações): 1.0x (preço base)
- * - Nota 0-5: 0.8x (desconto de 20%)
- * - Nota 5.1-8: 1.2x (aumento de 20%)
- * - Nota 8.1-9: 1.3x (aumento de 30%)
- * - Nota 9.1-10: 1.5x (aumento de 50%)
+ * - Nota 0-5: 0.8x Iniciante (desconto de 20%)
+ * - Nota 5.1-7.9: 1.2x Regular (aumento de 20%)
+ * - Nota 8-8.9: 1.3x Experiente (aumento de 30%)
+ * - Nota 9-10: 1.5x Premium (aumento de 50%)
  */
 export function getPriceMultiplier(rating: number, totalRatings: number = 0): number {
   // Profissionais novos (sem avaliações) usam preço base
@@ -16,12 +16,12 @@ export function getPriceMultiplier(rating: number, totalRatings: number = 0): nu
   
   if (rating <= 5) {
     return 0.8;
-  } else if (rating <= 8) {
+  } else if (rating < 8) {
     return 1.2;
-  } else if (rating <= 9) {
+  } else if (rating < 9) {
     return 1.3;
   } else {
-    return 1.5;
+    return 1.5; // 9-10 = Premium
   }
 }
 
@@ -40,14 +40,14 @@ export function getRatingLevel(rating: number, totalRatings: number = 0): string
   if (totalRatings === 0) {
     return "Novo";
   }
-  if (rating >= 9.1) {
-    return "Premium";
-  } else if (rating >= 8.1) {
-    return "Experiente";
-  } else if (rating >= 5.1) {
-    return "Regular";
+  if (rating >= 9) {
+    return "Premium"; // 9-10
+  } else if (rating >= 8) {
+    return "Experiente"; // 8-8.9
+  } else if (rating > 5) {
+    return "Regular"; // 5.1-7.9
   } else {
-    return "Iniciante";
+    return "Iniciante"; // 0-5
   }
 }
 
