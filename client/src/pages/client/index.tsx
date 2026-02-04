@@ -118,7 +118,10 @@ export default function ClientDashboard() {
           variant="ghost" 
           size="sm" 
           className="mb-4 gap-2"
-          onClick={() => setLocation("/")}
+          onClick={() => {
+            console.log("Botão Voltar clicado - navegando para /");
+            setLocation("/");
+          }}
           data-testid="button-back"
         >
           <ArrowLeft className="h-4 w-4" />
