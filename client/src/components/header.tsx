@@ -47,7 +47,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
             <img
               src={logoImg}
               alt="Pereirão Express"
-              className="h-16 md:h-20 object-contain"
+              className="h-24 md:h-32 object-contain"
             />
           </Link>
         </div>
