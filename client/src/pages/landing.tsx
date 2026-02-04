@@ -21,7 +21,8 @@ import {
   Hammer,
   Smartphone,
   User,
-  Briefcase
+  Briefcase,
+  Settings
 } from "lucide-react";
 
 export default function Landing() {
@@ -388,7 +389,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t py-12">
+      <footer className="border-t py-12 relative">
         <div className="container px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
@@ -399,6 +400,18 @@ export default function Landing() {
             </p>
           </div>
         </div>
+        <a 
+          href="/login/cliente" 
+          className="absolute bottom-3 left-3 p-1.5 rounded-md text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+          title="Acesso administrativo"
+          data-testid="link-admin-login"
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.href = '/admin';
+          }}
+        >
+          <Settings className="h-4 w-4" />
+        </a>
       </footer>
     </div>
   );
