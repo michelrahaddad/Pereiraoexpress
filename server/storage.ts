@@ -1,6 +1,6 @@
 import { 
   userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages,
-  systemSettings, payments,
+  systemSettings, payments, suppliers, materials, materialOrders,
   aiDiagnoses, providerDiagnoses, digitalAcceptances, serviceExecutionLogs, paymentEscrows, antifraudFlags,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
@@ -11,6 +11,9 @@ import {
   type Message, type InsertMessage,
   type SystemSetting, type InsertSystemSetting,
   type Payment, type InsertPayment,
+  type Supplier, type InsertSupplier,
+  type Material, type InsertMaterial,
+  type MaterialOrder, type InsertMaterialOrder,
   type AiDiagnosis, type InsertAiDiagnosis,
   type ProviderDiagnosis, type InsertProviderDiagnosis,
   type DigitalAcceptance, type InsertDigitalAcceptance,
@@ -97,6 +100,29 @@ export interface IStorage {
   getAntifraudFlagsByServiceId(serviceRequestId: number): Promise<AntifraudFlag[]>;
   resolveAntifraudFlag(id: number, resolvedBy: string): Promise<AntifraudFlag | undefined>;
   getPendingAntifraudFlags(): Promise<AntifraudFlag[]>;
+  
+  // ==================== FORNECEDORES E MATERIAIS ====================
+  
+  // Suppliers
+  getSuppliers(): Promise<Supplier[]>;
+  getSupplierById(id: number): Promise<Supplier | undefined>;
+  getSuppliersByCity(city: string): Promise<Supplier[]>;
+  createSupplier(data: InsertSupplier): Promise<Supplier>;
+  updateSupplier(id: number, data: Partial<InsertSupplier>): Promise<Supplier | undefined>;
+  
+  // Materials
+  getMaterials(): Promise<Material[]>;
+  getMaterialById(id: number): Promise<Material | undefined>;
+  getMaterialsBySupplierId(supplierId: number): Promise<Material[]>;
+  getMaterialsByCategory(category: string): Promise<Material[]>;
+  createMaterial(data: InsertMaterial): Promise<Material>;
+  updateMaterial(id: number, data: Partial<InsertMaterial>): Promise<Material | undefined>;
+  
+  // Material Orders
+  createMaterialOrder(data: InsertMaterialOrder): Promise<MaterialOrder>;
+  getMaterialOrderByServiceId(serviceRequestId: number): Promise<MaterialOrder | undefined>;
+  getMaterialOrdersBySupplierId(supplierId: number): Promise<MaterialOrder[]>;
+  updateMaterialOrderStatus(id: number, status: string): Promise<MaterialOrder | undefined>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -393,6 +419,107 @@ class DatabaseStorage implements IStorage {
     return db.select().from(antifraudFlags)
       .where(eq(antifraudFlags.resolved, false))
       .orderBy(desc(antifraudFlags.createdAt));
+  }
+  
+  // ==================== FORNECEDORES E MATERIAIS ====================
+  
+  // Suppliers
+  async getSuppliers(): Promise<Supplier[]> {
+    return db.select().from(suppliers)
+      .where(eq(suppliers.isActive, true))
+      .orderBy(suppliers.name);
+  }
+  
+  async getSupplierById(id: number): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+    return supplier;
+  }
+  
+  async getSuppliersByCity(city: string): Promise<Supplier[]> {
+    return db.select().from(suppliers)
+      .where(and(eq(suppliers.city, city), eq(suppliers.isActive, true)))
+      .orderBy(suppliers.name);
+  }
+  
+  async createSupplier(data: InsertSupplier): Promise<Supplier> {
+    const [supplier] = await db.insert(suppliers).values(data).returning();
+    return supplier;
+  }
+  
+  async updateSupplier(id: number, data: Partial<InsertSupplier>): Promise<Supplier | undefined> {
+    const [updated] = await db.update(suppliers)
+      .set(data)
+      .where(eq(suppliers.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Materials
+  async getMaterials(): Promise<Material[]> {
+    return db.select().from(materials)
+      .where(eq(materials.isActive, true))
+      .orderBy(materials.name);
+  }
+  
+  async getMaterialById(id: number): Promise<Material | undefined> {
+    const [material] = await db.select().from(materials).where(eq(materials.id, id));
+    return material;
+  }
+  
+  async getMaterialsBySupplierId(supplierId: number): Promise<Material[]> {
+    return db.select().from(materials)
+      .where(and(eq(materials.supplierId, supplierId), eq(materials.isActive, true)))
+      .orderBy(materials.name);
+  }
+  
+  async getMaterialsByCategory(category: string): Promise<Material[]> {
+    return db.select().from(materials)
+      .where(and(eq(materials.category, category), eq(materials.isActive, true)))
+      .orderBy(materials.name);
+  }
+  
+  async createMaterial(data: InsertMaterial): Promise<Material> {
+    const [material] = await db.insert(materials).values(data).returning();
+    return material;
+  }
+  
+  async updateMaterial(id: number, data: Partial<InsertMaterial>): Promise<Material | undefined> {
+    const [updated] = await db.update(materials)
+      .set(data)
+      .where(eq(materials.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Material Orders
+  async createMaterialOrder(data: InsertMaterialOrder): Promise<MaterialOrder> {
+    const [order] = await db.insert(materialOrders).values(data).returning();
+    return order;
+  }
+  
+  async getMaterialOrderByServiceId(serviceRequestId: number): Promise<MaterialOrder | undefined> {
+    const [order] = await db.select().from(materialOrders)
+      .where(eq(materialOrders.serviceRequestId, serviceRequestId));
+    return order;
+  }
+  
+  async getMaterialOrdersBySupplierId(supplierId: number): Promise<MaterialOrder[]> {
+    return db.select().from(materialOrders)
+      .where(eq(materialOrders.supplierId, supplierId))
+      .orderBy(desc(materialOrders.createdAt));
+  }
+  
+  async updateMaterialOrderStatus(id: number, status: string): Promise<MaterialOrder | undefined> {
+    const now = new Date();
+    const updateData: any = { status };
+    if (status === "ordered") updateData.orderedAt = now;
+    if (status === "delivered") updateData.deliveredAt = now;
+    
+    const [updated] = await db.update(materialOrders)
+      .set(updateData)
+      .where(eq(materialOrders.id, id))
+      .returning();
+    return updated;
   }
 }
 

@@ -1,0 +1,39 @@
+Arquitetura da Plataforma de IA para Diagnóstico e Gestão de Reparos Residenciais
+1. Visão Geral
+A plataforma combina Inteligência Artificial, intermediação financeira e gestão operacional para diagnosticar problemas residenciais, gerar orçamentos inteligentes e controlar toda a execução do serviço.
+
+2. Módulo de IA de Diagnóstico Inicial
+Entrada de dados: descrição do problema, respostas a perguntas guiadas e envio de fotos ou vídeos.
+Processamento: classificação do tipo de serviço, nível de urgência, materiais prováveis e estimativa de tempo.
+Saída: laudo digital com faixa de preço estimada. Nesta etapa é cobrada a taxa de diagnóstico.
+
+3. Módulo do Prestador – Diagnóstico Final
+O prestador recebe o diagnóstico inicial da IA e realiza inspeção no local.
+Ele envia fotos reais do problema, descreve o diagnóstico técnico final, informa valor da mão de obra e adiciona os materiais necessários.
+
+4. Integração com Fornecedores de Materiais
+O sistema permite adicionar materiais ao orçamento com base em parceiros integrados.
+A plataforma pode comprar o material automaticamente e incluir margem na venda ao cliente.
+
+5. Termo Digital de Aceite
+Antes do pagamento, o cliente visualiza diagnóstico da IA, diagnóstico final do técnico, valores detalhados e prazo estimado.
+O cliente aceita digitalmente o orçamento, gerando registro com data, hora e IP.
+
+6. Módulo Financeiro e Pagamentos
+O pagamento é feito exclusivamente dentro do app via cartão ou Pix.
+O valor fica retido até a conclusão do serviço.
+O sistema realiza divisão automática (split) entre plataforma, prestador e fornecedor de materiais.
+
+7. Execução do Serviço
+Após a confirmação do pagamento, o prestador inicia o serviço.
+O app registra localização, horário de início e término, e exige fotos do resultado final.
+
+8. Confirmação e Repasse
+O cliente confirma a conclusão do serviço.
+Após período de segurança, o sistema libera automaticamente o pagamento ao prestador e aos fornecedores.
+
+9. Sistema Antifraude
+Controle por fotos obrigatórias, geolocalização, tempo mínimo de execução, análise de padrões suspeitos e bloqueio de pagamentos fora da plataforma.
+
+10. Fluxo Geral da Plataforma
+Usuário → IA Diagnóstico → Faixa de preço → Prestador visita → Diagnóstico final → Orçamento digital → Cliente aceita e paga → Execução → Confirmação → Repasse automático.

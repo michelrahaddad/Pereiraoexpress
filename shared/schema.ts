@@ -138,6 +138,50 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ==================== FORNECEDORES E MATERIAIS ====================
+
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  cnpj: varchar("cnpj"),
+  phone: varchar("phone"),
+  email: varchar("email"),
+  address: text("address"),
+  city: varchar("city"),
+  categories: text("categories"), // JSON array de categorias atendidas
+  deliveryTimeHours: integer("delivery_time_hours").default(24),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const materials = pgTable("materials", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category"), // elétrico, hidráulico, pintura, etc
+  unit: varchar("unit").default("un"), // un, m, kg, etc
+  costPrice: integer("cost_price").notNull(), // preço de custo em centavos
+  salePrice: integer("sale_price").notNull(), // preço de venda com margem em centavos
+  stockQuantity: integer("stock_quantity").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const materialOrders = pgTable("material_orders", {
+  id: serial("id").primaryKey(),
+  serviceRequestId: integer("service_request_id").notNull(),
+  supplierId: integer("supplier_id").notNull(),
+  items: text("items").notNull(), // JSON array [{materialId, quantity, unitPrice, totalPrice}]
+  totalCost: integer("total_cost").notNull(), // custo total em centavos
+  totalSale: integer("total_sale").notNull(), // preço de venda total em centavos
+  platformMargin: integer("platform_margin").default(0), // margem da plataforma em centavos
+  status: varchar("status").default("pending"), // pending, ordered, delivered, cancelled
+  orderedAt: timestamp("ordered_at"),
+  deliveredAt: timestamp("delivered_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
 
 // Diagnóstico inicial da IA
@@ -248,6 +292,11 @@ export const insertMessageSchema = createInsertSchema(messages).omit({ id: true,
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, updatedAt: true });
 export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, completedAt: true });
 
+// Fornecedores e materiais
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({ id: true, createdAt: true });
+export const insertMaterialSchema = createInsertSchema(materials).omit({ id: true, createdAt: true });
+export const insertMaterialOrderSchema = createInsertSchema(materialOrders).omit({ id: true, createdAt: true });
+
 // Novo fluxo de inteligência integral
 export const insertAiDiagnosisSchema = createInsertSchema(aiDiagnoses).omit({ id: true, createdAt: true });
 export const insertProviderDiagnosisSchema = createInsertSchema(providerDiagnoses).omit({ id: true, createdAt: true });
@@ -265,6 +314,9 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
+export type InsertMaterial = z.infer<typeof insertMaterialSchema>;
+export type InsertMaterialOrder = z.infer<typeof insertMaterialOrderSchema>;
 export type InsertAiDiagnosis = z.infer<typeof insertAiDiagnosisSchema>;
 export type InsertProviderDiagnosis = z.infer<typeof insertProviderDiagnosisSchema>;
 export type InsertDigitalAcceptance = z.infer<typeof insertDigitalAcceptanceSchema>;
@@ -275,6 +327,9 @@ export type InsertAntifraudFlag = z.infer<typeof insertAntifraudFlagSchema>;
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type ServiceCategory = typeof serviceCategories.$inferSelect;
 export type ServiceRequest = typeof serviceRequests.$inferSelect;
+export type Supplier = typeof suppliers.$inferSelect;
+export type Material = typeof materials.$inferSelect;
+export type MaterialOrder = typeof materialOrders.$inferSelect;
 export type ServiceChatMessage = typeof serviceChatMessages.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;
