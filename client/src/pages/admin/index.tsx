@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,6 @@ import {
   FileText,
   CheckCircle2,
   XCircle,
-  ArrowLeft,
   Clock,
   Eye,
   AlertTriangle
@@ -84,7 +83,6 @@ export default function AdminDashboard() {
   const { isLoading: authLoading, isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
   
   const [cityFilter, setCityFilter] = useState("Todas");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -302,17 +300,6 @@ export default function AdminDashboard() {
       <Header />
       
       <main className="container px-6 py-8">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="mb-4 gap-2"
-          onClick={() => setLocation("/")}
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Button>
-
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold tracking-tight mb-2">Painel Administrativo</h1>

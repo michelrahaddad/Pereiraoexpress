@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { LoadingSkeleton, CardSkeleton } from "@/components/loading-skeleton";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { 
   Plus, 
   MessageSquare, 
@@ -16,8 +16,7 @@ import {
   AlertCircle,
   Wrench,
   ChevronRight,
-  Sparkles,
-  ArrowLeft
+  Sparkles
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
@@ -81,7 +80,6 @@ function ServiceCard({ service }: { service: ServiceRequest }) {
 
 export default function ClientDashboard() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
   
   const { data: services, isLoading: servicesLoading } = useQuery<ServiceRequest[]>({
     queryKey: ["/api/service"],
@@ -114,20 +112,6 @@ export default function ClientDashboard() {
       <Header />
       
       <main className="container px-6 py-8 max-w-4xl mx-auto">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="mb-4 gap-2"
-          onClick={() => {
-            console.log("Botão Voltar clicado - navegando para /");
-            setLocation("/");
-          }}
-          data-testid="button-back"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Button>
-
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
