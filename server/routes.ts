@@ -79,7 +79,7 @@ export async function registerRoutes(
         slaPriority: slaPriority || "standard",
         estimatedPrice,
         address,
-        status: "fee_paid",
+        status: "pending",
       });
       
       res.status(201).json(service);
@@ -703,7 +703,7 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   app.post("/api/diagnosis/pay-fee/:serviceId", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const serviceId = parseInt(req.params.serviceId);
+      const serviceId = parseInt(req.params.serviceId as string);
       const { method } = req.body;
 
       const diagnosis = await storage.getAiDiagnosisByServiceId(serviceId);
@@ -740,13 +740,18 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   app.post("/api/provider/diagnosis/:serviceId", isAuthenticated, async (req: any, res) => {
     try {
       const providerId = req.user.claims.sub;
-      const serviceId = parseInt(req.params.serviceId);
+      const serviceId = parseInt(req.params.serviceId as string);
       const { findings, laborCost, materialsCost, materialsList, estimatedDuration, mediaUrls, notes } = req.body;
 
       // Verificar se serviço existe e está no status correto
       const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Validar que taxa foi paga antes de diagnosticar
+      if (service.status !== "fee_paid" && service.status !== "provider_assigned") {
+        return res.status(400).json({ error: "Cannot diagnose: diagnosis fee not paid yet" });
       }
 
       // Criar diagnóstico do prestador
@@ -794,14 +799,20 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   // Enviar orçamento ao cliente
   app.post("/api/service/:id/quote", isAuthenticated, async (req: any, res) => {
     try {
-      const serviceId = parseInt(req.params.id);
+      const serviceId = parseInt(req.params.id as string);
+      
+      // Verificar se diagnóstico do prestador foi feito
+      const service = await storage.getServiceById(serviceId);
+      if (!service || service.status !== "provider_diagnosed") {
+        return res.status(400).json({ error: "Cannot send quote: provider diagnosis not complete" });
+      }
       
       // Atualizar status para orçamento enviado
-      const service = await storage.updateService(serviceId, {
+      const updatedService = await storage.updateService(serviceId, {
         status: "quote_sent",
       });
 
-      res.json(service);
+      res.json(updatedService);
     } catch (error) {
       console.error("Error sending quote:", error);
       res.status(500).json({ error: "Failed to send quote" });
@@ -818,6 +829,11 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
       const service = await storage.getServiceById(serviceId);
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
+      }
+
+      // Validar que orçamento foi enviado antes de aceitar
+      if (service.status !== "quote_sent") {
+        return res.status(400).json({ error: "Cannot accept service: quote not sent yet" });
       }
 
       const providerDiagnosis = await storage.getProviderDiagnosisByServiceId(serviceId);
