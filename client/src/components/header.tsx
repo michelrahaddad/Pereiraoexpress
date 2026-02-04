@@ -28,7 +28,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-primary/20 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 backdrop-blur-xl">
       <div className="container flex h-16 items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-3">
           {showMenu && (
@@ -36,7 +36,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className="md:hidden rounded-xl"
+              className="md:hidden rounded-xl text-white hover:bg-white/10"
               data-testid="button-menu"
             >
               <Menu className="h-5 w-5" />
@@ -129,7 +129,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button asChild className="rounded-xl px-6" data-testid="button-login">
+            <Button asChild className="rounded-xl px-6 bg-accent text-accent-foreground hover:bg-accent/90" data-testid="button-login">
               <Link href="/login/cliente">Entrar</Link>
             </Button>
           )}
