@@ -8,6 +8,7 @@ interface AuthUser {
   role?: string;
   city?: string;
   phone?: string;
+  profileImageUrl?: string;
 }
 
 async function fetchUser(): Promise<AuthUser | null> {

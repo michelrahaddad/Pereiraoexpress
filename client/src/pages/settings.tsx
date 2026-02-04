@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,14 +9,79 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { User, Phone, MapPin, Bell, Shield, Moon, Sun } from "lucide-react";
+import { User, Phone, MapPin, Bell, Shield, Moon, Sun, Camera, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "@/components/theme-provider";
+import { useUpload } from "@/hooks/use-upload";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Settings() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refetch } = useAuth();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  const { uploadFile } = useUpload({
+    onSuccess: async (response) => {
+      try {
+        // Save the uploaded image URL to the user's profile
+        await apiRequest("PATCH", "/api/user/profile-image", {
+          profileImageUrl: response.objectPath,
+        });
+        setProfileImage(response.objectPath);
+        refetch?.();
+        toast({
+          title: "Foto atualizada!",
+          description: "Sua foto de perfil foi atualizada com sucesso.",
+        });
+      } catch (error) {
+        toast({
+          title: "Erro ao salvar foto",
+          description: "Não foi possível salvar a foto de perfil.",
+          variant: "destructive",
+        });
+      }
+      setIsUploadingPhoto(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro no upload",
+        description: error.message || "Não foi possível fazer upload da foto.",
+        variant: "destructive",
+      });
+      setIsUploadingPhoto(false);
+    },
+  });
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Arquivo inválido",
+        description: "Por favor, selecione uma imagem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Arquivo muito grande",
+        description: "A imagem deve ter no máximo 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    await uploadFile(file);
+  };
 
   const getInitials = () => {
     if (!user) return "U";
@@ -30,6 +96,8 @@ export default function Settings() {
       description: "Suas preferências foram atualizadas com sucesso.",
     });
   };
+
+  const currentProfileImage = profileImage || user?.profileImageUrl;
 
   if (!isAuthenticated) {
     return (
@@ -66,17 +134,44 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
-                <Avatar className="h-20 w-20 rounded-2xl">
-                  <AvatarImage src={user?.profileImageUrl || undefined} />
-                  <AvatarFallback className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-2xl font-semibold">
-                    {getInitials()}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-24 w-24 rounded-2xl">
+                    <AvatarImage src={currentProfileImage || undefined} />
+                    <AvatarFallback className="rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-2xl font-semibold">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    data-testid="input-profile-photo"
+                  />
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute -bottom-2 -right-2 h-9 w-9 rounded-xl shadow-lg"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    data-testid="button-upload-photo"
+                  >
+                    {isUploadingPhoto ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
                 <div>
                   <p className="font-semibold text-lg" data-testid="text-settings-name">
                     {user?.firstName} {user?.lastName}
                   </p>
                   <p className="text-sm text-muted-foreground">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Clique no ícone para alterar sua foto
+                  </p>
                 </div>
               </div>
 

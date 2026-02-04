@@ -8,6 +8,7 @@ import { users, userProfiles } from "@shared/schema";
 import { sql, eq } from "drizzle-orm";
 import { serviceRequests, serviceCategories } from "@shared/schema";
 import { z } from "zod";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 // Schemas de validação
 const aiDiagnoseSchema = z.object({
@@ -52,6 +53,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupLocalAuth(app);
+  registerObjectStorageRoutes(app);
   
   await seedCategories();
 
@@ -1679,6 +1681,28 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     } catch (error) {
       console.error("Error updating material order status:", error);
       res.status(500).json({ error: "Failed to update order status" });
+    }
+  });
+
+  // Profile photo upload endpoint
+  app.patch("/api/user/profile-image", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { profileImageUrl } = req.body;
+      
+      if (!profileImageUrl) {
+        return res.status(400).json({ error: "Profile image URL is required" });
+      }
+
+      // Update the user's profile image in the database
+      await db.update(users)
+        .set({ profileImageUrl })
+        .where(eq(users.id, userId));
+
+      res.json({ success: true, profileImageUrl });
+    } catch (error) {
+      console.error("Error updating profile image:", error);
+      res.status(500).json({ error: "Failed to update profile image" });
     }
   });
 

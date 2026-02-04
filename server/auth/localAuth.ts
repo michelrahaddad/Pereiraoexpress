@@ -541,6 +541,7 @@ export function setupLocalAuth(app: Express) {
         city: users.city,
         cpf: users.cpf,
         age: users.age,
+        profileImageUrl: users.profileImageUrl,
       }).from(users).where(eq(users.id, userId)).limit(1);
       
       if (!user) {
