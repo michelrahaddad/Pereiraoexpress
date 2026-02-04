@@ -68,10 +68,20 @@ Preferred communication style: Simple, everyday language.
 - **Key Tables**: users, sessions, userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages, systemSettings, payments, passwordResetTokens, symptoms, symptomQuestions, symptomDiagnoses, localKnowledge
 
 ### Key Domain Entities
-- **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, and city
+- **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, city, and geolocation (latitude/longitude)
 - **Service Requests**: Track full lifecycle from pending through diagnosis, provider assignment, progress, to completion
 - **SLA Priorities**: Standard, express, and urgent tiers for service requests
 - **Payments**: Pix and card options (simulated, structured for future Stripe integration)
+
+### Geolocation System
+- **Distance Calculation**: Haversine formula in `shared/geolocation.ts` for accurate distance calculation
+- **Provider Filtering**: Clients only see providers within 30km radius
+- **Location Capture**: Browser Geolocation API captures client location automatically
+- **Fallback**: If location unavailable, shows all providers without distance filtering
+- **Distance Display**: Shows distance in km next to each provider
+- **Routes**:
+  - PATCH `/api/user/location` - Update user's latitude/longitude
+  - GET `/api/providers/available?lat=X&lon=Y` - Filter providers by distance
 
 ### Admin Panel Features
 - **User Management**: Filter by city, role, and search
