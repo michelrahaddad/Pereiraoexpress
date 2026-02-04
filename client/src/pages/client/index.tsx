@@ -82,7 +82,7 @@ export default function ClientDashboard() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
   const { data: services, isLoading: servicesLoading } = useQuery<ServiceRequest[]>({
-    queryKey: ["/api/services"],
+    queryKey: ["/api/service"],
     enabled: isAuthenticated,
   });
 

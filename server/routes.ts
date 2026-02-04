@@ -53,7 +53,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/services", isAuthenticated, async (req: any, res) => {
+  app.get("/api/service", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const services = await storage.getServicesByClient(userId);
@@ -64,7 +64,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/services", isAuthenticated, async (req: any, res) => {
+  app.post("/api/service", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { title, description, categoryId, diagnosis, materials, slaPriority, estimatedPrice, address } = req.body;
@@ -89,7 +89,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/services/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/service/:id", isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id as string);
       const service = await storage.getServiceById(id);
@@ -103,7 +103,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/services/:id/status", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/service/:id/status", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const { status } = req.body;
@@ -1048,6 +1048,190 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     } catch (error) {
       console.error("Error resolving antifraud flag:", error);
       res.status(500).json({ error: "Failed to resolve flag" });
+    }
+  });
+
+  // ==================== FORNECEDORES E MATERIAIS ====================
+
+  // Listar fornecedores ativos
+  app.get("/api/suppliers", isAuthenticated, async (req, res) => {
+    try {
+      const suppliers = await storage.getSuppliers();
+      res.json(suppliers);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      res.status(500).json({ error: "Failed to fetch suppliers" });
+    }
+  });
+
+  // Buscar fornecedores por cidade
+  app.get("/api/suppliers/city/:city", isAuthenticated, async (req, res) => {
+    try {
+      const city = req.params.city as string;
+      const suppliers = await storage.getSuppliersByCity(city);
+      res.json(suppliers);
+    } catch (error) {
+      console.error("Error fetching suppliers by city:", error);
+      res.status(500).json({ error: "Failed to fetch suppliers" });
+    }
+  });
+
+  // Obter fornecedor por ID
+  app.get("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const supplier = await storage.getSupplierById(id);
+      if (!supplier) {
+        return res.status(404).json({ error: "Supplier not found" });
+      }
+      res.json(supplier);
+    } catch (error) {
+      console.error("Error fetching supplier:", error);
+      res.status(500).json({ error: "Failed to fetch supplier" });
+    }
+  });
+
+  // Admin: Criar fornecedor
+  app.post("/api/admin/suppliers", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const supplier = await storage.createSupplier(req.body);
+      res.json(supplier);
+    } catch (error) {
+      console.error("Error creating supplier:", error);
+      res.status(500).json({ error: "Failed to create supplier" });
+    }
+  });
+
+  // Admin: Atualizar fornecedor
+  app.patch("/api/admin/suppliers/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const supplier = await storage.updateSupplier(id, req.body);
+      res.json(supplier);
+    } catch (error) {
+      console.error("Error updating supplier:", error);
+      res.status(500).json({ error: "Failed to update supplier" });
+    }
+  });
+
+  // Listar materiais
+  app.get("/api/materials", isAuthenticated, async (req, res) => {
+    try {
+      const materials = await storage.getMaterials();
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching materials:", error);
+      res.status(500).json({ error: "Failed to fetch materials" });
+    }
+  });
+
+  // Buscar materiais por categoria
+  app.get("/api/materials/category/:category", isAuthenticated, async (req, res) => {
+    try {
+      const category = req.params.category as string;
+      const materials = await storage.getMaterialsByCategory(category);
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching materials by category:", error);
+      res.status(500).json({ error: "Failed to fetch materials" });
+    }
+  });
+
+  // Buscar materiais por fornecedor
+  app.get("/api/materials/supplier/:supplierId", isAuthenticated, async (req, res) => {
+    try {
+      const supplierId = parseInt(req.params.supplierId as string);
+      const materials = await storage.getMaterialsBySupplierId(supplierId);
+      res.json(materials);
+    } catch (error) {
+      console.error("Error fetching materials by supplier:", error);
+      res.status(500).json({ error: "Failed to fetch materials" });
+    }
+  });
+
+  // Obter material por ID
+  app.get("/api/materials/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const material = await storage.getMaterialById(id);
+      if (!material) {
+        return res.status(404).json({ error: "Material not found" });
+      }
+      res.json(material);
+    } catch (error) {
+      console.error("Error fetching material:", error);
+      res.status(500).json({ error: "Failed to fetch material" });
+    }
+  });
+
+  // Admin: Criar material
+  app.post("/api/admin/materials", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const material = await storage.createMaterial(req.body);
+      res.json(material);
+    } catch (error) {
+      console.error("Error creating material:", error);
+      res.status(500).json({ error: "Failed to create material" });
+    }
+  });
+
+  // Admin: Atualizar material
+  app.patch("/api/admin/materials/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const material = await storage.updateMaterial(id, req.body);
+      res.json(material);
+    } catch (error) {
+      console.error("Error updating material:", error);
+      res.status(500).json({ error: "Failed to update material" });
+    }
+  });
+
+  // Criar pedido de materiais para um serviço
+  app.post("/api/service/:serviceId/materials", isAuthenticated, async (req: any, res) => {
+    try {
+      const serviceId = parseInt(req.params.serviceId as string);
+      const { supplierId, items, totalCost, totalSale, platformMargin } = req.body;
+
+      const order = await storage.createMaterialOrder({
+        serviceRequestId: serviceId,
+        supplierId,
+        items: JSON.stringify(items),
+        totalCost,
+        totalSale,
+        platformMargin,
+        status: "pending",
+      });
+
+      res.json(order);
+    } catch (error) {
+      console.error("Error creating material order:", error);
+      res.status(500).json({ error: "Failed to create material order" });
+    }
+  });
+
+  // Obter pedido de materiais de um serviço
+  app.get("/api/service/:serviceId/materials", isAuthenticated, async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.serviceId as string);
+      const order = await storage.getMaterialOrderByServiceId(serviceId);
+      res.json(order || null);
+    } catch (error) {
+      console.error("Error fetching material order:", error);
+      res.status(500).json({ error: "Failed to fetch material order" });
+    }
+  });
+
+  // Admin/Fornecedor: Atualizar status do pedido
+  app.patch("/api/admin/material-orders/:id/status", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const { status } = req.body;
+      const order = await storage.updateMaterialOrderStatus(id, status);
+      res.json(order);
+    } catch (error) {
+      console.error("Error updating material order status:", error);
+      res.status(500).json({ error: "Failed to update order status" });
     }
   });
 
