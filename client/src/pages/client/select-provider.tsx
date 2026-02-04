@@ -42,7 +42,7 @@ export default function SelectProvider() {
     queryKey: ["/api/providers/available", { serviceId, lat: latitude, lon: longitude }],
     queryFn: async () => {
       let url = `/api/providers/available?serviceId=${serviceId}`;
-      if (latitude && longitude) {
+      if (latitude !== null && longitude !== null) {
         url += `&lat=${latitude}&lon=${longitude}`;
       }
       const res = await fetch(url, {

@@ -46,7 +46,8 @@ export function filterProvidersByDistance<T extends { latitude?: string | null; 
   const withoutLocation: (T & { distance: null })[] = [];
   
   for (const provider of providers) {
-    if (provider.latitude && provider.longitude) {
+    if (provider.latitude !== null && provider.latitude !== undefined && 
+        provider.longitude !== null && provider.longitude !== undefined) {
       const distance = calculateDistance(
         clientLat,
         clientLon,
