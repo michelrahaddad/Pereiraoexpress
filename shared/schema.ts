@@ -282,6 +282,78 @@ export const antifraudFlags = pgTable("antifraud_flags", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ==========================================
+// BANCO DE SINTOMAS PARA DIAGNÓSTICO INTELIGENTE
+// ==========================================
+
+// Sintomas por categoria de serviço
+export const symptoms = pgTable("symptoms", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").notNull(), // Referência à categoria de serviço
+  name: varchar("name").notNull(), // Ex: "Vazamento", "Curto-circuito"
+  description: text("description"), // Descrição detalhada do sintoma
+  keywords: text("keywords"), // Palavras-chave para matching (JSON array)
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Perguntas específicas para cada sintoma
+export const symptomQuestions = pgTable("symptom_questions", {
+  id: serial("id").primaryKey(),
+  symptomId: integer("symptom_id").notNull(), // Referência ao sintoma
+  question: text("question").notNull(), // Ex: "A água está limpa ou suja?"
+  questionOrder: integer("question_order").default(1), // Ordem da pergunta
+  expectedResponses: text("expected_responses"), // Respostas esperadas (JSON array)
+  isRequired: boolean("is_required").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Diagnósticos possíveis para cada sintoma
+export const symptomDiagnoses = pgTable("symptom_diagnoses", {
+  id: serial("id").primaryKey(),
+  symptomId: integer("symptom_id").notNull(), // Referência ao sintoma
+  title: varchar("title").notNull(), // Ex: "Cano furado"
+  description: text("description").notNull(), // Explicação do problema
+  solution: text("solution"), // Solução recomendada
+  providerMaterials: text("provider_materials"), // Materiais do prestador (JSON array)
+  clientMaterials: text("client_materials"), // Materiais que cliente compra (JSON array)
+  estimatedPriceMin: integer("estimated_price_min"), // Preço mínimo em centavos
+  estimatedPriceMax: integer("estimated_price_max"), // Preço máximo em centavos
+  urgencyLevel: varchar("urgency_level").default("normal"), // normal, urgente, emergência
+  matchConditions: text("match_conditions"), // Condições para match (JSON - respostas que levam a esse diagnóstico)
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Conhecimento local por cidade/região
+export const localKnowledge = pgTable("local_knowledge", {
+  id: serial("id").primaryKey(),
+  city: varchar("city"), // Cidade específica ou null para global
+  categoryId: integer("category_id"), // Categoria de serviço
+  title: varchar("title").notNull(), // Ex: "Casas antigas em Pereira Barreto"
+  knowledge: text("knowledge").notNull(), // Conhecimento específico
+  commonIssues: text("common_issues"), // Problemas comuns na região (JSON array)
+  materialsTips: text("materials_tips"), // Dicas de materiais locais
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Insert schemas para sintomas
+export const insertSymptomSchema = createInsertSchema(symptoms).omit({ id: true, createdAt: true });
+export const insertSymptomQuestionSchema = createInsertSchema(symptomQuestions).omit({ id: true, createdAt: true });
+export const insertSymptomDiagnosisSchema = createInsertSchema(symptomDiagnoses).omit({ id: true, createdAt: true });
+export const insertLocalKnowledgeSchema = createInsertSchema(localKnowledge).omit({ id: true, createdAt: true });
+
+export type InsertSymptom = z.infer<typeof insertSymptomSchema>;
+export type InsertSymptomQuestion = z.infer<typeof insertSymptomQuestionSchema>;
+export type InsertSymptomDiagnosis = z.infer<typeof insertSymptomDiagnosisSchema>;
+export type InsertLocalKnowledge = z.infer<typeof insertLocalKnowledgeSchema>;
+
+export type Symptom = typeof symptoms.$inferSelect;
+export type SymptomQuestion = typeof symptomQuestions.$inferSelect;
+export type SymptomDiagnosis = typeof symptomDiagnoses.$inferSelect;
+export type LocalKnowledge = typeof localKnowledge.$inferSelect;
+
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true });
 export const insertServiceCategorySchema = createInsertSchema(serviceCategories).omit({ id: true, createdAt: true });
 export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ id: true, createdAt: true, updatedAt: true });
