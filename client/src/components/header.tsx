@@ -29,7 +29,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-primary/20 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 backdrop-blur-xl">
-      <div className="container flex h-16 items-center justify-between gap-4 px-6">
+      <div className="container flex h-20 items-center justify-between gap-4 px-6">
         <div className="flex items-center gap-3">
           {showMenu && (
             <Button
@@ -46,7 +46,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
             <img
               src="/logo-horizontal.png"
               alt="Pereirão Express"
-              className="h-14 object-contain"
+              className="h-16 md:h-20 object-contain"
             />
           </Link>
         </div>
