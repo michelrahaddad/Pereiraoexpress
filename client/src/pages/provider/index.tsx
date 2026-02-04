@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -195,6 +195,7 @@ export default function ProviderDashboard() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [isAvailable, setIsAvailable] = useState(true);
   const [selectedService, setSelectedService] = useState<ServiceRequest | null>(null);
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
@@ -399,14 +400,12 @@ export default function ProviderDashboard() {
         <Button 
           variant="ghost" 
           size="sm" 
-          className="mb-4 gap-2" 
-          asChild
+          className="mb-4 gap-2"
+          onClick={() => setLocation("/")}
           data-testid="button-back"
         >
-          <Link href="/">
-            <ArrowLeft className="h-4 w-4" />
-            Voltar
-          </Link>
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
         </Button>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">

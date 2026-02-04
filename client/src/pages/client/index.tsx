@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { LoadingSkeleton, CardSkeleton } from "@/components/loading-skeleton";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { 
   Plus, 
   MessageSquare, 
@@ -81,6 +81,7 @@ function ServiceCard({ service }: { service: ServiceRequest }) {
 
 export default function ClientDashboard() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
   
   const { data: services, isLoading: servicesLoading } = useQuery<ServiceRequest[]>({
     queryKey: ["/api/service"],
@@ -116,14 +117,12 @@ export default function ClientDashboard() {
         <Button 
           variant="ghost" 
           size="sm" 
-          className="mb-4 gap-2" 
-          asChild
+          className="mb-4 gap-2"
+          onClick={() => setLocation("/")}
           data-testid="button-back"
         >
-          <Link href="/">
-            <ArrowLeft className="h-4 w-4" />
-            Voltar
-          </Link>
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
         </Button>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
