@@ -231,6 +231,16 @@ export default function ProviderDashboard() {
     enabled: isAuthenticated,
   });
 
+  const { data: profile } = useQuery<{ rating: string; totalRatings: number }>({
+    queryKey: ["/api/provider/profile"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: reviews } = useQuery<{ id: number; rating: number; comment: string; createdAt: string; clientName?: string }[]>({
+    queryKey: ["/api/provider/reviews"],
+    enabled: isAuthenticated,
+  });
+
   const acceptMutation = useMutation({
     mutationFn: async (serviceId: number) => {
       return apiRequest("POST", `/api/provider/accept/${serviceId}`);
@@ -454,12 +464,56 @@ export default function ProviderDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Avaliação</p>
-                  <p className="text-xl font-bold">4.8</p>
+                  {(profile?.totalRatings || 0) > 0 ? (
+                    <p className="text-xl font-bold" data-testid="text-rating">
+                      {parseFloat(profile?.rating || "0").toFixed(1)}/10
+                      <span className="text-sm font-normal text-muted-foreground ml-1">
+                        ({profile?.totalRatings} {profile?.totalRatings === 1 ? "avaliação" : "avaliações"})
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-xl font-bold text-muted-foreground" data-testid="text-rating-new">
+                      Novo
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Reviews section */}
+        {reviews && reviews.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-yellow-500" />
+                Avaliações Recebidas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {reviews.slice(0, 5).map((review) => (
+                <div key={review.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">Cliente #{review.clientName}</span>
+                      <div className="flex items-center gap-1 text-yellow-500">
+                        <Star className="h-4 w-4 fill-current" />
+                        <span className="font-bold">{review.rating}/10</span>
+                      </div>
+                    </div>
+                    {review.comment && (
+                      <p className="text-sm text-muted-foreground">{review.comment}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(review.createdAt).toLocaleDateString("pt-BR")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue="available" className="w-full">
           <TabsList className="grid w-full grid-cols-3 mb-6">

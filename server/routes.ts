@@ -208,6 +208,55 @@ export async function registerRoutes(
     }
   });
 
+  // Provider profile with rating
+  app.get("/api/provider/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      
+      res.json({
+        rating: profile.rating || "0",
+        totalRatings: profile.totalRatings || 0,
+        city: profile.city,
+        specialties: profile.specialties,
+      });
+    } catch (error) {
+      console.error("Error fetching provider profile:", error);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  // Provider reviews
+  app.get("/api/provider/reviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const reviews = await storage.getReviewsByProvider(userId);
+      
+      // Get client names for each review
+      const reviewsWithClients = await Promise.all(
+        reviews.map(async (review) => {
+          const clientProfile = await storage.getUserProfile(review.clientId);
+          return {
+            id: review.id,
+            rating: review.rating,
+            comment: review.comment,
+            createdAt: review.createdAt,
+            clientName: clientProfile?.userId?.slice(-4) || "Cliente",
+          };
+        })
+      );
+      
+      res.json(reviewsWithClients);
+    } catch (error) {
+      console.error("Error fetching provider reviews:", error);
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
   app.get("/api/admin/stats", isAuthenticated, async (req, res) => {
     try {
       const [usersResult] = await db.select({ count: sql<number>`count(*)` }).from(users);
@@ -940,6 +989,67 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
     } catch (error) {
       console.error("Error fetching services:", error);
       res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Admin: Detailed providers list with stats
+  app.get("/api/admin/providers", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const profiles = await storage.getAllUserProfiles();
+      const providers = profiles.filter(p => p.role === "provider");
+      const allServices = await storage.getAllServices();
+      
+      const providersWithStats = await Promise.all(
+        providers.map(async (provider) => {
+          const providerServices = allServices.filter(s => s.providerId === provider.userId);
+          const completedServices = providerServices.filter(s => s.status === "completed");
+          const reviews = await storage.getReviewsByProvider(provider.userId);
+          const totalEarnings = completedServices.reduce((sum, s) => sum + (s.finalPrice || s.estimatedPrice || 0), 0);
+          
+          return {
+            ...provider,
+            totalServices: providerServices.length,
+            completedServices: completedServices.length,
+            pendingServices: providerServices.filter(s => !["completed", "cancelled"].includes(s.status)).length,
+            totalEarnings,
+            reviewsCount: reviews.length,
+            reviews: reviews.slice(0, 3),
+          };
+        })
+      );
+      
+      res.json(providersWithStats);
+    } catch (error) {
+      console.error("Error fetching providers:", error);
+      res.status(500).json({ error: "Failed to fetch providers" });
+    }
+  });
+
+  // Admin: Detailed clients list with stats
+  app.get("/api/admin/clients", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const profiles = await storage.getAllUserProfiles();
+      const clients = profiles.filter(p => p.role === "client");
+      const allServices = await storage.getAllServices();
+      
+      const clientsWithStats = clients.map((client) => {
+        const clientServices = allServices.filter(s => s.clientId === client.userId);
+        const completedServices = clientServices.filter(s => s.status === "completed");
+        const totalSpent = completedServices.reduce((sum, s) => sum + (s.finalPrice || s.estimatedPrice || 0), 0);
+        
+        return {
+          ...client,
+          totalServices: clientServices.length,
+          completedServices: completedServices.length,
+          pendingServices: clientServices.filter(s => !["completed", "cancelled"].includes(s.status)).length,
+          totalSpent,
+        };
+      });
+      
+      res.json(clientsWithStats);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      res.status(500).json({ error: "Failed to fetch clients" });
     }
   });
 

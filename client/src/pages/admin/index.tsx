@@ -51,7 +51,8 @@ import {
   XCircle,
   Clock,
   Eye,
-  AlertTriangle
+  AlertTriangle,
+  Star
 } from "lucide-react";
 import type { UserProfile, SystemSetting } from "@shared/schema";
 
@@ -70,6 +71,22 @@ interface UserWithDetails extends UserProfile {
   email?: string;
   firstName?: string;
   lastName?: string;
+}
+
+interface ProviderWithStats extends UserProfile {
+  totalServices: number;
+  completedServices: number;
+  pendingServices: number;
+  totalEarnings: number;
+  reviewsCount: number;
+  reviews: { id: number; rating: number; comment: string; createdAt: string }[];
+}
+
+interface ClientWithStats extends UserProfile {
+  totalServices: number;
+  completedServices: number;
+  pendingServices: number;
+  totalSpent: number;
 }
 
 const defaultSettings = [
@@ -116,6 +133,16 @@ export default function AdminDashboard() {
 
   const { data: users, isLoading: usersLoading } = useQuery<UserWithDetails[]>({
     queryKey: ["/api/admin/users"],
+    enabled: isAuthenticated && isAdmin,
+  });
+
+  const { data: providersData, isLoading: providersLoading } = useQuery<ProviderWithStats[]>({
+    queryKey: ["/api/admin/providers"],
+    enabled: isAuthenticated && isAdmin,
+  });
+
+  const { data: clientsData, isLoading: clientsLoading } = useQuery<ClientWithStats[]>({
+    queryKey: ["/api/admin/clients"],
     enabled: isAuthenticated && isAdmin,
   });
 
@@ -532,6 +559,14 @@ export default function AdminDashboard() {
             <TabsTrigger value="symptoms" className="rounded-lg gap-2" data-testid="tab-symptoms">
               <Sparkles className="h-4 w-4" />
               Sintomas IA
+            </TabsTrigger>
+            <TabsTrigger value="providers" className="rounded-lg gap-2" data-testid="tab-providers">
+              <Wrench className="h-4 w-4" />
+              Profissionais
+            </TabsTrigger>
+            <TabsTrigger value="clients" className="rounded-lg gap-2" data-testid="tab-clients">
+              <UserCheck className="h-4 w-4" />
+              Clientes
             </TabsTrigger>
           </TabsList>
 
@@ -1152,6 +1187,181 @@ export default function AdminDashboard() {
 
           <TabsContent value="symptoms" className="space-y-6">
             <SymptomsManager />
+          </TabsContent>
+
+          {/* Providers Management Tab */}
+          <TabsContent value="providers" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5" />
+                  Gestão de Profissionais
+                </CardTitle>
+                <CardDescription>Visualize notas, avaliações, serviços e pagamentos dos profissionais</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {providersLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-24 bg-muted rounded animate-pulse" />
+                    ))}
+                  </div>
+                ) : providersData && providersData.length > 0 ? (
+                  <div className="space-y-4">
+                    {providersData.map((provider) => (
+                      <div key={provider.userId} className="p-4 border rounded-lg hover-elevate">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-semibold">Profissional #{provider.userId.slice(-6)}</span>
+                              {(provider.totalRatings || 0) > 0 ? (
+                                <Badge variant="default" className="bg-yellow-500 text-black">
+                                  {parseFloat(provider.rating || "0").toFixed(1)}/10
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                                  Novo
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                              {provider.city && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {provider.city}
+                                </span>
+                              )}
+                              {provider.phone && (
+                                <span>{provider.phone}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                            <div className="p-2 bg-muted rounded">
+                              <p className="text-xs text-muted-foreground">Avaliações</p>
+                              <p className="text-lg font-bold">{provider.totalRatings || 0}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded">
+                              <p className="text-xs text-muted-foreground">Serviços</p>
+                              <p className="text-lg font-bold">{provider.completedServices || 0}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded">
+                              <p className="text-xs text-muted-foreground">Pendentes</p>
+                              <p className="text-lg font-bold">{provider.pendingServices || 0}</p>
+                            </div>
+                            <div className="p-2 bg-primary/10 rounded">
+                              <p className="text-xs text-muted-foreground">Ganhos</p>
+                              <p className="text-lg font-bold text-primary">
+                                R$ {((provider.totalEarnings || 0) / 100).toFixed(0)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Recent Reviews */}
+                        {provider.reviews && provider.reviews.length > 0 && (
+                          <div className="mt-4 pt-4 border-t">
+                            <p className="text-sm font-medium mb-2">Últimas avaliações:</p>
+                            <div className="flex gap-2 flex-wrap">
+                              {provider.reviews.map((review) => (
+                                <div key={review.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
+                                  <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                                  {review.rating}/10
+                                  {review.comment && (
+                                    <span className="text-muted-foreground ml-1 truncate max-w-[100px]">
+                                      "{review.comment}"
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <Wrench className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum profissional cadastrado</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Clients Management Tab */}
+          <TabsContent value="clients" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5" />
+                  Gestão de Clientes
+                </CardTitle>
+                <CardDescription>Visualize serviços e pagamentos dos clientes</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientsLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-20 bg-muted rounded animate-pulse" />
+                    ))}
+                  </div>
+                ) : clientsData && clientsData.length > 0 ? (
+                  <div className="space-y-4">
+                    {clientsData.map((client) => (
+                      <div key={client.userId} className="p-4 border rounded-lg hover-elevate">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-semibold">Cliente #{client.userId.slice(-6)}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                              {client.city && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {client.city}
+                                </span>
+                              )}
+                              {client.phone && (
+                                <span>{client.phone}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                            <div className="p-2 bg-muted rounded">
+                              <p className="text-xs text-muted-foreground">Total</p>
+                              <p className="text-lg font-bold">{client.totalServices || 0}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded">
+                              <p className="text-xs text-muted-foreground">Concluídos</p>
+                              <p className="text-lg font-bold">{client.completedServices || 0}</p>
+                            </div>
+                            <div className="p-2 bg-muted rounded">
+                              <p className="text-xs text-muted-foreground">Pendentes</p>
+                              <p className="text-lg font-bold">{client.pendingServices || 0}</p>
+                            </div>
+                            <div className="p-2 bg-primary/10 rounded">
+                              <p className="text-xs text-muted-foreground">Gastos</p>
+                              <p className="text-lg font-bold text-primary">
+                                R$ {((client.totalSpent || 0) / 100).toFixed(0)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground">
+                    <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum cliente cadastrado</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
