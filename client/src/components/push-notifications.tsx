@@ -109,7 +109,7 @@ export function PushNotificationToggle() {
       const subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
-        await apiRequest("DELETE", "/api/push/unsubscribe", {
+        await apiRequest("POST", "/api/push/unsubscribe", {
           endpoint: subscription.endpoint,
         });
         await subscription.unsubscribe();
@@ -141,35 +141,34 @@ export function PushNotificationToggle() {
         variant="ghost"
         size="icon"
         disabled
-        className="rounded-xl text-muted-foreground"
+        className="rounded-xl"
         title="Notificações bloqueadas"
         data-testid="button-push-blocked"
       >
-        <BellOff className="h-5 w-5" />
+        <BellOff className="h-5 w-5" data-testid="icon-push-blocked" />
       </Button>
     );
   }
 
   return (
     <Button
-      variant="ghost"
+      variant={isSubscribed ? "default" : "ghost"}
       size="icon"
       onClick={isSubscribed ? unsubscribe : subscribe}
       disabled={isLoading}
-      className={`rounded-xl ${
-        isSubscribed 
-          ? "text-primary" 
-          : "text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10"
-      }`}
+      className="rounded-xl"
       title={isSubscribed ? "Desativar notificações push" : "Ativar notificações push"}
       data-testid="button-push-toggle"
     >
       {isLoading ? (
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <div 
+          className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" 
+          data-testid="spinner-push-loading"
+        />
       ) : isSubscribed ? (
-        <BellRing className="h-5 w-5" />
+        <BellRing className="h-5 w-5" data-testid="icon-push-active" />
       ) : (
-        <Bell className="h-5 w-5 opacity-60" />
+        <Bell className="h-5 w-5 opacity-60" data-testid="icon-push-inactive" />
       )}
     </Button>
   );

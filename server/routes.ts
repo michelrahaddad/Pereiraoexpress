@@ -2676,12 +2676,21 @@ Responda apenas: "ACEITO" ou "RECUSADO"`;
   // Registrar subscription de push
   app.post("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { endpoint, keys } = req.body;
+      const subscribeSchema = z.object({
+        endpoint: z.string().url(),
+        keys: z.object({
+          p256dh: z.string().min(1),
+          auth: z.string().min(1)
+        })
+      });
       
-      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      const validation = subscribeSchema.safeParse(req.body);
+      if (!validation.success) {
         return res.status(400).json({ error: "Dados de subscription inválidos" });
       }
+      
+      const userId = req.user.claims.sub;
+      const { endpoint, keys } = validation.data;
       
       // Verificar se já existe
       const existing = await storage.getPushSubscriptionByEndpoint(endpoint);
@@ -2704,16 +2713,19 @@ Responda apenas: "ACEITO" ou "RECUSADO"`;
     }
   });
 
-  // Remover subscription
-  app.delete("/api/push/unsubscribe", isAuthenticated, async (req: any, res) => {
+  // Remover subscription (usando POST para compatibilidade)
+  app.post("/api/push/unsubscribe", isAuthenticated, async (req: any, res) => {
     try {
-      const { endpoint } = req.body;
+      const unsubscribeSchema = z.object({
+        endpoint: z.string().url()
+      });
       
-      if (!endpoint) {
-        return res.status(400).json({ error: "Endpoint não fornecido" });
+      const validation = unsubscribeSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Endpoint inválido" });
       }
       
-      await storage.deletePushSubscription(endpoint);
+      await storage.deletePushSubscription(validation.data.endpoint);
       res.json({ success: true, message: "Notificações desativadas" });
     } catch (error) {
       console.error("Error unsubscribing from push:", error);
