@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,7 +38,7 @@ export default function SelectProvider() {
     enabled: !!serviceId,
   });
 
-  const { data: providers = [], isLoading } = useQuery<Provider[]>({
+  const { data: providers = [], isLoading, refetch } = useQuery<Provider[]>({
     queryKey: ["/api/providers/available", { serviceId, lat: latitude, lon: longitude }],
     queryFn: async () => {
       let url = `/api/providers/available?serviceId=${serviceId}`;
@@ -53,8 +53,15 @@ export default function SelectProvider() {
       if (!res.ok) throw new Error("Failed to fetch providers");
       return res.json();
     },
-    enabled: !!serviceId && !locationLoading,
+    enabled: !!serviceId,
   });
+  
+  // Refetch when location becomes available
+  useEffect(() => {
+    if (latitude !== null && longitude !== null && !locationLoading && serviceId) {
+      refetch();
+    }
+  }, [latitude, longitude, locationLoading, serviceId, refetch]);
 
   const selectMutation = useMutation({
     mutationFn: async (providerId: string) => {
