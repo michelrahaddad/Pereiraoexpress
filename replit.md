@@ -133,6 +133,12 @@ Preferred communication style: Simple, everyday language.
 - **Real-time Updates**: Polling every 30 seconds for new notifications
 - **Notification Types**: service_request, service_accepted, service_rejected, service_completed, payment_received, new_message, call_requested
 - **Auto-trigger**: Notifications created when client selects a provider
+- **Push Notifications**: Browser-native push via web-push library
+  - Toggle button in header to enable/disable
+  - Service worker (sw.js) handles background notifications
+  - Sent automatically when client selects provider
+  - Required secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+  - Routes: GET `/api/push/vapid-public-key`, POST `/api/push/subscribe`, POST `/api/push/unsubscribe`
 
 ### Twilio Voice Integration (Ready for Credentials)
 - **AI Secretary**: Uses Gemini to conduct phone calls with providers
