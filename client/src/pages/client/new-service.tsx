@@ -110,7 +110,7 @@ export default function NewService() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [step, setStep] = useState<"guided" | "chat" | "diagnosis" | "payment">("guided");
+  const [step, setStep] = useState<"payment" | "guided" | "chat" | "diagnosis" | "complete">("payment");
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [guidedAnswers, setGuidedAnswers] = useState<GuidedAnswer[]>([]);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -133,6 +133,8 @@ export default function NewService() {
   const [paymentType, setPaymentType] = useState<"fee" | "service">("fee");
   const [feePaid, setFeePaid] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  
+  const DIAGNOSIS_FEE = 1000; // R$ 10,00 fixo
 
   const createAIDiagnosisMutation = useMutation({
     mutationFn: async (data: { 
@@ -493,12 +495,12 @@ export default function NewService() {
 
   const handleFeePaymentComplete = (paymentId: number) => {
     setShowPaymentModal(false);
-    if (aiDiagnosis) {
-      payDiagnosisFeeMutation.mutate({
-        serviceId: aiDiagnosis.service.id,
-        method: "pix"
-      });
-    }
+    setFeePaid(true);
+    setStep("guided");
+    toast({
+      title: "Taxa paga com sucesso!",
+      description: "Agora vamos entender seu problema.",
+    });
   };
 
   if (authLoading) {
@@ -509,12 +511,14 @@ export default function NewService() {
     );
   }
 
-  const progressValue = step === "guided" 
-    ? ((currentQuestion + 1) / currentQuestions.length) * 33
+  const progressValue = step === "payment"
+    ? 5
+    : step === "guided" 
+    ? 10 + ((currentQuestion + 1) / currentQuestions.length) * 25
     : step === "chat" 
-    ? 66 
+    ? 50 
     : step === "diagnosis"
-    ? 85
+    ? 80
     : 100;
 
   return (
@@ -534,7 +538,7 @@ export default function NewService() {
               {step === "guided" && "Responda algumas perguntas rápidas"}
               {step === "chat" && "Descreva mais detalhes do problema"}
               {step === "diagnosis" && "Análise do diagnóstico"}
-              {step === "payment" && "Pagamento"}
+              {step === "payment" && "Taxa de diagnóstico"}
             </p>
           </div>
         </div>
@@ -542,11 +546,70 @@ export default function NewService() {
         <div className="px-4 pt-3">
           <Progress value={progressValue} className="h-2" />
           <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+            <span>Taxa</span>
             <span>Perguntas</span>
-            <span>Chat</span>
+            <span>Chat IA</span>
             <span>Diagnóstico</span>
           </div>
         </div>
+
+        {step === "payment" && (
+          <div className="flex-1 p-4 flex flex-col items-center justify-center">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <CreditCard className="h-8 w-8 text-primary" />
+                </div>
+                <CardTitle className="text-2xl">Taxa de Diagnóstico IA</CardTitle>
+                <CardDescription>
+                  Pague a taxa para acessar nosso assistente inteligente que vai analisar seu problema e encontrar os melhores profissionais.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center">
+                  <p className="text-4xl font-bold text-primary">R$ 10,00</p>
+                  <p className="text-sm text-muted-foreground mt-1">Taxa única por diagnóstico</p>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span>Análise inteligente do seu problema</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span>Orçamento estimado em minutos</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span>Conexão com profissionais qualificados</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-primary" />
+                    <span>Pagamento seguro</span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full rounded-xl h-12 text-lg" 
+                  onClick={() => setShowPaymentModal(true)}
+                  data-testid="button-pay-diagnosis-fee"
+                >
+                  Pagar e começar
+                </Button>
+              </CardFooter>
+            </Card>
+            
+            <PaymentModal
+              open={showPaymentModal}
+              onOpenChange={setShowPaymentModal}
+              amount={DIAGNOSIS_FEE}
+              description="Taxa de diagnóstico IA"
+              onPaymentComplete={handleFeePaymentComplete}
+            />
+          </div>
+        )}
 
         {step === "guided" && (
           <div className="flex-1 p-4 flex flex-col">
@@ -865,32 +928,19 @@ export default function NewService() {
                   <Button 
                     className="w-full" 
                     size="lg"
-                    onClick={handlePayFee}
-                    disabled={feePaid || payDiagnosisFeeMutation.isPending}
-                    data-testid="button-pay-fee"
+                    onClick={() => {
+                      if (aiDiagnosis) {
+                        setLocation(`/cliente/selecionar-profissional/${aiDiagnosis.service.id}`);
+                      }
+                    }}
+                    data-testid="button-select-provider"
                   >
-                    {payDiagnosisFeeMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : feePaid ? (
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                    ) : (
-                      <CreditCard className="h-4 w-4 mr-2" />
-                    )}
-                    {feePaid ? "Taxa paga! Buscando profissionais..." : "Pagar taxa e continuar"}
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Ver profissionais disponíveis
                   </Button>
                 </CardFooter>
               </Card>
             </div>
-
-            {aiDiagnosis && (
-              <PaymentModal
-                open={showPaymentModal}
-                onOpenChange={setShowPaymentModal}
-                amount={aiDiagnosis.diagnosisFee}
-                description="Taxa de diagnóstico IA"
-                onPaymentComplete={handleFeePaymentComplete}
-              />
-            )}
           </ScrollArea>
         )}
       </main>
