@@ -108,13 +108,13 @@ export default function SelectProvider() {
     }
     switch (level) {
       case "Premium":
-        return <Badge variant="default" className="bg-yellow-500 text-black">1.5x Premium</Badge>;
+        return <Badge variant="default" className="bg-yellow-500 text-black">Premium</Badge>;
       case "Experiente":
-        return <Badge variant="default" className="bg-blue-500">1.3x Experiente</Badge>;
+        return <Badge variant="default" className="bg-blue-500">Experiente</Badge>;
       case "Regular":
-        return <Badge variant="secondary">1.2x Regular</Badge>;
+        return <Badge variant="secondary">Regular</Badge>;
       default:
-        return <Badge variant="outline">0.8x Iniciante</Badge>;
+        return <Badge variant="outline">Iniciante</Badge>;
     }
   };
 
@@ -158,30 +158,7 @@ export default function SelectProvider() {
         )}
       </div>
 
-      <Card className="mb-6 bg-gradient-to-r from-blue-50 to-yellow-50 dark:from-blue-900/20 dark:to-yellow-900/20">
-        <CardContent className="pt-6">
-          <h3 className="font-semibold mb-2">Como funciona o preço?</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">0-5</Badge>
-              <span>0.8x (Iniciante)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">5-8</Badge>
-              <span>1.2x (Regular)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-blue-500">9</Badge>
-              <span>1.3x (Experiente)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge className="bg-yellow-500 text-black">10</Badge>
-              <span>1.5x (Premium)</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
+      
       {providers.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
