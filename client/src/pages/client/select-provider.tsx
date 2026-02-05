@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation } from "lucide-react";
+import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation, Medal } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -23,6 +23,8 @@ interface Provider {
   ratingLevel: string;
   basePrice: number;
   distance: number | null;
+  firstName: string | null;
+  lastName: string | null;
 }
 
 export default function SelectProvider() {
@@ -56,7 +58,6 @@ export default function SelectProvider() {
     enabled: !!serviceId,
   });
   
-  // Refetch when location becomes available
   useEffect(() => {
     if (latitude !== null && longitude !== null && !locationLoading && serviceId) {
       refetch();
@@ -73,7 +74,7 @@ export default function SelectProvider() {
         title: "Profissional selecionado!",
         description: "O profissional foi notificado e entrará em contato em breve.",
       });
-      navigate("/cliente");
+      navigate("/client");
     },
     onError: () => {
       toast({
@@ -91,37 +92,26 @@ export default function SelectProvider() {
     }).format(cents / 100);
   };
 
-  const getRatingIcon = (level: string) => {
-    switch (level) {
-      case "Premium":
-        return <Crown className="h-4 w-4 text-yellow-500" />;
-      case "Experiente":
-        return <Award className="h-4 w-4 text-blue-500" />;
-      default:
-        return <User className="h-4 w-4 text-muted-foreground" />;
-    }
+  const getRankIcon = (position: number) => {
+    if (position === 1) return <Medal className="h-5 w-5 text-yellow-500" />;
+    if (position === 2) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (position === 3) return <Medal className="h-5 w-5 text-amber-600" />;
+    return null;
   };
 
-  const getRatingColor = (rating: number) => {
-    if (rating >= 9) return "text-yellow-500";
-    if (rating >= 7) return "text-blue-500";
-    if (rating >= 5) return "text-green-500";
-    return "text-muted-foreground";
-  };
-
-  const getMultiplierBadge = (level: string, hasRatings: boolean) => {
+  const getRatingBadge = (level: string, hasRatings: boolean) => {
     if (!hasRatings) {
-      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Novo</Badge>;
+      return <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">Novo</Badge>;
     }
     switch (level) {
       case "Premium":
-        return <Badge variant="default" className="bg-yellow-500 text-black">Premium</Badge>;
+        return <Badge className="text-xs bg-yellow-500 text-black"><Crown className="h-3 w-3 mr-1" />Premium</Badge>;
       case "Experiente":
-        return <Badge variant="default" className="bg-blue-500">Experiente</Badge>;
+        return <Badge className="text-xs bg-blue-500"><Award className="h-3 w-3 mr-1" />Experiente</Badge>;
       case "Regular":
-        return <Badge variant="secondary">Regular</Badge>;
+        return <Badge variant="secondary" className="text-xs">Regular</Badge>;
       default:
-        return <Badge variant="outline">Iniciante</Badge>;
+        return <Badge variant="outline" className="text-xs">Iniciante</Badge>;
     }
   };
 
@@ -134,162 +124,168 @@ export default function SelectProvider() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto px-4 py-8">
-      <Button
-        variant="ghost"
-        onClick={() => navigate("/cliente")}
-        className="mb-4"
-        data-testid="button-back"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Voltar
-      </Button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 pb-28">
+      <div className="px-4 py-4 max-w-2xl mx-auto">
+        <Button
+          variant="ghost"
+          onClick={() => navigate("/client")}
+          className="mb-3 -ml-2"
+          data-testid="button-back"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
+        </Button>
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">Escolha seu Profissional</h1>
-        <p className="text-muted-foreground">
-          Selecione o profissional que melhor atende às suas necessidades. 
-          Profissionais com notas mais altas cobram valores ajustados pela qualidade do serviço.
-        </p>
-        {latitude !== null && longitude !== null && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-            <Navigation className="h-4 w-4" />
-            Mostrando profissionais em até 30km da sua localização
-          </div>
-        )}
-        {locationError && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-amber-600">
-            <MapPin className="h-4 w-4" />
-            {locationError} - mostrando todos os profissionais disponíveis
-          </div>
-        )}
-      </div>
+        <div className="mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold mb-2">Escolha seu Profissional</h1>
+          <p className="text-sm text-muted-foreground">
+            Profissionais ordenados por ranking. Notas mais altas = maior qualidade.
+          </p>
+          {latitude !== null && longitude !== null && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+              <Navigation className="h-3 w-3" />
+              Mostrando profissionais em até 30km
+            </div>
+          )}
+          {locationError && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-amber-600">
+              <MapPin className="h-3 w-3" />
+              {locationError}
+            </div>
+          )}
+        </div>
 
-      
-      {providers.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum profissional disponível</h3>
-            <p className="text-muted-foreground">
-              No momento não há profissionais disponíveis na sua região.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {providers.map((provider) => {
-            const rating = parseFloat(provider.rating || "10");
-            const isSelected = selectedProvider === provider.userId;
-            
-            return (
-              <Card 
-                key={provider.userId}
-                className={`cursor-pointer transition-all ${
-                  isSelected 
-                    ? "ring-2 ring-primary border-primary" 
-                    : "hover:border-muted-foreground/50"
-                }`}
-                onClick={() => setSelectedProvider(provider.userId)}
-                data-testid={`card-provider-${provider.userId}`}
-              >
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
-                    <div className="flex items-start gap-4">
-                      <Avatar className="h-16 w-16">
-                        <AvatarFallback className="bg-primary/10 text-primary text-lg">
-                          {provider.specialties?.charAt(0) || "P"}
-                        </AvatarFallback>
-                      </Avatar>
+        {providers.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum profissional disponível</h3>
+              <p className="text-muted-foreground text-sm">
+                No momento não há profissionais disponíveis na sua região.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {providers.map((provider, index) => {
+              const rating = parseFloat(provider.rating || "10");
+              const isSelected = selectedProvider === provider.userId;
+              const position = index + 1;
+              const providerName = provider.firstName && provider.lastName 
+                ? `${provider.firstName} ${provider.lastName}`
+                : `Profissional #${provider.userId.slice(-4)}`;
+              const initials = provider.firstName 
+                ? provider.firstName.charAt(0).toUpperCase()
+                : "P";
+              
+              return (
+                <Card 
+                  key={provider.userId}
+                  className={`cursor-pointer transition-all ${
+                    isSelected 
+                      ? "ring-2 ring-primary border-primary shadow-lg" 
+                      : "hover:shadow-md"
+                  }`}
+                  onClick={() => setSelectedProvider(provider.userId)}
+                  data-testid={`card-provider-${provider.userId}`}
+                >
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-bold">
+                          {getRankIcon(position) || `#${position}`}
+                        </div>
+                        <Avatar className="h-12 w-12 sm:h-14 sm:w-14">
+                          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
                       
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          {getRatingIcon(provider.ratingLevel)}
-                          <span className="font-semibold">Profissional #{provider.userId.slice(-4)}</span>
-                          {getMultiplierBadge(provider.ratingLevel, (provider.totalRatings || 0) > 0)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                          <span className="font-semibold text-sm sm:text-base truncate">
+                            {providerName}
+                          </span>
+                          {getRatingBadge(provider.ratingLevel, (provider.totalRatings || 0) > 0)}
                         </div>
                         
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                          <span className={`flex items-center gap-1 ${(provider.totalRatings || 0) > 0 ? getRatingColor(rating) : "text-muted-foreground"}`}>
-                            <Star className="h-4 w-4 fill-current" />
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mb-2">
+                          <span className="flex items-center gap-1">
+                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                             {(provider.totalRatings || 0) > 0 ? (
-                              <>
-                                {rating.toFixed(1)}/10
-                                <span className="text-muted-foreground">
-                                  ({provider.totalRatings} {provider.totalRatings === 1 ? "avaliação" : "avaliações"})
-                                </span>
-                              </>
+                              <span className="font-medium">{rating.toFixed(1)}/10 ({provider.totalRatings})</span>
                             ) : (
-                              <span>Sem avaliações ainda</span>
+                              <span>Novo</span>
                             )}
                           </span>
                           
                           {provider.city && (
                             <span className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
+                              <MapPin className="h-3 w-3" />
                               {provider.city}
                             </span>
                           )}
                           
                           {provider.distance !== null && (
                             <span className="flex items-center gap-1 text-green-600">
-                              <Navigation className="h-4 w-4" />
-                              {provider.distance.toFixed(1)} km
+                              <Navigation className="h-3 w-3" />
+                              {provider.distance.toFixed(1)}km
                             </span>
                           )}
                           
                           {provider.totalServices > 0 && (
                             <span className="flex items-center gap-1">
-                              <Briefcase className="h-4 w-4" />
+                              <Briefcase className="h-3 w-3" />
                               {provider.totalServices} serviços
                             </span>
                           )}
                         </div>
                         
                         {provider.specialties && (
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-xs text-muted-foreground truncate">
                             {provider.specialties}
                           </p>
                         )}
                       </div>
-                    </div>
-                    
-                    <div className="flex flex-col items-end gap-2">
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">
-                          {formatPrice(provider.adjustedPrice)}
-                        </p>
-                        {provider.adjustedPrice !== provider.basePrice && (
-                          <p className="text-sm text-muted-foreground line-through">
-                            Base: {formatPrice(provider.basePrice)}
+                      
+                      <div className="flex flex-col items-end justify-between shrink-0">
+                        <div className="text-right">
+                          <p className="text-lg sm:text-xl font-bold text-primary">
+                            {formatPrice(provider.adjustedPrice)}
                           </p>
+                          {provider.adjustedPrice !== provider.basePrice && (
+                            <p className="text-[10px] text-muted-foreground line-through">
+                              {formatPrice(provider.basePrice)}
+                            </p>
+                          )}
+                        </div>
+                        
+                        {isSelected && (
+                          <CheckCircle className="h-5 w-5 text-primary mt-2" />
                         )}
                       </div>
-                      
-                      {isSelected && (
-                        <CheckCircle className="h-6 w-6 text-primary" />
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {providers.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t">
-          <div className="container max-w-4xl mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur border-t shadow-lg">
+          <div className="max-w-2xl mx-auto">
             <Button
-              className="w-full h-14 text-lg"
+              className="w-full h-12 text-base font-semibold rounded-xl"
               disabled={!selectedProvider || selectMutation.isPending}
               onClick={() => selectedProvider && selectMutation.mutate(selectedProvider)}
               data-testid="button-confirm-provider"
             >
               {selectMutation.isPending ? (
                 <span className="flex items-center gap-2">
-                  <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                   Selecionando...
                 </span>
               ) : selectedProvider ? (
@@ -301,9 +297,6 @@ export default function SelectProvider() {
           </div>
         </div>
       )}
-      
-      {/* Spacer for fixed bottom button */}
-      {providers.length > 0 && <div className="h-24" />}
     </div>
   );
 }

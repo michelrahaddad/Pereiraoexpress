@@ -737,13 +737,8 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         };
       });
       
-      // Sort: by distance first (if available), then rated providers, then new
+      // Sort: by rating/ranking first, then by distance as secondary
       providersWithPricing.sort((a, b) => {
-        // If both have distance, sort by distance first
-        if (a.distance !== null && b.distance !== null) {
-          return a.distance - b.distance;
-        }
-        
         const aHasRatings = (a.totalRatings || 0) > 0;
         const bHasRatings = (b.totalRatings || 0) > 0;
         
@@ -753,8 +748,16 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         
         // Among rated providers, sort by rating descending
         if (aHasRatings && bHasRatings) {
-          return parseFloat(b.rating || "0") - parseFloat(a.rating || "0");
+          const ratingDiff = parseFloat(b.rating || "0") - parseFloat(a.rating || "0");
+          if (ratingDiff !== 0) return ratingDiff;
         }
+        
+        // Secondary: sort by distance if available
+        if (a.distance !== null && b.distance !== null) {
+          return a.distance - b.distance;
+        }
+        if (a.distance !== null) return -1;
+        if (b.distance !== null) return 1;
         
         return 0;
       });

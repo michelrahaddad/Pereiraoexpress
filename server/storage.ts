@@ -83,7 +83,7 @@ export interface IStorage {
   getAllUserProfiles(): Promise<UserProfile[]>;
   
   // Providers
-  getAvailableProviders(city?: string, categoryId?: number): Promise<(UserProfile & { latitude?: string | null; longitude?: string | null })[]>;
+  getAvailableProviders(city?: string, categoryId?: number): Promise<(UserProfile & { latitude?: string | null; longitude?: string | null; firstName?: string | null; lastName?: string | null })[]>;
   updateProviderRating(userId: string, newRating: number, totalRatings: number): Promise<UserProfile | undefined>;
   
   // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================
@@ -375,11 +375,13 @@ class DatabaseStorage implements IStorage {
     return db.select().from(userProfiles).orderBy(desc(userProfiles.createdAt));
   }
 
-  async getAvailableProviders(city?: string, categoryId?: number): Promise<(UserProfile & { latitude?: string | null; longitude?: string | null })[]> {
+  async getAvailableProviders(city?: string, categoryId?: number): Promise<(UserProfile & { latitude?: string | null; longitude?: string | null; firstName?: string | null; lastName?: string | null })[]> {
     const results = await db.select({
       profile: userProfiles,
       latitude: users.latitude,
       longitude: users.longitude,
+      firstName: users.firstName,
+      lastName: users.lastName,
     })
       .from(userProfiles)
       .leftJoin(users, eq(userProfiles.userId, users.id))
@@ -391,11 +393,13 @@ class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(userProfiles.rating));
     
-    // Flatten the results to include latitude/longitude
+    // Flatten the results to include latitude/longitude and name
     const providers = results.map(r => ({
       ...r.profile,
       latitude: r.latitude,
       longitude: r.longitude,
+      firstName: r.firstName,
+      lastName: r.lastName,
     }));
     
     // Filter by city if provided
