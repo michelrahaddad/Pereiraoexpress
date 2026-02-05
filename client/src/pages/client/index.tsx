@@ -125,7 +125,7 @@ export default function ClientDashboard() {
           <Button asChild className="gap-2 w-full sm:w-auto rounded-xl px-6 py-5 shadow-lg shadow-primary/20" data-testid="button-new-service">
             <Link href="/client/new">
               <Plus className="h-5 w-5" />
-              Novo serviço
+              Pedir serviço
             </Link>
           </Button>
         </div>
@@ -162,7 +162,7 @@ export default function ClientDashboard() {
                     </div>
                     <p className="text-muted-foreground text-lg">Nenhum serviço ativo no momento</p>
                     <Button asChild className="mt-6 rounded-xl" data-testid="button-create-first">
-                      <Link href="/client/new">Criar primeiro serviço</Link>
+                      <Link href="/client/new">Pedir primeiro serviço</Link>
                     </Button>
                   </CardContent>
                 </Card>

@@ -572,7 +572,7 @@ export default function NewService() {
             </a>
           </Button>
           <div className="flex-1">
-            <h1 className="font-semibold">Novo serviço</h1>
+            <h1 className="font-semibold">Pedir serviço</h1>
             <p className="text-sm text-muted-foreground">
               {step === "guided" && "Responda algumas perguntas rápidas"}
               {step === "chat" && "Descreva mais detalhes do problema"}
