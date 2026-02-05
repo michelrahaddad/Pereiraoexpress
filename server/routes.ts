@@ -1228,7 +1228,10 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
       }
       
       // Verify service is in the correct status for provider selection
-      if (service.status !== "fee_paid" && service.status !== "selecting_provider") {
+      // Serviços domésticos podem ser selecionados diretamente (status ai_diagnosed)
+      // Serviços de reparo precisam ter a taxa paga primeiro (status fee_paid)
+      const validStatuses = ["fee_paid", "selecting_provider", "ai_diagnosed"];
+      if (!validStatuses.includes(service.status)) {
         return res.status(400).json({ error: "Service is not ready for provider selection" });
       }
       
