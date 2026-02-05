@@ -809,7 +809,50 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         estimatedPrice: adjustedPrice,
       });
       
-      res.json(updatedService);
+      // Buscar dados do cliente para a notificação
+      const [client] = await db.select().from(users).where(eq(users.id, clientId)).limit(1);
+      const clientName = client?.firstName || "Cliente";
+      
+      // Criar notificação para o prestador
+      await storage.createNotification({
+        userId: providerId,
+        type: "service_request",
+        title: "Novo serviço para você!",
+        message: `${clientName} selecionou você para um serviço de ${category?.name || 'manutenção'}. Valor: R$ ${(adjustedPrice / 100).toFixed(2)}`,
+        data: JSON.stringify({ 
+          serviceId, 
+          clientId, 
+          categoryId: service.categoryId,
+          estimatedPrice: adjustedPrice 
+        })
+      });
+      
+      // Tentar fazer chamada Twilio se configurado
+      const twilioConfigured = process.env.TWILIO_ACCOUNT_SID && 
+                               process.env.TWILIO_AUTH_TOKEN && 
+                               process.env.TWILIO_PHONE_NUMBER;
+      
+      let callInitiated = false;
+      if (twilioConfigured && provider.phone) {
+        try {
+          await storage.createTwilioCall({
+            serviceRequestId: serviceId,
+            providerId,
+            providerPhone: provider.phone,
+            status: "pending"
+          });
+          callInitiated = true;
+        } catch (callError) {
+          console.error("Error initiating Twilio call:", callError);
+        }
+      }
+      
+      res.json({ 
+        ...updatedService, 
+        notificationSent: true,
+        callInitiated,
+        twilioConfigured: !!twilioConfigured
+      });
     } catch (error) {
       console.error("Error selecting provider:", error);
       res.status(500).json({ error: "Failed to select provider" });
@@ -2275,9 +2318,9 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   // ==================== NOTIFICAÇÕES ====================
   
   // Listar notificações do usuário
-  app.get("/api/notifications", isAuthenticated, async (req, res) => {
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const notificationsList = await storage.getNotificationsByUser(userId);
       res.json(notificationsList);
     } catch (error) {
@@ -2287,9 +2330,9 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   });
 
   // Listar notificações não lidas
-  app.get("/api/notifications/unread", isAuthenticated, async (req, res) => {
+  app.get("/api/notifications/unread", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       const unread = await storage.getUnreadNotifications(userId);
       res.json({ count: unread.length, notifications: unread });
     } catch (error) {
@@ -2301,7 +2344,8 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   // Marcar notificação como lida
   app.patch("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const idParam = req.params.id;
+      const id = parseInt(Array.isArray(idParam) ? idParam[0] : idParam);
       const updated = await storage.markNotificationAsRead(id);
       if (!updated) {
         return res.status(404).json({ error: "Notificação não encontrada" });
@@ -2314,9 +2358,9 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   });
 
   // Marcar todas como lidas
-  app.patch("/api/notifications/read-all", isAuthenticated, async (req, res) => {
+  app.patch("/api/notifications/read-all", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = req.user.claims.sub;
       await storage.markAllNotificationsAsRead(userId);
       res.json({ success: true });
     } catch (error) {
@@ -2328,7 +2372,7 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   // ==================== TWILIO (SECRETÁRIA DIGITAL IA) ====================
   
   // Iniciar chamada para prestador
-  app.post("/api/twilio/call", isAuthenticated, async (req, res) => {
+  app.post("/api/twilio/call", isAuthenticated, async (req: any, res) => {
     try {
       const { serviceRequestId, providerId } = req.body;
       
@@ -2555,9 +2599,10 @@ Responda apenas: "ACEITO" ou "RECUSADO"`;
   });
 
   // Status das chamadas de um serviço
-  app.get("/api/twilio/calls/:serviceId", isAuthenticated, async (req, res) => {
+  app.get("/api/twilio/calls/:serviceId", isAuthenticated, async (req: any, res) => {
     try {
-      const serviceId = parseInt(req.params.serviceId);
+      const serviceIdParam = req.params.serviceId;
+      const serviceId = parseInt(Array.isArray(serviceIdParam) ? serviceIdParam[0] : serviceIdParam);
       const calls = await storage.getTwilioCallsByService(serviceId);
       res.json(calls);
     } catch (error) {
