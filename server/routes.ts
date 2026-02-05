@@ -49,6 +49,253 @@ async function seedCategories() {
   }
 }
 
+// Função para popular materiais de construção com preços médios de mercado brasileiro
+// Preços baseados em referências de mercado (SINAPI, lojas de materiais) - valores em centavos
+// costPrice = preço base de mercado, salePrice = costPrice * 1.3 (margem 30%)
+async function seedConstructionMaterials() {
+  const existing = await storage.getMaterials();
+  if (existing.length === 0) {
+    // Preços médios de mercado brasileiro em centavos (2024/2025)
+    const materials = [
+      // PINTURA - Preços médios Brasil
+      { name: "Tinta Acrílica Premium 18L - Suvinil", category: "pintura", unit: "lata", costPrice: 38900 },
+      { name: "Tinta Acrílica Standard 18L - Coral", category: "pintura", unit: "lata", costPrice: 24900 },
+      { name: "Tinta Acrílica 3.6L - Suvinil", category: "pintura", unit: "lata", costPrice: 9900 },
+      { name: "Tinta Látex PVA 18L", category: "pintura", unit: "lata", costPrice: 18900 },
+      { name: "Massa Corrida PVA 25kg - Quartzolit", category: "pintura", unit: "balde", costPrice: 5490 },
+      { name: "Massa Acrílica 25kg - Quartzolit", category: "pintura", unit: "balde", costPrice: 7990 },
+      { name: "Selador Acrílico 18L", category: "pintura", unit: "lata", costPrice: 16900 },
+      { name: "Rolo de Lã 23cm - Atlas", category: "pintura", unit: "un", costPrice: 2990 },
+      { name: "Rolo de Espuma 23cm", category: "pintura", unit: "un", costPrice: 1290 },
+      { name: "Bandeja para Pintura", category: "pintura", unit: "un", costPrice: 1490 },
+      { name: "Lixa d'água 220", category: "pintura", unit: "un", costPrice: 290 },
+      { name: "Lixa d'água 400", category: "pintura", unit: "un", costPrice: 320 },
+      { name: "Lixa para Massa 80", category: "pintura", unit: "un", costPrice: 250 },
+      { name: "Fita Crepe 50mm x 50m - 3M", category: "pintura", unit: "rolo", costPrice: 1890 },
+      { name: "Thinner 5L", category: "pintura", unit: "lata", costPrice: 5490 },
+      { name: "Textura Acrílica 25kg", category: "pintura", unit: "balde", costPrice: 9990 },
+      { name: "Grafiato 25kg", category: "pintura", unit: "balde", costPrice: 8990 },
+      { name: "Pincel 2 polegadas", category: "pintura", unit: "un", costPrice: 890 },
+      { name: "Pincel 3 polegadas", category: "pintura", unit: "un", costPrice: 1290 },
+      { name: "Espátula 10cm", category: "pintura", unit: "un", costPrice: 1590 },
+      { name: "Desempenadeira de Aço", category: "pintura", unit: "un", costPrice: 3990 },
+      { name: "Lona Plástica 4x5m", category: "pintura", unit: "un", costPrice: 1990 },
+      
+      // ELÉTRICA - Preços médios Brasil
+      { name: "Fio Flexível 2.5mm² 100m - Prysmian", category: "eletrica", unit: "rolo", costPrice: 19900 },
+      { name: "Fio Flexível 4mm² 100m", category: "eletrica", unit: "rolo", costPrice: 31900 },
+      { name: "Fio Flexível 6mm² 100m", category: "eletrica", unit: "rolo", costPrice: 47900 },
+      { name: "Fio Flexível 10mm² 100m", category: "eletrica", unit: "rolo", costPrice: 79900 },
+      { name: "Cabo PP 2x2.5mm² (m)", category: "eletrica", unit: "m", costPrice: 690 },
+      { name: "Tomada 10A - Tramontina", category: "eletrica", unit: "un", costPrice: 1490 },
+      { name: "Tomada 20A - Tramontina", category: "eletrica", unit: "un", costPrice: 2190 },
+      { name: "Interruptor Simples - Tramontina", category: "eletrica", unit: "un", costPrice: 1290 },
+      { name: "Interruptor Duplo - Tramontina", category: "eletrica", unit: "un", costPrice: 1890 },
+      { name: "Interruptor Triplo", category: "eletrica", unit: "un", costPrice: 2490 },
+      { name: "Disjuntor Monopolar 10A - Siemens", category: "eletrica", unit: "un", costPrice: 1590 },
+      { name: "Disjuntor Monopolar 20A - Siemens", category: "eletrica", unit: "un", costPrice: 1690 },
+      { name: "Disjuntor Bipolar 32A - Siemens", category: "eletrica", unit: "un", costPrice: 3990 },
+      { name: "Disjuntor Tripolar 40A", category: "eletrica", unit: "un", costPrice: 6990 },
+      { name: "DR Bipolar 40A 30mA", category: "eletrica", unit: "un", costPrice: 12900 },
+      { name: "Quadro de Distribuição 8 Disjuntores", category: "eletrica", unit: "un", costPrice: 5990 },
+      { name: "Quadro de Distribuição 12 Disjuntores", category: "eletrica", unit: "un", costPrice: 8990 },
+      { name: "Caixa de Luz 4x2 - Tigre", category: "eletrica", unit: "un", costPrice: 190 },
+      { name: "Caixa de Luz 4x4 - Tigre", category: "eletrica", unit: "un", costPrice: 290 },
+      { name: "Caixa Octogonal", category: "eletrica", unit: "un", costPrice: 250 },
+      { name: "Eletroduto Corrugado 3/4 25m - Tigre", category: "eletrica", unit: "rolo", costPrice: 3990 },
+      { name: "Eletroduto Corrugado 1 25m", category: "eletrica", unit: "rolo", costPrice: 5490 },
+      { name: "Lâmpada LED 9W - Philips", category: "eletrica", unit: "un", costPrice: 990 },
+      { name: "Lâmpada LED 12W", category: "eletrica", unit: "un", costPrice: 1290 },
+      { name: "Lâmpada LED 15W", category: "eletrica", unit: "un", costPrice: 1490 },
+      { name: "Luminária Plafon LED 18W", category: "eletrica", unit: "un", costPrice: 4990 },
+      { name: "Spot de Embutir LED", category: "eletrica", unit: "un", costPrice: 2990 },
+      { name: "Ventilador de Teto - Ventisol", category: "eletrica", unit: "un", costPrice: 27900 },
+      { name: "Fita Isolante 20m", category: "eletrica", unit: "rolo", costPrice: 590 },
+      { name: "Conector Wago 3 Vias", category: "eletrica", unit: "un", costPrice: 290 },
+      
+      // HIDRÁULICA - Preços médios Brasil
+      { name: "Tubo PVC Soldável 25mm 6m - Tigre", category: "hidraulica", unit: "barra", costPrice: 2190 },
+      { name: "Tubo PVC Soldável 32mm 6m", category: "hidraulica", unit: "barra", costPrice: 2990 },
+      { name: "Tubo PVC Soldável 50mm 6m", category: "hidraulica", unit: "barra", costPrice: 5290 },
+      { name: "Tubo PVC Esgoto 50mm 6m", category: "hidraulica", unit: "barra", costPrice: 3990 },
+      { name: "Tubo PVC Esgoto 100mm 6m - Tigre", category: "hidraulica", unit: "barra", costPrice: 7490 },
+      { name: "Joelho 90° PVC 25mm", category: "hidraulica", unit: "un", costPrice: 190 },
+      { name: "Joelho 90° PVC 32mm", category: "hidraulica", unit: "un", costPrice: 250 },
+      { name: "Joelho 90° PVC 50mm", category: "hidraulica", unit: "un", costPrice: 390 },
+      { name: "Tê PVC 25mm", category: "hidraulica", unit: "un", costPrice: 250 },
+      { name: "Tê PVC 32mm", category: "hidraulica", unit: "un", costPrice: 350 },
+      { name: "Luva PVC 25mm", category: "hidraulica", unit: "un", costPrice: 150 },
+      { name: "Cap PVC 25mm", category: "hidraulica", unit: "un", costPrice: 120 },
+      { name: "Registro de Gaveta 3/4 - Deca", category: "hidraulica", unit: "un", costPrice: 3990 },
+      { name: "Registro de Pressão 3/4 - Deca", category: "hidraulica", unit: "un", costPrice: 5290 },
+      { name: "Registro Base Deca 3/4", category: "hidraulica", unit: "un", costPrice: 4990 },
+      { name: "Torneira para Pia de Cozinha - Deca", category: "hidraulica", unit: "un", costPrice: 7990 },
+      { name: "Torneira para Lavatório - Deca", category: "hidraulica", unit: "un", costPrice: 9990 },
+      { name: "Torneira de Jardim", category: "hidraulica", unit: "un", costPrice: 2990 },
+      { name: "Misturador para Pia", category: "hidraulica", unit: "un", costPrice: 15900 },
+      { name: "Sifão Sanfonado Universal - Tigre", category: "hidraulica", unit: "un", costPrice: 1890 },
+      { name: "Caixa Sifonada 150x150mm - Tigre", category: "hidraulica", unit: "un", costPrice: 2990 },
+      { name: "Ralo Linear 50cm", category: "hidraulica", unit: "un", costPrice: 8990 },
+      { name: "Caixa d'água 500L - Fortlev", category: "hidraulica", unit: "un", costPrice: 39900 },
+      { name: "Caixa d'água 1000L - Fortlev", category: "hidraulica", unit: "un", costPrice: 62900 },
+      { name: "Válvula de Descarga - Hydra", category: "hidraulica", unit: "un", costPrice: 17900 },
+      { name: "Boia para Caixa d'água - Tigre", category: "hidraulica", unit: "un", costPrice: 2990 },
+      { name: "Vaso Sanitário com Caixa Acoplada - Deca", category: "hidraulica", unit: "un", costPrice: 49900 },
+      { name: "Cuba de Apoio", category: "hidraulica", unit: "un", costPrice: 12900 },
+      { name: "Chuveiro Elétrico - Lorenzetti", category: "hidraulica", unit: "un", costPrice: 9990 },
+      { name: "Ducha Higiênica", category: "hidraulica", unit: "un", costPrice: 7990 },
+      { name: "Cola para PVC 175g - Tigre", category: "hidraulica", unit: "un", costPrice: 1790 },
+      { name: "Fita Veda Rosca 18mm x 50m", category: "hidraulica", unit: "rolo", costPrice: 590 },
+      { name: "Mangueira Flexível 40cm", category: "hidraulica", unit: "un", costPrice: 1290 },
+      { name: "Mangueira de Jardim 30m", category: "hidraulica", unit: "un", costPrice: 8990 },
+      
+      // ALVENARIA - Preços médios Brasil
+      { name: "Cimento CP II 50kg - Votoran", category: "alvenaria", unit: "saco", costPrice: 3990 },
+      { name: "Cimento CP V 50kg", category: "alvenaria", unit: "saco", costPrice: 4490 },
+      { name: "Argamassa AC-I 20kg - Quartzolit", category: "alvenaria", unit: "saco", costPrice: 1990 },
+      { name: "Argamassa AC-II 20kg - Quartzolit", category: "alvenaria", unit: "saco", costPrice: 2990 },
+      { name: "Argamassa AC-III 20kg - Quartzolit", category: "alvenaria", unit: "saco", costPrice: 5290 },
+      { name: "Rejunte Flexível 1kg - Quartzolit", category: "alvenaria", unit: "saco", costPrice: 1490 },
+      { name: "Rejunte Acrílico 1kg", category: "alvenaria", unit: "saco", costPrice: 1990 },
+      { name: "Areia Média m³", category: "alvenaria", unit: "m³", costPrice: 13500 },
+      { name: "Areia Fina m³", category: "alvenaria", unit: "m³", costPrice: 14500 },
+      { name: "Brita 1 m³", category: "alvenaria", unit: "m³", costPrice: 16500 },
+      { name: "Brita 0 m³", category: "alvenaria", unit: "m³", costPrice: 17500 },
+      { name: "Tijolo 6 Furos (milheiro)", category: "alvenaria", unit: "mil", costPrice: 95000 },
+      { name: "Tijolo Maciço (milheiro)", category: "alvenaria", unit: "mil", costPrice: 120000 },
+      { name: "Bloco de Concreto 14x19x39", category: "alvenaria", unit: "un", costPrice: 390 },
+      { name: "Bloco de Concreto 19x19x39", category: "alvenaria", unit: "un", costPrice: 490 },
+      { name: "Impermeabilizante 18L - Vedacit", category: "alvenaria", unit: "lata", costPrice: 28900 },
+      { name: "Manta Asfáltica 3mm 10m - Viapol", category: "alvenaria", unit: "rolo", costPrice: 21900 },
+      { name: "Manta Asfáltica 4mm 10m", category: "alvenaria", unit: "rolo", costPrice: 27900 },
+      { name: "Bianco 3.6L", category: "alvenaria", unit: "galão", costPrice: 4990 },
+      { name: "Cal Hidratada 20kg", category: "alvenaria", unit: "saco", costPrice: 1990 },
+      
+      // FERRAMENTAS - Preços médios Brasil
+      { name: "Martelo 27mm - Tramontina", category: "ferramentas", unit: "un", costPrice: 5290 },
+      { name: "Martelo de Borracha", category: "ferramentas", unit: "un", costPrice: 2990 },
+      { name: "Chave de Fenda 1/4x4 - Tramontina", category: "ferramentas", unit: "un", costPrice: 1490 },
+      { name: "Chave Phillips 1/4x4 - Tramontina", category: "ferramentas", unit: "un", costPrice: 1490 },
+      { name: "Jogo Chaves de Fenda 6pçs", category: "ferramentas", unit: "jg", costPrice: 4990 },
+      { name: "Alicate Universal 8 - Tramontina", category: "ferramentas", unit: "un", costPrice: 3990 },
+      { name: "Alicate de Corte 6", category: "ferramentas", unit: "un", costPrice: 2990 },
+      { name: "Alicate de Bico", category: "ferramentas", unit: "un", costPrice: 3490 },
+      { name: "Trena 5m - Stanley", category: "ferramentas", unit: "un", costPrice: 1890 },
+      { name: "Trena 8m", category: "ferramentas", unit: "un", costPrice: 2490 },
+      { name: "Nível de Bolha 30cm - Stanley", category: "ferramentas", unit: "un", costPrice: 2990 },
+      { name: "Nível de Bolha 60cm", category: "ferramentas", unit: "un", costPrice: 4490 },
+      { name: "Serra Tico-Tico 500W - Bosch", category: "ferramentas", unit: "un", costPrice: 29900 },
+      { name: "Furadeira de Impacto 550W - Bosch", category: "ferramentas", unit: "un", costPrice: 39900 },
+      { name: "Parafusadeira a Bateria 12V", category: "ferramentas", unit: "un", costPrice: 24900 },
+      { name: "Esmerilhadeira 4.5 720W", category: "ferramentas", unit: "un", costPrice: 22900 },
+      { name: "Serrote 20 polegadas", category: "ferramentas", unit: "un", costPrice: 3990 },
+      { name: "Esquadro Metálico 30cm", category: "ferramentas", unit: "un", costPrice: 2990 },
+      
+      // ACABAMENTO - Preços médios Brasil
+      { name: "Porcelanato 60x60cm Polido (m²)", category: "acabamento", unit: "m²", costPrice: 8990 },
+      { name: "Porcelanato 60x60cm Acetinado (m²)", category: "acabamento", unit: "m²", costPrice: 7490 },
+      { name: "Piso Cerâmico 45x45cm (m²) - Eliane", category: "acabamento", unit: "m²", costPrice: 3990 },
+      { name: "Piso Laminado (m²)", category: "acabamento", unit: "m²", costPrice: 4990 },
+      { name: "Piso Vinílico (m²)", category: "acabamento", unit: "m²", costPrice: 5990 },
+      { name: "Rodapé MDF 10cm (m)", category: "acabamento", unit: "m", costPrice: 1790 },
+      { name: "Rodapé Poliestireno 7cm (m)", category: "acabamento", unit: "m", costPrice: 990 },
+      { name: "Porta de Madeira 80x210cm", category: "acabamento", unit: "un", costPrice: 39900 },
+      { name: "Porta de Madeira 70x210cm", category: "acabamento", unit: "un", costPrice: 34900 },
+      { name: "Kit Porta Pronta com Batente", category: "acabamento", unit: "un", costPrice: 59900 },
+      { name: "Fechadura Interna - Pado", category: "acabamento", unit: "un", costPrice: 7990 },
+      { name: "Fechadura Externa", category: "acabamento", unit: "un", costPrice: 12900 },
+      { name: "Dobradiça 3.5 Cromada - Pado", category: "acabamento", unit: "un", costPrice: 1490 },
+      { name: "Puxador de Porta 30cm", category: "acabamento", unit: "un", costPrice: 4990 },
+      
+      // MADEIRA - Preços médios Brasil
+      { name: "Compensado 15mm 2.20x1.60m", category: "madeira", unit: "chapa", costPrice: 17900 },
+      { name: "Compensado 18mm 2.20x1.60m", category: "madeira", unit: "chapa", costPrice: 21900 },
+      { name: "MDF 15mm 2.75x1.85m - Duratex", category: "madeira", unit: "chapa", costPrice: 21900 },
+      { name: "MDF 18mm 2.75x1.85m", category: "madeira", unit: "chapa", costPrice: 25900 },
+      { name: "OSB 15mm 2.44x1.22m", category: "madeira", unit: "chapa", costPrice: 8990 },
+      { name: "Sarrafo 5x2.5cm 3m", category: "madeira", unit: "un", costPrice: 990 },
+      { name: "Caibro 5x6cm 3m", category: "madeira", unit: "un", costPrice: 1990 },
+      { name: "Caibro 6x8cm 3m", category: "madeira", unit: "un", costPrice: 2990 },
+      { name: "Viga 6x12cm 3m", category: "madeira", unit: "un", costPrice: 5990 },
+      { name: "Ripa 2x5cm 3m", category: "madeira", unit: "un", costPrice: 590 },
+      { name: "Parafuso Chipboard 4x40mm (100un) - Ciser", category: "madeira", unit: "cx", costPrice: 1790 },
+      { name: "Parafuso Chipboard 5x50mm (100un)", category: "madeira", unit: "cx", costPrice: 2490 },
+      { name: "Prego 17x27 1kg", category: "madeira", unit: "kg", costPrice: 1990 },
+      { name: "Cola Branca PVA 1kg", category: "madeira", unit: "un", costPrice: 1990 },
+      
+      // AR CONDICIONADO - Preços médios Brasil
+      { name: "Suporte para Condensadora 500mm", category: "ar_condicionado", unit: "un", costPrice: 9990 },
+      { name: "Suporte para Condensadora 600mm", category: "ar_condicionado", unit: "un", costPrice: 12900 },
+      { name: "Tubo de Cobre 1/4 (m)", category: "ar_condicionado", unit: "m", costPrice: 2990 },
+      { name: "Tubo de Cobre 3/8 (m)", category: "ar_condicionado", unit: "m", costPrice: 3990 },
+      { name: "Tubo de Cobre 1/2 (m)", category: "ar_condicionado", unit: "m", costPrice: 5290 },
+      { name: "Tubo de Cobre 5/8 (m)", category: "ar_condicionado", unit: "m", costPrice: 6990 },
+      { name: "Isolamento Térmico Armaflex (m)", category: "ar_condicionado", unit: "m", costPrice: 990 },
+      { name: "Dreno Corrugado 16mm (m)", category: "ar_condicionado", unit: "m", costPrice: 390 },
+      { name: "Gás R410A (kg)", category: "ar_condicionado", unit: "kg", costPrice: 14900 },
+      { name: "Gás R22 (kg)", category: "ar_condicionado", unit: "kg", costPrice: 9990 },
+      { name: "Gás R32 (kg)", category: "ar_condicionado", unit: "kg", costPrice: 12900 },
+      { name: "Cabo PP 3x1.5mm² (m)", category: "ar_condicionado", unit: "m", costPrice: 590 },
+      { name: "Disjuntor Bipolar 20A", category: "ar_condicionado", unit: "un", costPrice: 3490 },
+      { name: "Filtro de Ar Condicionado", category: "ar_condicionado", unit: "un", costPrice: 2990 },
+      { name: "Higienizador de AC 300ml", category: "ar_condicionado", unit: "un", costPrice: 2990 },
+      
+      // LIMPEZA - Preços médios Brasil
+      { name: "Detergente Neutro 5L - Ypê", category: "limpeza", unit: "galão", costPrice: 2990 },
+      { name: "Desengordurante 5L - Veja", category: "limpeza", unit: "galão", costPrice: 3990 },
+      { name: "Água Sanitária 5L - Qboa", category: "limpeza", unit: "galão", costPrice: 1790 },
+      { name: "Limpa Vidros 5L - Veja", category: "limpeza", unit: "galão", costPrice: 2990 },
+      { name: "Removedor de Cera 5L - Start", category: "limpeza", unit: "galão", costPrice: 5290 },
+      { name: "Cera Líquida 5L - Bravo", category: "limpeza", unit: "galão", costPrice: 3990 },
+      { name: "Multiuso 5L", category: "limpeza", unit: "galão", costPrice: 2490 },
+      { name: "Álcool 70% 5L", category: "limpeza", unit: "galão", costPrice: 2990 },
+      { name: "Luva de Látex (par)", category: "limpeza", unit: "par", costPrice: 590 },
+      { name: "Pano Multiuso (rolo 50un)", category: "limpeza", unit: "rolo", costPrice: 1990 },
+      { name: "Esponja Dupla Face (pack 3un)", category: "limpeza", unit: "pack", costPrice: 590 },
+      { name: "Rodo 40cm", category: "limpeza", unit: "un", costPrice: 1990 },
+      { name: "Vassoura de Piaçava", category: "limpeza", unit: "un", costPrice: 1490 },
+      { name: "Balde 10L", category: "limpeza", unit: "un", costPrice: 990 },
+    ];
+    
+    // Criar fornecedor padrão do sistema para os materiais
+    let systemSupplierId = 1;
+    try {
+      const suppliers = await storage.getMaterialSuppliers();
+      if (suppliers.length === 0) {
+        const supplier = await storage.createMaterialSupplier({
+          name: "Fornecedor Padrão",
+          cnpj: "00000000000000",
+          email: "sistema@pereirao.com",
+          phone: "00000000000",
+          address: "Sistema",
+          city: "Brasil",
+          isActive: true,
+        });
+        systemSupplierId = supplier.id;
+      } else {
+        systemSupplierId = suppliers[0].id;
+      }
+    } catch (e) {
+      console.log("Usando supplierId padrão:", systemSupplierId);
+    }
+    
+    for (const mat of materials) {
+      await storage.createMaterial({
+        name: mat.name,
+        description: `${mat.category} - ${mat.unit}`,
+        category: mat.category,
+        unit: mat.unit,
+        costPrice: mat.costPrice,
+        salePrice: Math.round(mat.costPrice * 1.3), // Margem de 30% sobre o custo
+        supplierId: systemSupplierId,
+        stockQuantity: 999,
+        isActive: true,
+      });
+    }
+    console.log(`${materials.length} materiais de construção populados com preços médios do Brasil`);
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -57,6 +304,66 @@ export async function registerRoutes(
   registerObjectStorageRoutes(app);
   
   await seedCategories();
+  await seedConstructionMaterials();
+
+  // Endpoint para buscar materiais com autocomplete
+  app.get("/api/materials/search", async (req, res) => {
+    try {
+      const query = (req.query.q as string || "").toLowerCase().trim();
+      const category = req.query.category as string;
+      
+      let materials = await storage.getMaterials();
+      
+      // Filtrar por categoria se especificada
+      if (category) {
+        materials = materials.filter(m => m.category === category);
+      }
+      
+      // Filtrar por termo de busca
+      if (query) {
+        materials = materials.filter(m => 
+          m.name.toLowerCase().includes(query) ||
+          (m.description && m.description.toLowerCase().includes(query)) ||
+          (m.category && m.category.toLowerCase().includes(query))
+        );
+      }
+      
+      // Limitar a 20 resultados para performance
+      const results = materials.slice(0, 20).map(m => ({
+        id: m.id,
+        name: m.name,
+        category: m.category,
+        unit: m.unit,
+        costPrice: m.costPrice,
+        salePrice: m.salePrice,
+        priceFormatted: `R$ ${(m.salePrice / 100).toFixed(2).replace('.', ',')}`,
+      }));
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching materials:", error);
+      res.status(500).json({ error: "Failed to search materials" });
+    }
+  });
+
+  // Endpoint para obter todos os materiais
+  app.get("/api/materials", async (req, res) => {
+    try {
+      const materials = await storage.getMaterials();
+      res.json(materials.map(m => ({
+        id: m.id,
+        name: m.name,
+        category: m.category,
+        unit: m.unit,
+        costPrice: m.costPrice,
+        salePrice: m.salePrice,
+        priceFormatted: `R$ ${(m.salePrice / 100).toFixed(2).replace('.', ',')}`,
+      })));
+    } catch (error) {
+      console.error("Error fetching materials:", error);
+      res.status(500).json({ error: "Failed to fetch materials" });
+    }
+  });
 
   app.get("/api/categories", async (req, res) => {
     try {
