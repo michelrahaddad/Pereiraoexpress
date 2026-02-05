@@ -46,15 +46,14 @@ export default function SelectProvider() {
     enabled: !!serviceId,
   });
 
-  const { data: aiDiagnosis } = useQuery<any>({
-    queryKey: ["/api/services", serviceId, "diagnosis"],
+  const { data: serviceData } = useQuery<any>({
+    queryKey: ["/api/service", serviceId, "full"],
     queryFn: async () => {
-      const res = await fetch(`/api/services/${serviceId}`, {
+      const res = await fetch(`/api/service/${serviceId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
       });
       if (!res.ok) return null;
-      const data = await res.json();
-      return data;
+      return res.json();
     },
     enabled: !!serviceId && isDomestic,
   });
@@ -141,8 +140,8 @@ export default function SelectProvider() {
   };
 
   const handleDomesticPayment = () => {
-    if (!selectedProvider || !aiDiagnosis?.aiDiagnosis) return;
-    const totalAmount = Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10);
+    if (!selectedProvider || !serviceData?.aiDiagnosis) return;
+    const totalAmount = Math.round(serviceData.aiDiagnosis.priceRangeMin * 1.10);
     payDomesticMutation.mutate({
       providerId: selectedProvider,
       method: "pix",
@@ -361,12 +360,12 @@ export default function SelectProvider() {
         </div>
       )}
 
-      {isDomestic && aiDiagnosis?.aiDiagnosis && (
+      {isDomestic && serviceData?.aiDiagnosis && (
         <PaymentModal
           open={showPaymentModal}
           onOpenChange={setShowPaymentModal}
-          amount={Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10)}
-          description={`Serviço: ${aiDiagnosis.service?.title || "Serviço doméstico"}`}
+          amount={Math.round(serviceData.aiDiagnosis.priceRangeMin * 1.10)}
+          description={`Serviço: ${serviceData.service?.title || "Serviço doméstico"}`}
           onPaymentComplete={handleDomesticPayment}
         />
       )}

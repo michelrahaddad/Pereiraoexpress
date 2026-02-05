@@ -417,7 +417,14 @@ export async function registerRoutes(
       if (!service) {
         return res.status(404).json({ error: "Service not found" });
       }
-      res.json(service);
+      
+      // Include AI diagnosis if available
+      const aiDiagnosis = await storage.getAiDiagnosisByServiceId(id);
+      
+      res.json({
+        service,
+        aiDiagnosis
+      });
     } catch (error) {
       console.error("Error fetching service:", error);
       res.status(500).json({ error: "Failed to fetch service" });
@@ -842,11 +849,11 @@ Multiplicadores por tipo de serviço:
 - Serviço completo: 1.5x
 
 Multiplicadores por frequência:
-- Uma vez (avulso): 1.0x
+- Uma vez (avulso): 1.0x (preço cheio)
 - Mensal: 0.95x (5% desconto)
 - Quinzenal: 0.90x (10% desconto)
 - Semanal: 0.85x (15% desconto)
-- Diária fixa: 0.75x (25% desconto)
+- Diária fixa: 0.80x (20% desconto)
 
 FLUXO DE PERGUNTAS (exatamente 3 perguntas + 1 opcional para foto):
 1. Qual o problema exatamente? (ou pergunta de esclarecimento)
@@ -1779,8 +1786,9 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         else if (serviceType.includes("Cozinhar")) basePrice += 8000;
 
         // Multiplicador por frequência (descontos)
+        // 1x avulso, 0.95x mensal, 0.90x quinzenal, 0.85x semanal, 0.80x diária fixa
         let frequencyMultiplier = 1.0;
-        if (frequency.includes("Diária")) frequencyMultiplier = 0.75;
+        if (frequency.includes("Diária")) frequencyMultiplier = 0.80;
         else if (frequency.includes("Semanal")) frequencyMultiplier = 0.85;
         else if (frequency.includes("Quinzenal")) frequencyMultiplier = 0.90;
         else if (frequency.includes("Mensal")) frequencyMultiplier = 0.95;
