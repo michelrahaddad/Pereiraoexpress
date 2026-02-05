@@ -29,7 +29,8 @@ import {
   MicOff,
   FileText,
   CreditCard,
-  Shield
+  Shield,
+  Users
 } from "lucide-react";
 
 interface Message {
@@ -886,42 +887,18 @@ export default function NewService() {
                 </CardContent>
               </Card>
 
-              <Card className="border-primary">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-primary" />
-                    <CardTitle>Taxa de Diagnóstico</CardTitle>
-                  </div>
-                  <CardDescription>
-                    Pague a taxa para buscarmos profissionais qualificados na sua região
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between mb-4">
+              <Card className="border-primary bg-primary/5">
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="h-6 w-6 text-primary" />
+                    </div>
                     <div>
-                      <p className="text-2xl font-bold text-primary">
-                        R$ {(aiDiagnosis.diagnosisFee / 100).toFixed(2)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        15% do valor mínimo estimado
+                      <p className="font-semibold">Taxa de diagnóstico paga!</p>
+                      <p className="text-sm text-muted-foreground">
+                        Agora você pode escolher um profissional para fazer o orçamento presencial
                       </p>
                     </div>
-                    <Shield className="h-10 w-10 text-primary/30" />
-                  </div>
-
-                  <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                    <p className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      Acesso a profissionais verificados
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      Orçamento detalhado presencial
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      Garantia de atendimento
-                    </p>
                   </div>
                 </CardContent>
                 <CardFooter>
@@ -935,7 +912,7 @@ export default function NewService() {
                     }}
                     data-testid="button-select-provider"
                   >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    <Users className="h-4 w-4 mr-2" />
                     Ver profissionais disponíveis
                   </Button>
                 </CardFooter>

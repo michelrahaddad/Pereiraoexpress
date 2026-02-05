@@ -5,10 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation, Medal } from "lucide-react";
+import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation, Medal, Wrench } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { PaymentModal } from "@/components/payment-modal";
 
 interface Provider {
   id: string;
@@ -33,6 +34,7 @@ export default function SelectProvider() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
 
   const { data: service } = useQuery<any>({
@@ -65,14 +67,14 @@ export default function SelectProvider() {
   }, [latitude, longitude, locationLoading, serviceId, refetch]);
 
   const selectMutation = useMutation({
-    mutationFn: async (providerId: string) => {
-      return apiRequest("POST", `/api/services/${serviceId}/select-provider`, { providerId });
+    mutationFn: async ({ providerId, paymentId }: { providerId: string; paymentId: number }) => {
+      return apiRequest("POST", `/api/services/${serviceId}/select-provider`, { providerId, paymentId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
       toast({
         title: "Profissional selecionado!",
-        description: "O profissional foi notificado e entrará em contato em breve.",
+        description: "O profissional foi notificado e fará o orçamento presencial.",
       });
       navigate("/client");
     },
@@ -84,6 +86,25 @@ export default function SelectProvider() {
       });
     },
   });
+
+  const handleConfirmProvider = () => {
+    if (!selectedProvider) return;
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentComplete = (paymentId: number) => {
+    setShowPaymentModal(false);
+    if (selectedProvider) {
+      selectMutation.mutate({ providerId: selectedProvider, paymentId });
+    }
+  };
+
+  const getPhysicalDiagnosisFee = () => {
+    if (service?.priceRangeMin) {
+      return Math.round(service.priceRangeMin * 0.15);
+    }
+    return 5000;
+  };
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -276,11 +297,17 @@ export default function SelectProvider() {
 
       {providers.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur border-t shadow-lg">
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto space-y-2">
+            {selectedProvider && service && (
+              <div className="text-center text-sm text-muted-foreground">
+                <Wrench className="h-4 w-4 inline mr-1" />
+                Taxa de orçamento presencial: <span className="font-semibold text-primary">{formatPrice(getPhysicalDiagnosisFee())}</span>
+              </div>
+            )}
             <Button
               className="w-full h-12 text-base font-semibold rounded-xl"
               disabled={!selectedProvider || selectMutation.isPending}
-              onClick={() => selectedProvider && selectMutation.mutate(selectedProvider)}
+              onClick={handleConfirmProvider}
               data-testid="button-confirm-provider"
             >
               {selectMutation.isPending ? (
@@ -289,7 +316,7 @@ export default function SelectProvider() {
                   Selecionando...
                 </span>
               ) : selectedProvider ? (
-                "Confirmar Profissional"
+                "Pagar e Confirmar Profissional"
               ) : (
                 "Selecione um Profissional"
               )}
@@ -297,6 +324,14 @@ export default function SelectProvider() {
           </div>
         </div>
       )}
+
+      <PaymentModal
+        open={showPaymentModal}
+        onOpenChange={setShowPaymentModal}
+        amount={getPhysicalDiagnosisFee()}
+        description="Taxa de orçamento presencial"
+        onPaymentComplete={handlePaymentComplete}
+      />
     </div>
   );
 }
