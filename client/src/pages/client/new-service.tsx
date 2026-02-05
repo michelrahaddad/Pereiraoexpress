@@ -62,11 +62,11 @@ interface ServiceWithDiagnosis {
   diagnosisFee: number;
 }
 
-const GUIDED_QUESTIONS = [
+const GUIDED_QUESTIONS_REPAIR = [
   {
     id: "problem_type",
     question: "Qual tipo de problema você está enfrentando?",
-    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Passadeira", "Outro"]
+    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Empregada Doméstica", "Outro"]
   },
   {
     id: "urgency",
@@ -77,6 +77,24 @@ const GUIDED_QUESTIONS = [
     id: "location",
     question: "Onde está o problema?",
     options: ["Sala", "Quarto", "Cozinha", "Banheiro", "Área externa", "Outro"]
+  }
+];
+
+const GUIDED_QUESTIONS_DOMESTIC = [
+  {
+    id: "house_size",
+    question: "Qual o tamanho da sua casa?",
+    options: ["Apartamento pequeno (1-2 quartos)", "Casa média (3-4 quartos)", "Casa grande (5+ quartos)", "Escritório/Comercial"]
+  },
+  {
+    id: "service_type",
+    question: "Qual tipo de serviço você precisa?",
+    options: ["Limpeza geral", "Limpeza pesada/pós-obra", "Passar roupa", "Cozinhar", "Serviço completo (limpeza + passar + cozinhar)"]
+  },
+  {
+    id: "frequency",
+    question: "Com que frequência você precisa?",
+    options: ["Só uma vez (avulso)", "Mensal", "Quinzenal", "Semanal", "Diária fixa"]
   }
 ];
 
@@ -96,6 +114,7 @@ export default function NewService() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [guidedAnswers, setGuidedAnswers] = useState<GuidedAnswer[]>([]);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [isDomesticService, setIsDomesticService] = useState(false);
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -244,15 +263,50 @@ export default function NewService() {
     }
   };
 
+  // Seleciona as perguntas baseado no tipo de serviço
+  const currentQuestions = isDomesticService ? GUIDED_QUESTIONS_DOMESTIC : GUIDED_QUESTIONS_REPAIR;
+
   const handleGuidedAnswer = (answer: string) => {
-    const question = GUIDED_QUESTIONS[currentQuestion];
+    // Se está na primeira pergunta e selecionou "Empregada Doméstica", muda para fluxo doméstico
+    if (currentQuestion === 0 && !isDomesticService && answer === "Empregada Doméstica") {
+      setIsDomesticService(true);
+      setGuidedAnswers([{ question: "Tipo de serviço", answer: "Empregada Doméstica" }]);
+      setCurrentQuestion(0); // Reinicia para as perguntas de serviço doméstico
+      return;
+    }
+
+    const questions = isDomesticService ? GUIDED_QUESTIONS_DOMESTIC : GUIDED_QUESTIONS_REPAIR;
+    const question = questions[currentQuestion];
     setGuidedAnswers(prev => [...prev, { question: question.question, answer }]);
     
-    if (currentQuestion < GUIDED_QUESTIONS.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
-      setStep("chat");
+      // Para serviço doméstico, gerar diagnóstico automaticamente após responder as 3 perguntas
+      if (isDomesticService) {
+        generateDomesticDiagnosis([...guidedAnswers, { question: question.question, answer }]);
+      } else {
+        setStep("chat");
+      }
     }
+  };
+
+  // Gera diagnóstico automático para serviço doméstico
+  const generateDomesticDiagnosis = (answers: GuidedAnswer[]) => {
+    const houseSize = answers.find(a => a.question.includes("tamanho"))?.answer || "";
+    const serviceType = answers.find(a => a.question.includes("tipo"))?.answer || "";
+    const frequency = answers.find(a => a.question.includes("frequência"))?.answer || "";
+
+    // Descrição para a IA
+    const description = `Serviço de empregada doméstica. Tamanho da casa: ${houseSize}. Tipo de serviço: ${serviceType}. Frequência: ${frequency}.`;
+    const title = `Empregada Doméstica - ${serviceType}`;
+
+    createAIDiagnosisMutation.mutate({
+      description,
+      guidedAnswers: answers,
+      mediaUrls: [],
+      title,
+    });
   };
 
   const sendMessage = async () => {
@@ -450,7 +504,7 @@ export default function NewService() {
   }
 
   const progressValue = step === "guided" 
-    ? ((currentQuestion + 1) / GUIDED_QUESTIONS.length) * 33
+    ? ((currentQuestion + 1) / currentQuestions.length) * 33
     : step === "chat" 
     ? 66 
     : step === "diagnosis"
@@ -494,15 +548,15 @@ export default function NewService() {
               <CardHeader>
                 <div className="flex items-center gap-2 text-primary">
                   <Sparkles className="h-5 w-5" />
-                  <span className="text-sm font-medium">Passo {currentQuestion + 1} de {GUIDED_QUESTIONS.length}</span>
+                  <span className="text-sm font-medium">Passo {currentQuestion + 1} de {currentQuestions.length}</span>
                 </div>
                 <CardTitle className="text-xl mt-2">
-                  {GUIDED_QUESTIONS[currentQuestion].question}
+                  {currentQuestions[currentQuestion].question}
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
                 <div className="grid gap-3">
-                  {GUIDED_QUESTIONS[currentQuestion].options.map((option) => (
+                  {currentQuestions[currentQuestion].options.map((option) => (
                     <Button
                       key={option}
                       variant="outline"
@@ -515,7 +569,7 @@ export default function NewService() {
                   ))}
                 </div>
 
-                {currentQuestion === GUIDED_QUESTIONS.length - 1 && (
+                {currentQuestion === currentQuestions.length - 1 && !isDomesticService && (
                   <div className="mt-6">
                     <p className="text-sm font-medium mb-3">Adicione fotos do problema (opcional)</p>
                     <input
