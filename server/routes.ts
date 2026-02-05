@@ -1189,7 +1189,78 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         title 
       } = req.body;
 
-      // Criar serviço inicial
+      // Verificar se é serviço doméstico (cálculo direto, sem IA)
+      const isDomesticService = guidedAnswers?.some((a: any) => 
+        a.answer?.includes("Empregada") || 
+        a.answer?.includes("Passadeira") ||
+        a.question?.includes("tamanho")
+      );
+
+      if (isDomesticService) {
+        // Cálculo direto para serviços domésticos (RÁPIDO - sem IA)
+        const houseSize = guidedAnswers?.find((a: any) => a.question?.includes("tamanho"))?.answer || "";
+        const serviceType = guidedAnswers?.find((a: any) => a.question?.includes("tipo"))?.answer || "";
+        const frequency = guidedAnswers?.find((a: any) => a.question?.includes("frequência"))?.answer || "";
+
+        // Preço base por tamanho
+        let basePrice = 15000; // R$ 150
+        if (houseSize.includes("3-4")) basePrice = 20000;
+        else if (houseSize.includes("5+") || houseSize.includes("grande")) basePrice = 30000;
+        else if (houseSize.includes("Comercial") || houseSize.includes("Escritório")) basePrice = 25000;
+
+        // Multiplicador por tipo de serviço
+        let serviceMultiplier = 1.0;
+        if (serviceType.includes("pesada") || serviceType.includes("pós-obra")) serviceMultiplier = 1.8;
+        else if (serviceType.includes("completo")) serviceMultiplier = 1.5;
+        else if (serviceType.includes("Passar")) basePrice += 5000;
+        else if (serviceType.includes("Cozinhar")) basePrice += 8000;
+
+        // Multiplicador por frequência (descontos)
+        let frequencyMultiplier = 1.0;
+        if (frequency.includes("Diária")) frequencyMultiplier = 0.75;
+        else if (frequency.includes("Semanal")) frequencyMultiplier = 0.85;
+        else if (frequency.includes("Quinzenal")) frequencyMultiplier = 0.90;
+        else if (frequency.includes("Mensal")) frequencyMultiplier = 0.95;
+
+        const finalPrice = Math.round(basePrice * serviceMultiplier * frequencyMultiplier);
+        const diagnosisFee = Math.round(finalPrice * 0.15);
+
+        // Criar serviço
+        const service = await storage.createService({
+          clientId: userId,
+          title: title || "Serviço Doméstico",
+          description,
+          categoryId: categoryId || 1,
+          status: "pending",
+          slaPriority: "standard",
+        });
+
+        // Criar diagnóstico (sem chamar IA)
+        const aiDiagnosis = await storage.createAiDiagnosis({
+          serviceRequestId: service.id,
+          inputDescription: description,
+          guidedAnswers: JSON.stringify(guidedAnswers),
+          mediaUrls: mediaUrls ? JSON.stringify(mediaUrls) : null,
+          classification: "Serviço Doméstico",
+          urgencyLevel: "baixa",
+          estimatedDuration: frequency.includes("Diária") ? "4-8 horas" : "3-6 horas",
+          materialsSuggested: JSON.stringify(["Produtos de limpeza", "Equipamentos básicos"]),
+          priceRangeMin: finalPrice,
+          priceRangeMax: Math.round(finalPrice * 1.2),
+          diagnosisFee,
+          aiResponse: `Serviço de ${serviceType.toLowerCase() || "limpeza"} para ${houseSize.toLowerCase()}. Frequência: ${frequency.toLowerCase()}.`,
+        });
+
+        await storage.updateService(service.id, { status: "ai_diagnosed" });
+
+        return res.json({
+          service,
+          aiDiagnosis,
+          diagnosisFee,
+        });
+      }
+
+      // Criar serviço inicial (para outros tipos de serviço)
       const service = await storage.createService({
         clientId: userId,
         title: title || "Novo Serviço",
@@ -1199,7 +1270,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         slaPriority: "standard",
       });
 
-      // Preparar prompt para IA
+      // Preparar prompt para IA (apenas para reparos)
       const systemPrompt = `Você é um especialista em diagnóstico de problemas residenciais. Analise a descrição do problema e forneça:
 
 1. Classificação do tipo de serviço
