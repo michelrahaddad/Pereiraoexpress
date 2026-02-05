@@ -147,17 +147,17 @@ export default function NewService() {
       const response = await apiRequest("POST", `/api/diagnosis/pay-fee/${data.serviceId}`, {
         method: data.method
       });
-      return response;
+      return { ...response, serviceId: data.serviceId };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       setFeePaid(true);
       toast({
         title: "Taxa paga!",
-        description: "Agora estamos buscando profissionais na sua região.",
+        description: "Redirecionando para seleção de profissionais...",
       });
       setTimeout(() => {
-        setLocation("/client");
-      }, 2000);
+        setLocation(`/cliente/selecionar-profissional/${data.serviceId}`);
+      }, 1500);
     },
     onError: () => {
       toast({
