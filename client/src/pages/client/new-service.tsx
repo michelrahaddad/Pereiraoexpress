@@ -183,17 +183,16 @@ export default function NewService() {
 
   useEffect(() => {
     const userMessageCount = messages.filter(m => m.role === "user").length;
-    const aiMessageCount = messages.filter(m => m.role === "assistant").length;
     const lastAiMessage = messages.filter(m => m.role === "assistant").pop();
     
-    // Verificar se a última mensagem da IA contém diagnóstico (sinal de que já coletou info suficiente)
-    const aiSentDiagnosis = lastAiMessage?.content?.includes("###DIAGNOSIS###") || 
-                           lastAiMessage?.content?.toLowerCase().includes("diagnóstico") ||
-                           lastAiMessage?.content?.toLowerCase().includes("solução");
+    // Verificar se a IA pediu foto (4ª pergunta opcional)
+    const aiAskedForPhoto = lastAiMessage?.content?.toLowerCase().includes("foto") ||
+                           lastAiMessage?.content?.includes("📷");
     
-    // Só disparar diagnóstico se: pelo menos 5 mensagens do usuário OU 4+ mensagens e IA indicou conclusão
-    const shouldGenerateDiagnosis = (userMessageCount >= 5) || 
-                                    (userMessageCount >= 4 && aiSentDiagnosis && aiMessageCount >= 4);
+    // Regra: 3 perguntas obrigatórias + 1 opcional (foto)
+    // Disparar após 4 mensagens do usuário OU após 3 se IA não pediu foto
+    const shouldGenerateDiagnosis = userMessageCount >= 4 || 
+                                    (userMessageCount >= 3 && !aiAskedForPhoto);
     
     if (shouldGenerateDiagnosis && !isStreaming && !createAIDiagnosisMutation.isPending && step === "chat") {
       const description = messages
