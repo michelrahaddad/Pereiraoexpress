@@ -190,6 +190,44 @@ export default function NewService() {
     },
   });
 
+  const [showDomesticPaymentModal, setShowDomesticPaymentModal] = useState(false);
+
+  const payDomesticServiceMutation = useMutation({
+    mutationFn: async (data: { serviceId: number; method: string; totalAmount: number }) => {
+      const response = await apiRequest("POST", `/api/service/${data.serviceId}/pay-domestic`, {
+        method: data.method,
+        totalAmount: data.totalAmount,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Pagamento confirmado!",
+        description: "Uma profissional será atribuída em breve.",
+      });
+      setShowDomesticPaymentModal(false);
+      setLocation("/client");
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível processar o pagamento. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDomesticPaymentComplete = (paymentId: number) => {
+    if (aiDiagnosis) {
+      const totalAmount = Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10);
+      payDomesticServiceMutation.mutate({
+        serviceId: aiDiagnosis.service.id,
+        method: "pix",
+        totalAmount,
+      });
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -844,31 +882,33 @@ export default function NewService() {
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-primary" />
-                    <CardTitle>Diagnóstico IA</CardTitle>
+                    <CardTitle>{isDomesticService ? "Orçamento" : "Diagnóstico IA"}</CardTitle>
                   </div>
                   <CardDescription>
-                    Análise automática do seu problema
+                    {isDomesticService ? "Valor calculado para o serviço" : "Análise automática do seu problema"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground">Classificação</p>
-                      <p className="font-medium">{aiDiagnosis.aiDiagnosis.classification}</p>
+                  {!isDomesticService && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-muted/50 rounded-lg p-3">
+                        <p className="text-xs text-muted-foreground">Classificação</p>
+                        <p className="font-medium">{aiDiagnosis.aiDiagnosis.classification}</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-lg p-3">
+                        <p className="text-xs text-muted-foreground">Urgência</p>
+                        <Badge variant={
+                          aiDiagnosis.aiDiagnosis.urgencyLevel === "urgente" ? "destructive" :
+                          aiDiagnosis.aiDiagnosis.urgencyLevel === "alta" ? "default" : "secondary"
+                        }>
+                          {aiDiagnosis.aiDiagnosis.urgencyLevel}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground">Urgência</p>
-                      <Badge variant={
-                        aiDiagnosis.aiDiagnosis.urgencyLevel === "urgente" ? "destructive" :
-                        aiDiagnosis.aiDiagnosis.urgencyLevel === "alta" ? "default" : "secondary"
-                      }>
-                        {aiDiagnosis.aiDiagnosis.urgencyLevel}
-                      </Badge>
-                    </div>
-                  </div>
+                  )}
 
                   <div>
-                    <p className="text-sm font-medium mb-2">Análise:</p>
+                    <p className="text-sm font-medium mb-2">{isDomesticService ? "Detalhes:" : "Análise:"}</p>
                     <p className="text-sm text-muted-foreground">{aiDiagnosis.aiDiagnosis.aiResponse}</p>
                   </div>
 
@@ -878,47 +918,105 @@ export default function NewService() {
                       <p className="font-medium">{aiDiagnosis.aiDiagnosis.estimatedDuration}</p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground">Faixa de preço</p>
-                      <p className="font-medium">
-                        R$ {(aiDiagnosis.aiDiagnosis.priceRangeMin / 100).toFixed(0)} - R$ {(aiDiagnosis.aiDiagnosis.priceRangeMax / 100).toFixed(0)}
+                      <p className="text-xs text-muted-foreground">{isDomesticService ? "Valor" : "Faixa de preço"}</p>
+                      <p className="font-medium text-primary">
+                        {isDomesticService 
+                          ? `R$ ${(aiDiagnosis.aiDiagnosis.priceRangeMin / 100).toFixed(2)}`
+                          : `R$ ${(aiDiagnosis.aiDiagnosis.priceRangeMin / 100).toFixed(0)} - R$ ${(aiDiagnosis.aiDiagnosis.priceRangeMax / 100).toFixed(0)}`
+                        }
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-primary bg-primary/5">
-                <CardContent className="pt-6">
-                  <div className="text-center space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
-                      <CheckCircle2 className="h-6 w-6 text-primary" />
+              {isDomesticService ? (
+                <Card className="border-primary bg-primary/5">
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+                        <CreditCard className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-primary">
+                          R$ {((aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10) / 100).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Inclui taxa da plataforma (10%)
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p className="flex items-center justify-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          Profissional verificada
+                        </p>
+                        <p className="flex items-center justify-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          Pagamento seguro
+                        </p>
+                        <p className="flex items-center justify-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          Serviço garantido
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold">Taxa de diagnóstico paga!</p>
-                      <p className="text-sm text-muted-foreground">
-                        Agora você pode escolher um profissional para fazer o orçamento presencial
-                      </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => setShowDomesticPaymentModal(true)}
+                      data-testid="button-pay-domestic"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Pagar e contratar
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ) : (
+                <Card className="border-primary bg-primary/5">
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+                        <CheckCircle2 className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Taxa de diagnóstico paga!</p>
+                        <p className="text-sm text-muted-foreground">
+                          Agora você pode escolher um profissional para fazer o orçamento presencial
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    onClick={() => {
-                      if (aiDiagnosis) {
-                        setLocation(`/cliente/selecionar-profissional/${aiDiagnosis.service.id}`);
-                      }
-                    }}
-                    data-testid="button-select-provider"
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    Ver profissionais disponíveis
-                  </Button>
-                </CardFooter>
-              </Card>
+                  </CardContent>
+                  <CardFooter>
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => {
+                        if (aiDiagnosis) {
+                          setLocation(`/cliente/selecionar-profissional/${aiDiagnosis.service.id}`);
+                        }
+                      }}
+                      data-testid="button-select-provider"
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Ver profissionais disponíveis
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )}
             </div>
           </ScrollArea>
+        )}
+
+        {aiDiagnosis && isDomesticService && (
+          <PaymentModal
+            open={showDomesticPaymentModal}
+            onOpenChange={setShowDomesticPaymentModal}
+            amount={Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10)}
+            description={`Serviço: ${aiDiagnosis.service.title}`}
+            onPaymentComplete={handleDomesticPaymentComplete}
+          />
         )}
       </main>
     </div>

@@ -2177,6 +2177,79 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     }
   });
 
+  // Pagar e contratar serviço doméstico (sem orçamento presencial)
+  app.post("/api/service/:id/pay-domestic", isAuthenticated, async (req: any, res) => {
+    try {
+      const clientId = req.user.claims.sub;
+      const serviceId = parseInt(req.params.id);
+      const { method, totalAmount } = req.body;
+
+      const service = await storage.getServiceById(serviceId);
+      if (!service || service.clientId !== clientId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Registrar pagamento
+      const payment = await storage.createPayment({
+        userId: clientId,
+        serviceRequestId: serviceId,
+        amount: totalAmount,
+        method: method || "pix",
+        status: "completed",
+        description: `Serviço doméstico: ${service.title}`,
+      });
+
+      // Criar diagnóstico do prestador (para serviços domésticos, é automático)
+      const aiDiagnosis = await storage.getAiDiagnosisByServiceId(serviceId);
+      const laborCost = aiDiagnosis?.priceRangeMin || totalAmount;
+      
+      await storage.createProviderDiagnosis({
+        serviceRequestId: serviceId,
+        providerId: clientId,
+        findings: "Serviço doméstico - execução direta",
+        laborCost,
+        materialsCost: 0,
+        materialsList: "[]",
+        estimatedDuration: aiDiagnosis?.estimatedDuration || "4 horas",
+        notes: "Serviço contratado online",
+      });
+
+      // Criar aceite digital
+      const platformFee = Math.round(laborCost * 0.10);
+      await storage.createDigitalAcceptance({
+        serviceRequestId: serviceId,
+        clientId,
+        totalPrice: totalAmount,
+        laborCost,
+        materialsCost: 0,
+        platformFee,
+      });
+
+      // Atualizar status do serviço para aceito
+      await storage.updateService(serviceId, { 
+        status: "accepted",
+        scheduledDate: new Date(),
+      });
+
+      // Criar escrow
+      await storage.createPaymentEscrow({
+        serviceRequestId: serviceId,
+        paymentId: payment.id,
+        holdAmount: totalAmount,
+        status: "holding",
+      });
+
+      // Notificar (em produção, encontraria e atribuiria uma prestadora disponível)
+      res.json({ 
+        message: "Pagamento processado! Uma profissional será atribuída.",
+        paymentId: payment.id,
+      });
+    } catch (error) {
+      console.error("Error processing domestic service payment:", error);
+      res.status(500).json({ error: "Failed to process payment" });
+    }
+  });
+
   // Obter detalhes completos do serviço (diagnósticos, aceite, execução)
   app.get("/api/service/:id/full", isAuthenticated, async (req, res) => {
     try {
