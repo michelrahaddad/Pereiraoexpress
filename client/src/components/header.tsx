@@ -98,24 +98,30 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
-                  <Link href="/client" className="flex items-center gap-3 p-2">
-                    <User className="h-4 w-4" />
-                    Meus Serviços
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
-                  <Link href="/provider" className="flex items-center gap-3 p-2">
-                    <Wrench className="h-4 w-4" />
-                    Área do Prestador
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
-                  <Link href="/admin" className="flex items-center gap-3 p-2">
-                    <Shield className="h-4 w-4" />
-                    Administração
-                  </Link>
-                </DropdownMenuItem>
+                {(user?.role === "client" || !user?.role) && (
+                  <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
+                    <Link href="/client" className="flex items-center gap-3 p-2">
+                      <User className="h-4 w-4" />
+                      Meus Serviços
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {user?.role === "provider" && (
+                  <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
+                    <Link href="/provider" className="flex items-center gap-3 p-2">
+                      <Wrench className="h-4 w-4" />
+                      Área do Prestador
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {user?.role === "admin" && (
+                  <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
+                    <Link href="/admin" className="flex items-center gap-3 p-2">
+                      <Shield className="h-4 w-4" />
+                      Administração
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild className="rounded-lg cursor-pointer">
                   <Link href="/settings" className="flex items-center gap-3 p-2">
