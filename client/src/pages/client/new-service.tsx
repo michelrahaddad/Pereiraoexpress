@@ -935,28 +935,26 @@ export default function NewService() {
                   <CardContent className="pt-6">
                     <div className="text-center space-y-3">
                       <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
-                        <CreditCard className="h-6 w-6 text-primary" />
+                        <CheckCircle2 className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-primary">
-                          R$ {((aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10) / 100).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Inclui taxa da plataforma (10%)
+                        <p className="font-semibold">Orçamento calculado!</p>
+                        <p className="text-sm text-muted-foreground">
+                          Escolha uma profissional para realizar o serviço
                         </p>
                       </div>
                       <div className="text-sm text-muted-foreground space-y-1">
                         <p className="flex items-center justify-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Profissional verificada
+                          Profissionais verificadas
                         </p>
                         <p className="flex items-center justify-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Pagamento seguro
+                          Ordenadas por avaliação
                         </p>
                         <p className="flex items-center justify-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Serviço garantido
+                          Pagamento após seleção
                         </p>
                       </div>
                     </div>
@@ -965,11 +963,11 @@ export default function NewService() {
                     <Button 
                       className="w-full" 
                       size="lg"
-                      onClick={() => setShowDomesticPaymentModal(true)}
-                      data-testid="button-pay-domestic"
+                      onClick={() => setLocation(`/cliente/selecionar-profissional/${aiDiagnosis.service.id}?domestic=true`)}
+                      data-testid="button-select-domestic-provider"
                     >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Pagar e contratar
+                      <Users className="h-4 w-4 mr-2" />
+                      Ver profissionais disponíveis
                     </Button>
                   </CardFooter>
                 </Card>

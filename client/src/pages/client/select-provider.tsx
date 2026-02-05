@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, useRoute } from "wouter";
+import { useLocation, useRoute, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Na
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { PaymentModal } from "@/components/payment-modal";
 
 interface Provider {
   id: string;
@@ -33,13 +34,29 @@ export default function SelectProvider() {
   const [, params] = useRoute("/cliente/selecionar-profissional/:serviceId");
   const serviceId = params?.serviceId;
   const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const isDomestic = new URLSearchParams(searchString).get("domestic") === "true";
   const { toast } = useToast();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
 
   const { data: service } = useQuery<any>({
     queryKey: ["/api/services", serviceId],
     enabled: !!serviceId,
+  });
+
+  const { data: aiDiagnosis } = useQuery<any>({
+    queryKey: ["/api/services", serviceId, "diagnosis"],
+    queryFn: async () => {
+      const res = await fetch(`/api/services/${serviceId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data;
+    },
+    enabled: !!serviceId && isDomestic,
   });
 
   const { data: providers = [], isLoading, refetch } = useQuery<Provider[]>({
@@ -87,9 +104,50 @@ export default function SelectProvider() {
     },
   });
 
+  const payDomesticMutation = useMutation({
+    mutationFn: async (data: { providerId: string; method: string; totalAmount: number }) => {
+      await apiRequest("POST", `/api/services/${serviceId}/select-provider`, { providerId: data.providerId });
+      const response = await apiRequest("POST", `/api/service/${serviceId}/pay-domestic`, {
+        method: data.method,
+        totalAmount: data.totalAmount,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      toast({
+        title: "Pagamento confirmado!",
+        description: "A profissional foi notificada e realizará o serviço.",
+      });
+      setShowPaymentModal(false);
+      navigate("/client");
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível processar o pagamento.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleConfirmProvider = () => {
     if (!selectedProvider) return;
-    selectMutation.mutate(selectedProvider);
+    if (isDomestic) {
+      setShowPaymentModal(true);
+    } else {
+      selectMutation.mutate(selectedProvider);
+    }
+  };
+
+  const handleDomesticPayment = () => {
+    if (!selectedProvider || !aiDiagnosis?.aiDiagnosis) return;
+    const totalAmount = Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10);
+    payDomesticMutation.mutate({
+      providerId: selectedProvider,
+      method: "pix",
+      totalAmount,
+    });
   };
 
   const formatPrice = (cents: number) => {
@@ -284,23 +342,33 @@ export default function SelectProvider() {
           <div className="max-w-2xl mx-auto">
             <Button
               className="w-full h-12 text-base font-semibold rounded-xl"
-              disabled={!selectedProvider || selectMutation.isPending}
+              disabled={!selectedProvider || selectMutation.isPending || payDomesticMutation.isPending}
               onClick={handleConfirmProvider}
               data-testid="button-confirm-provider"
             >
-              {selectMutation.isPending ? (
+              {(selectMutation.isPending || payDomesticMutation.isPending) ? (
                 <span className="flex items-center gap-2">
                   <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                  Selecionando...
+                  {isDomestic ? "Processando..." : "Selecionando..."}
                 </span>
               ) : selectedProvider ? (
-                "Confirmar Profissional"
+                isDomestic ? "Selecionar e Pagar" : "Confirmar Profissional"
               ) : (
                 "Selecione um Profissional"
               )}
             </Button>
           </div>
         </div>
+      )}
+
+      {isDomestic && aiDiagnosis?.aiDiagnosis && (
+        <PaymentModal
+          open={showPaymentModal}
+          onOpenChange={setShowPaymentModal}
+          amount={Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10)}
+          description={`Serviço: ${aiDiagnosis.service?.title || "Serviço doméstico"}`}
+          onPaymentComplete={handleDomesticPayment}
+        />
       )}
     </div>
   );
