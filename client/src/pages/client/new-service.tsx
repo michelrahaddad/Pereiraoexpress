@@ -205,21 +205,18 @@ export default function NewService() {
     const lastMessage = messages[messages.length - 1];
     const lastAiMessage = messages.filter(m => m.role === "assistant").pop();
     
-    // Só considerar diagnóstico se a última mensagem for do usuário (ele respondeu)
-    if (!lastMessage || lastMessage.role !== "user") {
+    // Só considerar diagnóstico se a última mensagem for da IA (concluindo conversa)
+    // e o usuário já respondeu pelo menos 4 vezes
+    if (!lastMessage || lastMessage.role !== "assistant" || userMessageCount < 4) {
       return;
     }
     
-    // Verificar se a IA pediu foto (pergunta opcional)
-    const aiAskedForPhoto = lastAiMessage?.content?.toLowerCase().includes("foto") ||
-                           lastAiMessage?.content?.includes("📷");
+    // Verificar se a IA finalizou a coleta (não está fazendo pergunta)
+    const aiContent = lastAiMessage?.content?.trim() || "";
+    const aiIsAskingQuestion = aiContent.endsWith("?") || aiContent.includes("?");
     
-    // Verificar se a última pergunta da IA ainda espera resposta (termina com ?)
-    const aiWaitingForAnswer = lastAiMessage?.content?.trim().endsWith("?");
-    
-    // Regra: 4 perguntas obrigatórias mínimo para diagnóstico
-    // Disparar após 4 mensagens do usuário
-    const shouldGenerateDiagnosis = userMessageCount >= 4 && !aiWaitingForAnswer;
+    // Se a IA não está fazendo pergunta, significa que ela finalizou a coleta
+    const shouldGenerateDiagnosis = !aiIsAskingQuestion;
     
     if (shouldGenerateDiagnosis && !isStreaming && !createAIDiagnosisMutation.isPending && step === "chat") {
       const description = messages
