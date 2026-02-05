@@ -699,8 +699,38 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
       const clientLat = lat !== undefined ? parseFloat(lat as string) : null;
       const clientLon = lon !== undefined ? parseFloat(lon as string) : null;
       
+      // Get category name for filtering by specialty
+      let categoryName: string | null = null;
+      if (serviceId) {
+        const service = await storage.getServiceById(parseInt(serviceId as string));
+        if (service) {
+          const category = await storage.getCategoryById(service.categoryId);
+          categoryName = category?.name || null;
+        }
+      } else if (categoryId) {
+        const category = await storage.getCategoryById(parseInt(categoryId as string));
+        categoryName = category?.name || null;
+      }
+      
       // Get available providers, optionally filtered by city
       let providers = await storage.getAvailableProviders(city as string);
+      
+      // Filter providers by specialty (category name)
+      if (categoryName) {
+        providers = providers.filter(provider => {
+          const specialties = (provider.specialties || "").toLowerCase();
+          const categoryLower = categoryName!.toLowerCase();
+          // Check if specialties contain the category name or related keywords
+          return specialties.includes(categoryLower) || 
+                 (categoryLower === "passadeira" && specialties.includes("passar")) ||
+                 (categoryLower === "limpeza" && (specialties.includes("limpeza") || specialties.includes("diarista") || specialties.includes("faxina"))) ||
+                 (categoryLower === "encanamento" && (specialties.includes("encanamento") || specialties.includes("encanador") || specialties.includes("hidráulica"))) ||
+                 (categoryLower === "elétrica" && (specialties.includes("elétrica") || specialties.includes("eletricista"))) ||
+                 (categoryLower === "pintura" && (specialties.includes("pintura") || specialties.includes("pintor"))) ||
+                 (categoryLower === "marcenaria" && (specialties.includes("marcenaria") || specialties.includes("marceneiro"))) ||
+                 (categoryLower === "ar condicionado" && (specialties.includes("ar condicionado") || specialties.includes("ac") || specialties.includes("climatização")));
+        });
+      }
       
       // Filter by distance if client location provided (30km radius)
       let filteredProviders: any[] = providers;
