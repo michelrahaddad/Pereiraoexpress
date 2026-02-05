@@ -183,7 +183,19 @@ export default function NewService() {
 
   useEffect(() => {
     const userMessageCount = messages.filter(m => m.role === "user").length;
-    if (userMessageCount >= 3 && !isStreaming && !createAIDiagnosisMutation.isPending && step === "chat") {
+    const aiMessageCount = messages.filter(m => m.role === "assistant").length;
+    const lastAiMessage = messages.filter(m => m.role === "assistant").pop();
+    
+    // Verificar se a última mensagem da IA contém diagnóstico (sinal de que já coletou info suficiente)
+    const aiSentDiagnosis = lastAiMessage?.content?.includes("###DIAGNOSIS###") || 
+                           lastAiMessage?.content?.toLowerCase().includes("diagnóstico") ||
+                           lastAiMessage?.content?.toLowerCase().includes("solução");
+    
+    // Só disparar diagnóstico se: pelo menos 5 mensagens do usuário OU 4+ mensagens e IA indicou conclusão
+    const shouldGenerateDiagnosis = (userMessageCount >= 5) || 
+                                    (userMessageCount >= 4 && aiSentDiagnosis && aiMessageCount >= 4);
+    
+    if (shouldGenerateDiagnosis && !isStreaming && !createAIDiagnosisMutation.isPending && step === "chat") {
       const description = messages
         .filter(m => m.role === "user")
         .map(m => m.content)
