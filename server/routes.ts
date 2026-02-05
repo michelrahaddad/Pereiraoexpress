@@ -1079,30 +1079,69 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         filteredProviders = filterProvidersByDistance(providers, clientLat, clientLon, 30);
       }
       
-      // Get base price from service if serviceId provided
-      let basePrice = 0;
+      // Get AI diagnosis price range if serviceId provided
+      let priceRangeMin = 0;
+      let priceRangeMax = 0;
       if (serviceId) {
-        const service = await storage.getServiceById(parseInt(serviceId as string));
-        if (service) {
-          const category = await storage.getCategoryById(service.categoryId);
-          basePrice = category?.basePrice || 0;
+        const aiDiagnosis = await storage.getAiDiagnosisByServiceId(parseInt(serviceId as string));
+        if (aiDiagnosis) {
+          priceRangeMin = aiDiagnosis.priceRangeMin || 0;
+          priceRangeMax = aiDiagnosis.priceRangeMax || 0;
+        }
+        // Fallback to category base price if no AI diagnosis
+        if (priceRangeMin === 0) {
+          const service = await storage.getServiceById(parseInt(serviceId as string));
+          if (service) {
+            const category = await storage.getCategoryById(service.categoryId);
+            priceRangeMin = category?.basePrice || 0;
+            priceRangeMax = priceRangeMin * 2;
+          }
         }
       } else if (categoryId) {
         const category = await storage.getCategoryById(parseInt(categoryId as string));
-        basePrice = category?.basePrice || 0;
+        priceRangeMin = category?.basePrice || 0;
+        priceRangeMax = priceRangeMin * 2;
       }
       
-      // Calculate adjusted price for each provider based on rating
-      const { getAdjustedPrice, getRatingLevel } = await import("@shared/priceMultiplier");
+      // Calculate adjusted price for each provider based on rating within AI price range
+      const { getRatingLevel } = await import("@shared/priceMultiplier");
       
       const providersWithPricing = filteredProviders.map(provider => {
         const rating = parseFloat(provider.rating || "10");
         const totalRatings = provider.totalRatings || 0;
+        const ratingLevel = getRatingLevel(rating, totalRatings);
+        
+        // Calculate price based on rating level within AI's price range
+        // Premium (9-10): 90-100% of max, Experiente (8-8.9): 70-85%, Regular (5.1-7.9): 40-65%, Iniciante (0-5): min
+        let adjustedPrice = priceRangeMin;
+        const priceRange = priceRangeMax - priceRangeMin;
+        
+        if (totalRatings === 0) {
+          // New provider: slightly above minimum (10-20% of range)
+          adjustedPrice = priceRangeMin + Math.round(priceRange * 0.15);
+        } else if (ratingLevel === "Premium") {
+          // Premium (9-10): 85-100% of range
+          const factor = 0.85 + ((rating - 9) / 1) * 0.15;
+          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+        } else if (ratingLevel === "Experiente") {
+          // Experiente (8-8.9): 65-80% of range
+          const factor = 0.65 + ((rating - 8) / 0.9) * 0.15;
+          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+        } else if (ratingLevel === "Regular") {
+          // Regular (5.1-7.9): 30-60% of range
+          const factor = 0.30 + ((rating - 5.1) / 2.8) * 0.30;
+          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+        } else {
+          // Iniciante (0-5): 0-25% of range
+          const factor = (rating / 5) * 0.25;
+          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+        }
+        
         return {
           ...provider,
-          adjustedPrice: getAdjustedPrice(basePrice, rating, totalRatings),
-          ratingLevel: getRatingLevel(rating, totalRatings),
-          basePrice,
+          adjustedPrice,
+          ratingLevel,
+          basePrice: priceRangeMin,
           distance: provider.distance ? Math.round(provider.distance * 10) / 10 : null,
         };
       });
