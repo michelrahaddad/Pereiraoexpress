@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { LoadingSkeleton, CardSkeleton } from "@/components/loading-skeleton";
@@ -31,9 +32,33 @@ import {
   StopCircle,
   FileText,
   X,
-  Navigation
+  Navigation,
+  Plus,
+  Minus,
+  Search,
+  Package
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
+
+// Tipo para material selecionado
+interface SelectedMaterial {
+  id: number;
+  name: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number; // em centavos (salePrice)
+}
+
+// Tipo para resultado da busca de materiais
+interface MaterialSearchResult {
+  id: number;
+  name: string;
+  category: string;
+  unit: string;
+  costPrice: number;
+  salePrice: number;
+  priceFormatted: string;
+}
 
 const slaLabels = {
   standard: { label: "Standard", color: "secondary" as const },
@@ -211,6 +236,81 @@ export default function ProviderDashboard() {
     notes: "",
   });
   
+  // Estado para materiais selecionados
+  const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterial[]>([]);
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [showMaterialSearch, setShowMaterialSearch] = useState(false);
+  const [materialSearchResults, setMaterialSearchResults] = useState<MaterialSearchResult[]>([]);
+  const [isSearchingMaterials, setIsSearchingMaterials] = useState(false);
+  
+  // Buscar materiais com debounce
+  useEffect(() => {
+    if (!materialSearch.trim()) {
+      setMaterialSearchResults([]);
+      return;
+    }
+    
+    const timer = setTimeout(async () => {
+      setIsSearchingMaterials(true);
+      try {
+        const response = await fetch(`/api/materials/search?q=${encodeURIComponent(materialSearch)}`);
+        if (response.ok) {
+          const results = await response.json();
+          setMaterialSearchResults(results);
+        }
+      } catch (error) {
+        console.error("Error searching materials:", error);
+      } finally {
+        setIsSearchingMaterials(false);
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [materialSearch]);
+  
+  // Calcular total de materiais selecionados
+  const totalMaterialsCost = selectedMaterials.reduce((sum, m) => sum + (m.unitPrice * m.quantity), 0);
+  
+  // Atualizar materialsCost quando materiais mudam
+  useEffect(() => {
+    const totalReais = (totalMaterialsCost / 100).toFixed(2);
+    setDiagnosisForm(prev => ({ ...prev, materialsCost: totalReais }));
+  }, [totalMaterialsCost]);
+  
+  // Funções para gerenciar materiais
+  const addMaterial = (material: MaterialSearchResult) => {
+    const existing = selectedMaterials.find(m => m.id === material.id);
+    if (existing) {
+      setSelectedMaterials(prev => prev.map(m => 
+        m.id === material.id ? { ...m, quantity: m.quantity + 1 } : m
+      ));
+    } else {
+      setSelectedMaterials(prev => [...prev, {
+        id: material.id,
+        name: material.name,
+        unit: material.unit,
+        quantity: 1,
+        unitPrice: material.salePrice,
+      }]);
+    }
+    setMaterialSearch("");
+    setShowMaterialSearch(false);
+  };
+  
+  const updateMaterialQuantity = (id: number, delta: number) => {
+    setSelectedMaterials(prev => prev.map(m => {
+      if (m.id === id) {
+        const newQty = Math.max(0, m.quantity + delta);
+        return { ...m, quantity: newQty };
+      }
+      return m;
+    }).filter(m => m.quantity > 0));
+  };
+  
+  const removeMaterial = (id: number) => {
+    setSelectedMaterials(prev => prev.filter(m => m.id !== id));
+  };
+  
   const [executionForm, setExecutionForm] = useState<ExecutionFormData>({
     photos: [],
     latitude: null,
@@ -265,19 +365,30 @@ export default function ProviderDashboard() {
   });
 
   const diagnosisMutation = useMutation({
-    mutationFn: async ({ serviceId, data }: { serviceId: number; data: DiagnosisFormData }) => {
+    mutationFn: async ({ serviceId, data, materials }: { serviceId: number; data: DiagnosisFormData; materials: SelectedMaterial[] }) => {
       return apiRequest("POST", `/api/provider/diagnosis/${serviceId}`, {
         findings: data.findings,
         laborCost: Math.round(parseFloat(data.laborCost) * 100),
         materialsCost: Math.round(parseFloat(data.materialsCost || "0") * 100),
         estimatedDuration: data.estimatedDuration,
         notes: data.notes,
+        materialsList: materials.map(m => ({
+          id: m.id,
+          name: m.name,
+          unit: m.unit,
+          quantity: m.quantity,
+          unitPrice: m.unitPrice,
+          totalPrice: m.unitPrice * m.quantity,
+        })),
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/provider/my-services"] });
       setShowDiagnosisModal(false);
       setDiagnosisForm({ findings: "", laborCost: "", materialsCost: "", estimatedDuration: "", notes: "" });
+      setSelectedMaterials([]);
+      setMaterialSearch("");
+      setShowMaterialSearch(false);
       toast({
         title: "Diagnóstico enviado!",
         description: "O orçamento foi enviado ao cliente.",
@@ -721,8 +832,134 @@ export default function ProviderDashboard() {
                   onChange={(e) => setDiagnosisForm(prev => ({ ...prev, materialsCost: e.target.value }))}
                   placeholder="50.00"
                   data-testid="input-materials-cost"
+                  readOnly={selectedMaterials.length > 0}
+                  className={selectedMaterials.length > 0 ? "bg-muted" : ""}
                 />
               </div>
+            </div>
+            
+            {/* Seção de adicionar materiais */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Adicionar Materiais
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMaterialSearch(!showMaterialSearch)}
+                  data-testid="button-add-material"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Adicionar
+                </Button>
+              </div>
+              
+              {showMaterialSearch && (
+                <div className="relative">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar material (ex: tinta, fio, tubo...)"
+                        value={materialSearch}
+                        onChange={(e) => setMaterialSearch(e.target.value)}
+                        className="pl-9"
+                        data-testid="input-material-search"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Resultados da busca */}
+                  {(materialSearchResults.length > 0 || isSearchingMaterials) && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto">
+                      {isSearchingMaterials ? (
+                        <div className="p-3 text-center text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                          Buscando...
+                        </div>
+                      ) : (
+                        materialSearchResults.map((material) => (
+                          <button
+                            key={material.id}
+                            type="button"
+                            className="w-full px-3 py-2 text-left hover:bg-accent flex items-center justify-between text-sm"
+                            onClick={() => addMaterial(material)}
+                            data-testid={`material-option-${material.id}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{material.name}</p>
+                              <p className="text-xs text-muted-foreground">{material.category} - {material.unit}</p>
+                            </div>
+                            <span className="ml-2 font-medium text-primary whitespace-nowrap">
+                              {material.priceFormatted}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Lista de materiais selecionados */}
+              {selectedMaterials.length > 0 && (
+                <div className="border rounded-md p-2 space-y-2 max-h-40 overflow-auto">
+                  {selectedMaterials.map((material) => (
+                    <div key={material.id} className="flex items-center gap-2 text-sm bg-muted/50 rounded p-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-xs">{material.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          R$ {(material.unitPrice / 100).toFixed(2)} / {material.unit}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => updateMaterialQuantity(material.id, -1)}
+                          data-testid={`button-decrease-${material.id}`}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center font-medium">{material.quantity}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => updateMaterialQuantity(material.id, 1)}
+                          data-testid={`button-increase-${material.id}`}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={() => removeMaterial(material.id)}
+                          data-testid={`button-remove-${material.id}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="font-medium text-primary whitespace-nowrap text-xs">
+                        R$ {((material.unitPrice * material.quantity) / 100).toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center pt-2 border-t text-sm font-medium">
+                    <span>Total Materiais:</span>
+                    <span className="text-primary">R$ {(totalMaterialsCost / 100).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div>
@@ -756,7 +993,11 @@ export default function ProviderDashboard() {
             <Button
               onClick={() => {
                 if (selectedService) {
-                  diagnosisMutation.mutate({ serviceId: selectedService.id, data: diagnosisForm });
+                  diagnosisMutation.mutate({ 
+                    serviceId: selectedService.id, 
+                    data: diagnosisForm,
+                    materials: selectedMaterials 
+                  });
                 }
               }}
               disabled={!diagnosisForm.findings || !diagnosisForm.laborCost || diagnosisMutation.isPending}

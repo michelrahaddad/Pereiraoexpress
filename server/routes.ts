@@ -263,12 +263,11 @@ async function seedConstructionMaterials() {
       const suppliers = await storage.getMaterialSuppliers();
       if (suppliers.length === 0) {
         const supplier = await storage.createMaterialSupplier({
-          name: "Fornecedor Padrão",
-          cnpj: "00000000000000",
-          email: "sistema@pereirao.com",
-          phone: "00000000000",
-          address: "Sistema",
+          name: "Fornecedor Padrão do Sistema",
           city: "Brasil",
+          state: "BR",
+          phone: "00000000000",
+          address: "Sistema Pereirão Express",
           isActive: true,
         });
         systemSupplierId = supplier.id;
