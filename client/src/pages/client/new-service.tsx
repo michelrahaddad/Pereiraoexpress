@@ -66,7 +66,7 @@ const GUIDED_QUESTIONS_REPAIR = [
   {
     id: "problem_type",
     question: "Qual tipo de problema você está enfrentando?",
-    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Empregada Doméstica", "Outro"]
+    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Empregada Doméstica", "Passadeira", "Outro"]
   },
   {
     id: "urgency",
@@ -267,10 +267,11 @@ export default function NewService() {
   const currentQuestions = isDomesticService ? GUIDED_QUESTIONS_DOMESTIC : GUIDED_QUESTIONS_REPAIR;
 
   const handleGuidedAnswer = (answer: string) => {
-    // Se está na primeira pergunta e selecionou "Empregada Doméstica", muda para fluxo doméstico
-    if (currentQuestion === 0 && !isDomesticService && answer === "Empregada Doméstica") {
+    // Se está na primeira pergunta e selecionou serviço doméstico, muda para fluxo doméstico
+    const domesticServices = ["Empregada Doméstica", "Passadeira"];
+    if (currentQuestion === 0 && !isDomesticService && domesticServices.includes(answer)) {
       setIsDomesticService(true);
-      setGuidedAnswers([{ question: "Tipo de serviço", answer: "Empregada Doméstica" }]);
+      setGuidedAnswers([{ question: "Tipo de serviço", answer }]);
       setCurrentQuestion(0); // Reinicia para as perguntas de serviço doméstico
       return;
     }
