@@ -378,7 +378,18 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const services = await storage.getServicesByClient(userId);
-      res.json(services);
+      
+      // Enriquecer cada serviço com faixa de preço do diagnóstico IA
+      const enrichedServices = await Promise.all(services.map(async (service) => {
+        const aiDiagnosis = await storage.getAiDiagnosis(service.id);
+        return {
+          ...service,
+          priceRangeMin: aiDiagnosis?.priceRangeMin || null,
+          priceRangeMax: aiDiagnosis?.priceRangeMax || null,
+        };
+      }));
+      
+      res.json(enrichedServices);
     } catch (error) {
       console.error("Error fetching services:", error);
       res.status(500).json({ error: "Failed to fetch services" });

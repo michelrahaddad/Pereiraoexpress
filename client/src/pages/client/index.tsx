@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
+type EnrichedServiceRequest = ServiceRequest & {
+  priceRangeMin?: number | null;
+  priceRangeMax?: number | null;
+};
+
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color: string }> = {
   pending: { label: "Aguardando", variant: "secondary", color: "bg-muted" },
   diagnosed: { label: "Diagnosticado", variant: "default", color: "bg-primary/20" },
@@ -30,8 +35,11 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   cancelled: { label: "Cancelado", variant: "destructive", color: "bg-destructive/20" },
 };
 
-function ServiceCard({ service }: { service: ServiceRequest }) {
+function ServiceCard({ service }: { service: EnrichedServiceRequest }) {
   const status = statusMap[service.status] || { label: service.status, variant: "secondary" as const, color: "bg-muted" };
+  
+  // Exibir faixa de preço do diagnóstico IA se disponível
+  const hasPriceRange = service.priceRangeMin && service.priceRangeMax;
   
   return (
     <Card className="group border-2 border-transparent hover:border-primary/20 transition-all duration-300 rounded-2xl overflow-hidden">
@@ -61,11 +69,15 @@ function ServiceCard({ service }: { service: ServiceRequest }) {
                   <Clock className="h-3.5 w-3.5" />
                   {new Date(service.createdAt!).toLocaleDateString("pt-BR")}
                 </span>
-                {service.estimatedPrice && (
+                {hasPriceRange ? (
+                  <span className="font-semibold text-foreground text-sm">
+                    R$ {(service.priceRangeMin! / 100).toFixed(0)} - R$ {(service.priceRangeMax! / 100).toFixed(0)}
+                  </span>
+                ) : service.estimatedPrice ? (
                   <span className="font-semibold text-foreground text-sm">
                     R$ {(service.estimatedPrice / 100).toFixed(2)}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
@@ -81,7 +93,7 @@ function ServiceCard({ service }: { service: ServiceRequest }) {
 export default function ClientDashboard() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   
-  const { data: services, isLoading: servicesLoading } = useQuery<ServiceRequest[]>({
+  const { data: services, isLoading: servicesLoading } = useQuery<EnrichedServiceRequest[]>({
     queryKey: ["/api/service"],
     enabled: isAuthenticated,
   });
