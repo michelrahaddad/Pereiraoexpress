@@ -272,11 +272,11 @@ export default function ServiceDetails() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">
-                      {aiDiagnosis?.minPrice && aiDiagnosis?.maxPrice ? "Faixa estimada" : "Valor estimado"}
+                      {aiDiagnosis?.priceRangeMin && aiDiagnosis?.priceRangeMax ? "Faixa estimada" : "Valor estimado"}
                     </p>
                     <p className="text-2xl font-bold text-primary" data-testid="text-service-price">
-                      {aiDiagnosis?.minPrice && aiDiagnosis?.maxPrice ? (
-                        <>R$ {(aiDiagnosis.minPrice / 100).toFixed(0)} - R$ {(aiDiagnosis.maxPrice / 100).toFixed(0)}</>
+                      {aiDiagnosis?.priceRangeMin && aiDiagnosis?.priceRangeMax ? (
+                        <>R$ {(aiDiagnosis.priceRangeMin / 100).toFixed(0)} - R$ {(aiDiagnosis.priceRangeMax / 100).toFixed(0)}</>
                       ) : (
                         <>R$ {((service.finalPrice || service.estimatedPrice || 0) / 100).toFixed(2)}</>
                       )}
