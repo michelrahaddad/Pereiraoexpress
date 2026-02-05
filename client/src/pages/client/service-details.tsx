@@ -111,6 +111,7 @@ export default function ServiceDetails() {
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [includeMaterials, setIncludeMaterials] = useState(true);
 
   const { data: serviceDetails, isLoading } = useQuery<ServiceDetails>({
     queryKey: [`/api/service/${params?.id}/full`],
@@ -358,19 +359,49 @@ export default function ServiceDetails() {
                       <span className="text-muted-foreground">Mão de obra:</span>
                       <span>R$ {(providerDiagnosis.laborCost / 100).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Materiais:</span>
-                      <span>R$ {(providerDiagnosis.materialsCost / 100).toFixed(2)}</span>
-                    </div>
+                    
+                    {providerDiagnosis.materialsCost > 0 && canAcceptQuote && (
+                      <div className="bg-accent/10 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="include-materials"
+                              checked={includeMaterials}
+                              onChange={(e) => setIncludeMaterials(e.target.checked)}
+                              className="rounded"
+                              data-testid="checkbox-include-materials"
+                            />
+                            <label htmlFor="include-materials" className="text-sm font-medium">
+                              Incluir materiais (opcional)
+                            </label>
+                          </div>
+                          <span className={`text-sm ${includeMaterials ? "" : "line-through text-muted-foreground"}`}>
+                            R$ {(providerDiagnosis.materialsCost / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          O prestador traz os materiais. Você também pode comprar por conta própria.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {providerDiagnosis.materialsCost > 0 && !canAcceptQuote && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Materiais:</span>
+                        <span>R$ {(providerDiagnosis.materialsCost / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Taxa da plataforma (10%):</span>
-                      <span>R$ {(((providerDiagnosis.laborCost + providerDiagnosis.materialsCost) * 0.10) / 100).toFixed(2)}</span>
+                      <span>R$ {(((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * 0.10) / 100).toFixed(2)}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between font-semibold">
                       <span>Total:</span>
                       <span className="text-primary">
-                        R$ {(((providerDiagnosis.laborCost + providerDiagnosis.materialsCost) * 1.10) / 100).toFixed(2)}
+                        R$ {(((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * 1.10) / 100).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -656,8 +687,8 @@ export default function ServiceDetails() {
         <PaymentModal
           open={showPaymentModal}
           onOpenChange={setShowPaymentModal}
-          amount={Math.round((providerDiagnosis.laborCost + providerDiagnosis.materialsCost) * 1.10)}
-          description={`Serviço: ${service.title}`}
+          amount={Math.round((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * 1.10)}
+          description={`Serviço: ${service.title}${includeMaterials && providerDiagnosis.materialsCost > 0 ? " (com materiais)" : ""}`}
           onPaymentComplete={handlePaymentComplete}
         />
       )}
