@@ -1116,30 +1116,56 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         let adjustedPrice = priceRangeMin;
         const priceRange = priceRangeMax - priceRangeMin;
         
+        // Calculate price range based on rating
+        // Each level gets a R$100 range (10000 centavos), positioned by their rating
+        let priceMin = priceRangeMin;
+        let priceMax = priceRangeMin + 10000; // R$100 range
+        
         if (totalRatings === 0) {
-          // New provider: slightly above minimum (10-20% of range)
-          adjustedPrice = priceRangeMin + Math.round(priceRange * 0.15);
+          // New provider: starts at minimum with R$100 range
+          priceMin = priceRangeMin;
+          priceMax = priceRangeMin + 10000;
         } else if (ratingLevel === "Premium") {
-          // Premium (9-10): 85-100% of range
-          const factor = 0.85 + ((rating - 9) / 1) * 0.15;
-          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+          // Premium (9-10): Higher range based on exact rating
+          // Nota 10: 550-650, Nota 9: 505-605 (relative to min)
+          const ratingFactor = (rating - 9) / 1; // 0 to 1 for rating 9-10
+          const baseOffset = Math.round(priceRange * 0.35); // 35% above min
+          const ratingBonus = Math.round(priceRange * 0.15 * ratingFactor); // up to 15% more
+          priceMin = priceRangeMin + baseOffset + ratingBonus;
+          priceMax = priceMin + 10000;
         } else if (ratingLevel === "Experiente") {
-          // Experiente (8-8.9): 65-80% of range
-          const factor = 0.65 + ((rating - 8) / 0.9) * 0.15;
-          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+          // Experiente (8-8.9): Medium-high range
+          const ratingFactor = (rating - 8) / 0.9;
+          const baseOffset = Math.round(priceRange * 0.25);
+          const ratingBonus = Math.round(priceRange * 0.08 * ratingFactor);
+          priceMin = priceRangeMin + baseOffset + ratingBonus;
+          priceMax = priceMin + 10000;
         } else if (ratingLevel === "Regular") {
-          // Regular (5.1-7.9): 30-60% of range
-          const factor = 0.30 + ((rating - 5.1) / 2.8) * 0.30;
-          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+          // Regular (5.1-7.9): Medium range
+          const ratingFactor = (rating - 5.1) / 2.8;
+          const baseOffset = Math.round(priceRange * 0.10);
+          const ratingBonus = Math.round(priceRange * 0.12 * ratingFactor);
+          priceMin = priceRangeMin + baseOffset + ratingBonus;
+          priceMax = priceMin + 10000;
         } else {
-          // Iniciante (0-5): 0-25% of range
-          const factor = (rating / 5) * 0.25;
-          adjustedPrice = priceRangeMin + Math.round(priceRange * factor);
+          // Iniciante (0-5): Lower range based on rating
+          // Nota 3.8: ~307-407, Nota 1: closer to min
+          const ratingFactor = rating / 5;
+          const baseOffset = Math.round(priceRange * 0.02 * ratingFactor);
+          priceMin = priceRangeMin + baseOffset;
+          priceMax = priceMin + 10000;
+        }
+        
+        // Ensure max doesn't exceed AI's max estimate
+        if (priceMax > priceRangeMax + 10000) {
+          priceMax = priceRangeMax + 10000;
         }
         
         return {
           ...provider,
-          adjustedPrice,
+          adjustedPrice: priceMin, // Keep for backward compatibility
+          priceMin,
+          priceMax,
           ratingLevel,
           basePrice: priceRangeMin,
           distance: provider.distance ? Math.round(provider.distance * 10) / 10 : null,

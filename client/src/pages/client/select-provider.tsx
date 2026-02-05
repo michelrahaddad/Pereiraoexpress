@@ -20,6 +20,8 @@ interface Provider {
   specialties: string;
   bio: string;
   adjustedPrice: number;
+  priceMin: number;
+  priceMax: number;
   ratingLevel: string;
   basePrice: number;
   distance: number | null;
@@ -256,14 +258,12 @@ export default function SelectProvider() {
                       
                       <div className="flex flex-col items-end justify-between shrink-0">
                         <div className="text-right">
-                          <p className="text-lg sm:text-xl font-bold text-primary">
-                            {formatPrice(provider.adjustedPrice)}
+                          <p className="text-base sm:text-lg font-bold text-primary">
+                            {formatPrice(provider.priceMin || provider.adjustedPrice)}
                           </p>
-                          {provider.adjustedPrice !== provider.basePrice && (
-                            <p className="text-[10px] text-muted-foreground line-through">
-                              {formatPrice(provider.basePrice)}
-                            </p>
-                          )}
+                          <p className="text-[10px] text-muted-foreground">
+                            a {formatPrice(provider.priceMax || (provider.adjustedPrice + 10000))}
+                          </p>
                         </div>
                         
                         {isSelected && (
