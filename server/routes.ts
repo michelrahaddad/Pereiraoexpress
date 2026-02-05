@@ -2272,5 +2272,299 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     }
   });
 
+  // ==================== NOTIFICAÇÕES ====================
+  
+  // Listar notificações do usuário
+  app.get("/api/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const notificationsList = await storage.getNotificationsByUser(userId);
+      res.json(notificationsList);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ error: "Erro ao buscar notificações" });
+    }
+  });
+
+  // Listar notificações não lidas
+  app.get("/api/notifications/unread", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const unread = await storage.getUnreadNotifications(userId);
+      res.json({ count: unread.length, notifications: unread });
+    } catch (error) {
+      console.error("Error fetching unread notifications:", error);
+      res.status(500).json({ error: "Erro ao buscar notificações não lidas" });
+    }
+  });
+
+  // Marcar notificação como lida
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.markNotificationAsRead(id);
+      if (!updated) {
+        return res.status(404).json({ error: "Notificação não encontrada" });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ error: "Erro ao marcar notificação" });
+    }
+  });
+
+  // Marcar todas como lidas
+  app.patch("/api/notifications/read-all", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      await storage.markAllNotificationsAsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+      res.status(500).json({ error: "Erro ao marcar notificações" });
+    }
+  });
+
+  // ==================== TWILIO (SECRETÁRIA DIGITAL IA) ====================
+  
+  // Iniciar chamada para prestador
+  app.post("/api/twilio/call", isAuthenticated, async (req, res) => {
+    try {
+      const { serviceRequestId, providerId } = req.body;
+      
+      // Verificar se Twilio está configurado
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
+      
+      if (!accountSid || !authToken || !phoneNumber) {
+        return res.status(503).json({ 
+          error: "Sistema de chamadas não configurado",
+          message: "O serviço de chamadas está em implementação. O prestador receberá notificação no app.",
+          twilioConfigured: false
+        });
+      }
+      
+      // Buscar dados do prestador
+      const provider = await db.select().from(users).where(eq(users.id, providerId)).limit(1);
+      if (!provider.length || !provider[0].phone) {
+        return res.status(400).json({ error: "Telefone do prestador não cadastrado" });
+      }
+      
+      // Buscar dados do serviço
+      const service = await storage.getServiceById(serviceRequestId);
+      if (!service) {
+        return res.status(404).json({ error: "Serviço não encontrado" });
+      }
+      
+      // Registrar chamada pendente
+      const call = await storage.createTwilioCall({
+        serviceRequestId,
+        providerId,
+        providerPhone: provider[0].phone,
+        status: "pending"
+      });
+      
+      // Aqui faria a chamada real via Twilio SDK
+      // const twilio = require('twilio')(accountSid, authToken);
+      // const twilioCall = await twilio.calls.create({ ... });
+      
+      res.json({
+        success: true,
+        callId: call.id,
+        message: "Chamada iniciada - Aguardando resposta do prestador"
+      });
+    } catch (error) {
+      console.error("Error initiating Twilio call:", error);
+      res.status(500).json({ error: "Erro ao iniciar chamada" });
+    }
+  });
+
+  // Webhook Twilio - Recebe status da chamada
+  app.post("/api/twilio/webhook/status", async (req, res) => {
+    try {
+      const { CallSid, CallStatus, CallDuration } = req.body;
+      
+      const call = await storage.getTwilioCallBySid(CallSid);
+      if (call) {
+        let status: any = "pending";
+        if (CallStatus === "completed") status = "completed";
+        else if (CallStatus === "no-answer") status = "no_answer";
+        else if (CallStatus === "busy") status = "busy";
+        else if (CallStatus === "failed") status = "failed";
+        else if (CallStatus === "in-progress") status = "in_progress";
+        else if (CallStatus === "ringing") status = "calling";
+        
+        await storage.updateTwilioCall(call.id, {
+          status,
+          duration: CallDuration ? parseInt(CallDuration) : undefined,
+          completedAt: CallStatus === "completed" ? new Date() : undefined
+        });
+      }
+      
+      res.status(200).send("OK");
+    } catch (error) {
+      console.error("Error processing Twilio webhook:", error);
+      res.status(500).send("Error");
+    }
+  });
+
+  // Webhook Twilio - TwiML para secretária digital IA
+  app.post("/api/twilio/webhook/voice", async (req, res) => {
+    try {
+      const { CallSid } = req.body;
+      
+      const call = await storage.getTwilioCallBySid(CallSid);
+      if (!call) {
+        res.type("text/xml");
+        return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+          <Response><Say language="pt-BR">Desculpe, ocorreu um erro.</Say><Hangup/></Response>`);
+      }
+      
+      // Buscar dados do serviço
+      const service = await storage.getServiceById(call.serviceRequestId);
+      const category = service?.categoryId ? await storage.getCategoryById(service.categoryId) : null;
+      
+      // Gerar saudação com Gemini
+      const prompt = `Você é a secretária digital do Pereirão Express. Acabou de ligar para um prestador de serviços.
+        
+Dados do serviço:
+- Categoria: ${category?.name || 'Serviço geral'}
+- Descrição: ${service?.description || 'Serviço residencial'}
+- Prioridade: ${service?.slaPriority || 'standard'}
+- Valor estimado: R$ ${service?.estimatedPrice ? (Number(service.estimatedPrice) / 100).toFixed(2) : 'A combinar'}
+
+Crie uma saudação breve e profissional em português brasileiro para o prestador. 
+Pergunte se ele pode aceitar o serviço.
+Máximo 3 frases.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt
+      });
+      
+      const greeting = response.text || "Olá! Aqui é a secretária digital do Pereirão Express. Temos um novo serviço para você. Pode aceitar?";
+      
+      // Atualizar com resposta da IA
+      await storage.updateTwilioCall(call.id, {
+        aiResponse: greeting,
+        status: "in_progress"
+      });
+      
+      // Retornar TwiML
+      res.type("text/xml");
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say language="pt-BR" voice="Polly.Camila">${greeting}</Say>
+          <Gather input="speech dtmf" timeout="10" numDigits="1" action="/api/twilio/webhook/gather">
+            <Say language="pt-BR" voice="Polly.Camila">Pressione 1 para aceitar ou 2 para recusar.</Say>
+          </Gather>
+          <Say language="pt-BR" voice="Polly.Camila">Não recebi resposta. Até logo!</Say>
+        </Response>`);
+    } catch (error) {
+      console.error("Error processing Twilio voice webhook:", error);
+      res.type("text/xml");
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response><Say language="pt-BR">Desculpe, ocorreu um erro no sistema.</Say><Hangup/></Response>`);
+    }
+  });
+
+  // Webhook Twilio - Processar resposta do prestador
+  app.post("/api/twilio/webhook/gather", async (req, res) => {
+    try {
+      const { CallSid, Digits, SpeechResult } = req.body;
+      
+      const call = await storage.getTwilioCallBySid(CallSid);
+      if (!call) {
+        res.type("text/xml");
+        return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+          <Response><Say language="pt-BR">Erro no sistema.</Say><Hangup/></Response>`);
+      }
+      
+      let accepted = false;
+      let responseText = "";
+      
+      // Verificar resposta por DTMF (tecla)
+      if (Digits === "1") {
+        accepted = true;
+        responseText = "Pressinou 1 - Aceito";
+      } else if (Digits === "2") {
+        accepted = false;
+        responseText = "Pressionou 2 - Recusado";
+      } else if (SpeechResult) {
+        // Usar Gemini para interpretar resposta de voz
+        const interpretPrompt = `O prestador respondeu: "${SpeechResult}"
+        
+Analise se ele ACEITOU ou RECUSOU o serviço.
+Responda apenas: "ACEITO" ou "RECUSADO"`;
+
+        const interpretation = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: interpretPrompt
+        });
+        
+        const answer = (interpretation.text || "").toUpperCase().trim();
+        accepted = answer.includes("ACEITO");
+        responseText = SpeechResult;
+      }
+      
+      // Atualizar chamada com resposta
+      await storage.updateTwilioCall(call.id, {
+        status: accepted ? "accepted" : "rejected",
+        providerResponse: responseText,
+        completedAt: new Date()
+      });
+      
+      // Atualizar serviço se aceito
+      if (accepted) {
+        await storage.updateService(call.serviceRequestId, {
+          providerId: call.providerId,
+          status: "provider_assigned"
+        });
+        
+        // Criar notificação para o cliente
+        const service = await storage.getServiceById(call.serviceRequestId);
+        if (service) {
+          await storage.createNotification({
+            userId: service.clientId,
+            type: "service_accepted",
+            title: "Prestador confirmou!",
+            message: "O profissional aceitou seu serviço e entrará em contato em breve.",
+            data: JSON.stringify({ serviceId: call.serviceRequestId })
+          });
+        }
+      }
+      
+      // Resposta final
+      const finalMessage = accepted 
+        ? "Perfeito! O serviço foi confirmado. O cliente será notificado. Obrigada!"
+        : "Tudo bem, entendemos. Obrigada pelo seu tempo!";
+      
+      res.type("text/xml");
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response>
+          <Say language="pt-BR" voice="Polly.Camila">${finalMessage}</Say>
+          <Hangup/>
+        </Response>`);
+    } catch (error) {
+      console.error("Error processing Twilio gather:", error);
+      res.type("text/xml");
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response><Say language="pt-BR">Ocorreu um erro. Até logo!</Say><Hangup/></Response>`);
+    }
+  });
+
+  // Status das chamadas de um serviço
+  app.get("/api/twilio/calls/:serviceId", isAuthenticated, async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.serviceId);
+      const calls = await storage.getTwilioCallsByService(serviceId);
+      res.json(calls);
+    } catch (error) {
+      console.error("Error fetching Twilio calls:", error);
+      res.status(500).json({ error: "Erro ao buscar chamadas" });
+    }
+  });
+
   return httpServer;
 }
