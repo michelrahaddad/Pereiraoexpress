@@ -468,3 +468,61 @@ export type DigitalAcceptance = typeof digitalAcceptances.$inferSelect;
 export type ServiceExecutionLog = typeof serviceExecutionLogs.$inferSelect;
 export type PaymentEscrow = typeof paymentEscrows.$inferSelect;
 export type AntifraudFlag = typeof antifraudFlags.$inferSelect;
+
+// Notificações
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "service_request",    // Novo serviço solicitado
+  "service_accepted",   // Prestador aceitou
+  "service_rejected",   // Prestador recusou
+  "service_completed",  // Serviço concluído
+  "payment_received",   // Pagamento recebido
+  "new_message",        // Nova mensagem
+  "call_requested"      // Chamada solicitada
+]);
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  type: notificationTypeEnum("type").notNull(),
+  title: varchar("title").notNull(),
+  message: text("message").notNull(),
+  data: text("data"), // JSON com dados extras (serviceId, etc)
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
+
+// Chamadas Twilio (Secretária Digital IA)
+export const twilioCallStatusEnum = pgEnum("twilio_call_status", [
+  "pending",      // Aguardando ligação
+  "calling",      // Ligando
+  "in_progress",  // Em andamento
+  "completed",    // Completada
+  "no_answer",    // Não atendeu
+  "busy",         // Ocupado
+  "failed",       // Falhou
+  "accepted",     // Prestador aceitou
+  "rejected"      // Prestador recusou
+]);
+
+export const twilioCalls = pgTable("twilio_calls", {
+  id: serial("id").primaryKey(),
+  serviceRequestId: integer("service_request_id").notNull(),
+  providerId: varchar("provider_id").notNull(),
+  providerPhone: varchar("provider_phone").notNull(),
+  twilioCallSid: varchar("twilio_call_sid"),
+  status: twilioCallStatusEnum("status").default("pending"),
+  transcript: text("transcript"), // Transcrição da conversa
+  aiResponse: text("ai_response"), // Resposta da IA
+  providerResponse: text("provider_response"), // Resposta do prestador
+  duration: integer("duration"), // Duração em segundos
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const insertTwilioCallSchema = createInsertSchema(twilioCalls).omit({ id: true, createdAt: true });
+export type InsertTwilioCall = z.infer<typeof insertTwilioCallSchema>;
+export type TwilioCall = typeof twilioCalls.$inferSelect;

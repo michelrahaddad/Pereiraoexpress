@@ -3,6 +3,7 @@ import {
   systemSettings, payments, suppliers, materials, materialOrders,
   aiDiagnoses, providerDiagnoses, digitalAcceptances, serviceExecutionLogs, paymentEscrows, antifraudFlags,
   symptoms, symptomQuestions, symptomDiagnoses, localKnowledge, referencePrices, materialSuppliers,
+  notifications, twilioCalls,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
   type ServiceRequest, type InsertServiceRequest,
@@ -27,6 +28,8 @@ import {
   type LocalKnowledge, type InsertLocalKnowledge,
   type ReferencePrice, type InsertReferencePrice,
   type MaterialSupplier, type InsertMaterialSupplier,
+  type Notification, type InsertNotification,
+  type TwilioCall, type InsertTwilioCall,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { db } from "./db";
@@ -877,6 +880,73 @@ class DatabaseStorage implements IStorage {
   
   async deleteMaterialSupplier(id: number): Promise<void> {
     await db.update(materialSuppliers).set({ isActive: false }).where(eq(materialSuppliers.id, id));
+  }
+
+  // ==================== NOTIFICAÇÕES ====================
+  async getNotificationsByUser(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false)
+      ))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async createNotification(data: InsertNotification): Promise<Notification> {
+    const [notification] = await db.insert(notifications).values(data).returning();
+    return notification;
+  }
+
+  async markNotificationAsRead(id: number): Promise<Notification | undefined> {
+    const [updated] = await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.userId, userId));
+  }
+
+  // ==================== CHAMADAS TWILIO ====================
+  async getTwilioCallsByService(serviceId: number): Promise<TwilioCall[]> {
+    return await db.select().from(twilioCalls)
+      .where(eq(twilioCalls.serviceRequestId, serviceId))
+      .orderBy(desc(twilioCalls.createdAt));
+  }
+
+  async getTwilioCallById(id: number): Promise<TwilioCall | undefined> {
+    const [call] = await db.select().from(twilioCalls)
+      .where(eq(twilioCalls.id, id));
+    return call;
+  }
+
+  async getTwilioCallBySid(sid: string): Promise<TwilioCall | undefined> {
+    const [call] = await db.select().from(twilioCalls)
+      .where(eq(twilioCalls.twilioCallSid, sid));
+    return call;
+  }
+
+  async createTwilioCall(data: InsertTwilioCall): Promise<TwilioCall> {
+    const [call] = await db.insert(twilioCalls).values(data).returning();
+    return call;
+  }
+
+  async updateTwilioCall(id: number, data: Partial<InsertTwilioCall>): Promise<TwilioCall | undefined> {
+    const [updated] = await db.update(twilioCalls)
+      .set(data)
+      .where(eq(twilioCalls.id, id))
+      .returning();
+    return updated;
   }
 }
 
