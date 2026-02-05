@@ -80,6 +80,15 @@ interface ServiceDetails {
     status: string;
     releasedAt: string | null;
   } | null;
+  provider: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    rating: string;
+    totalRatings: number;
+    specialties: string;
+  } | null;
 }
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof Clock }> = {
@@ -206,7 +215,7 @@ export default function ServiceDetails() {
     );
   }
 
-  const { service, aiDiagnosis, providerDiagnosis, acceptance, executionLog, escrow } = serviceDetails;
+  const { service, aiDiagnosis, providerDiagnosis, acceptance, executionLog, escrow, provider } = serviceDetails;
   const status = statusMap[service.status] || { label: service.status, variant: "secondary" as const, icon: Clock };
   const slaPriority = slaPriorityMap[service.slaPriority || "standard"];
   const StatusIcon = status.icon;
@@ -450,6 +459,49 @@ export default function ServiceDetails() {
                     </Button>
                   </CardFooter>
                 )}
+              </Card>
+            )}
+
+            {provider && (
+              <Card className="rounded-2xl border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">Seu Profissional</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xl font-bold">
+                      {provider.firstName?.[0]}{provider.lastName?.[0]}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-lg">{provider.firstName} {provider.lastName}</p>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                        <span>{provider.rating}</span>
+                        <span>({provider.totalRatings} avaliações)</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{provider.specialties}</p>
+                    </div>
+                  </div>
+                  
+                  {(service.status === "accepted" || service.status === "in_progress" || service.status === "provider_assigned" || acceptance) && provider.phone && (
+                    <Button 
+                      className="w-full rounded-xl bg-green-600 hover:bg-green-700" 
+                      size="lg"
+                      onClick={() => {
+                        const phone = provider.phone.replace(/\D/g, '');
+                        const message = encodeURIComponent(`Olá ${provider.firstName}! Sou cliente do Pereirão Express sobre o serviço: ${service.title}`);
+                        window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+                      }}
+                      data-testid="button-whatsapp-provider"
+                    >
+                      <MessageSquare className="h-5 w-5 mr-2" />
+                      Falar no WhatsApp
+                    </Button>
+                  )}
+                </CardContent>
               </Card>
             )}
 

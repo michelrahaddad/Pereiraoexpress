@@ -2341,6 +2341,24 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
       const acceptance = await storage.getDigitalAcceptanceByServiceId(serviceId);
       const executionLog = await storage.getServiceExecutionLog(serviceId);
       const escrow = await storage.getPaymentEscrowByServiceId(serviceId);
+      
+      // Buscar dados do prestador se existir
+      let provider = null;
+      if (service.providerId) {
+        const providerProfile = await storage.getUserProfile(service.providerId);
+        const [providerUser] = await db.select().from(users).where(eq(users.id, service.providerId)).limit(1);
+        if (providerProfile && providerUser) {
+          provider = {
+            id: providerProfile.userId,
+            firstName: providerUser.firstName,
+            lastName: providerUser.lastName,
+            phone: providerProfile.phone,
+            rating: providerProfile.rating,
+            totalRatings: providerProfile.totalRatings,
+            specialties: providerProfile.specialties,
+          };
+        }
+      }
 
       res.json({
         service,
@@ -2349,6 +2367,7 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
         acceptance,
         executionLog,
         escrow,
+        provider,
       });
     } catch (error) {
       console.error("Error fetching full service:", error);
