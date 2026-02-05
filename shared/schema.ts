@@ -541,3 +541,50 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
 export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+
+// Materiais de Construção - Banco de dados com preços médios de mercado
+export const materialCategoryEnum = pgEnum("material_category", [
+  "pintura",
+  "eletrica", 
+  "hidraulica",
+  "alvenaria",
+  "ferramentas",
+  "acabamento",
+  "madeira",
+  "ar_condicionado",
+  "limpeza"
+]);
+
+export const constructionMaterials = pgTable("construction_materials", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: materialCategoryEnum("category").notNull(),
+  unit: varchar("unit", { length: 50 }).notNull(), // un, m, m², kg, L, etc.
+  basePrice: integer("base_price").notNull(), // Preço base em centavos
+  marketPrice: integer("market_price").notNull(), // Preço de mercado (base * 1.3) em centavos
+  brand: varchar("brand", { length: 100 }),
+  sku: varchar("sku", { length: 50 }),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertConstructionMaterialSchema = createInsertSchema(constructionMaterials).omit({ id: true, createdAt: true });
+export type InsertConstructionMaterial = z.infer<typeof insertConstructionMaterialSchema>;
+export type ConstructionMaterial = typeof constructionMaterials.$inferSelect;
+
+// Materiais usados em um serviço
+export const serviceMaterials = pgTable("service_materials", {
+  id: serial("id").primaryKey(),
+  serviceRequestId: integer("service_request_id").notNull(),
+  materialId: integer("material_id").notNull(),
+  materialName: varchar("material_name", { length: 255 }).notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitPrice: integer("unit_price").notNull(), // Preço unitário em centavos
+  totalPrice: integer("total_price").notNull(), // Preço total em centavos
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertServiceMaterialSchema = createInsertSchema(serviceMaterials).omit({ id: true, createdAt: true });
+export type InsertServiceMaterial = z.infer<typeof insertServiceMaterialSchema>;
+export type ServiceMaterial = typeof serviceMaterials.$inferSelect;
