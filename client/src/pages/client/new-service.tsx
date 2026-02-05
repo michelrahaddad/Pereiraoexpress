@@ -545,6 +545,17 @@ export default function NewService() {
 
         {step === "guided" && (
           <div className="flex-1 p-4 flex flex-col">
+            {createAIDiagnosisMutation.isPending ? (
+              <Card className="flex-1 flex flex-col items-center justify-center">
+                <CardContent className="text-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Gerando orçamento...</h3>
+                  <p className="text-muted-foreground">
+                    Estamos calculando o melhor preço para você!
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
             <Card className="flex-1 flex flex-col">
               <CardHeader>
                 <div className="flex items-center gap-2 text-primary">
@@ -563,6 +574,7 @@ export default function NewService() {
                       variant="outline"
                       className="justify-start h-auto py-4 px-4 text-left"
                       onClick={() => handleGuidedAnswer(option)}
+                      disabled={createAIDiagnosisMutation.isPending}
                       data-testid={`button-option-${option.toLowerCase().replace(/\s/g, '-')}`}
                     >
                       {option}
@@ -609,6 +621,7 @@ export default function NewService() {
                 )}
               </CardContent>
             </Card>
+            )}
           </div>
         )}
 
