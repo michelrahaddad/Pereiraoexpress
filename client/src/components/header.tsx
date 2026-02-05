@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Notifications } from "@/components/notifications";
+import { PushNotificationToggle } from "@/components/push-notifications";
 import { useAuth } from "@/hooks/use-auth";
 import { Menu, User, LogOut, Settings, Wrench, Shield } from "lucide-react";
 import logoImg from "@/assets/logo-pereirao.png";
@@ -56,6 +57,7 @@ export function Header({ onMenuClick, showMenu = false }: HeaderProps) {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           
+          {isAuthenticated && <PushNotificationToggle />}
           {isAuthenticated && <Notifications />}
           
           {isAuthenticated ? (

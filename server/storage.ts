@@ -3,7 +3,7 @@ import {
   systemSettings, payments, suppliers, materials, materialOrders,
   aiDiagnoses, providerDiagnoses, digitalAcceptances, serviceExecutionLogs, paymentEscrows, antifraudFlags,
   symptoms, symptomQuestions, symptomDiagnoses, localKnowledge, referencePrices, materialSuppliers,
-  notifications, twilioCalls,
+  notifications, twilioCalls, pushSubscriptions,
   type UserProfile, type InsertUserProfile,
   type ServiceCategory, type InsertServiceCategory,
   type ServiceRequest, type InsertServiceRequest,
@@ -30,6 +30,7 @@ import {
   type MaterialSupplier, type InsertMaterialSupplier,
   type Notification, type InsertNotification,
   type TwilioCall, type InsertTwilioCall,
+  type PushSubscription, type InsertPushSubscription,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { db } from "./db";
@@ -947,6 +948,31 @@ class DatabaseStorage implements IStorage {
       .where(eq(twilioCalls.id, id))
       .returning();
     return updated;
+  }
+
+  // ==================== PUSH SUBSCRIPTIONS ====================
+  async getPushSubscriptionsByUser(userId: string): Promise<PushSubscription[]> {
+    return await db.select().from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId));
+  }
+
+  async getPushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscription | undefined> {
+    const [sub] = await db.select().from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint));
+    return sub;
+  }
+
+  async createPushSubscription(data: InsertPushSubscription): Promise<PushSubscription> {
+    const [subscription] = await db.insert(pushSubscriptions).values(data).returning();
+    return subscription;
+  }
+
+  async deletePushSubscription(endpoint: string): Promise<void> {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+  }
+
+  async deletePushSubscriptionsByUser(userId: string): Promise<void> {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
   }
 }
 

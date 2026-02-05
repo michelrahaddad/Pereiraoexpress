@@ -526,3 +526,18 @@ export const twilioCalls = pgTable("twilio_calls", {
 export const insertTwilioCallSchema = createInsertSchema(twilioCalls).omit({ id: true, createdAt: true });
 export type InsertTwilioCall = z.infer<typeof insertTwilioCallSchema>;
 export type TwilioCall = typeof twilioCalls.$inferSelect;
+
+// Push Notifications Subscriptions
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({ id: true, createdAt: true });
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;

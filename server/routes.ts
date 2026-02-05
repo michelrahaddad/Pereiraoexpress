@@ -847,10 +847,58 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         }
       }
       
+      // Enviar push notification para o prestador
+      let pushSent = false;
+      const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+      const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+      
+      if (vapidPublicKey && vapidPrivateKey) {
+        try {
+          const subscriptions = await storage.getPushSubscriptionsByUser(providerId);
+          
+          if (subscriptions.length > 0) {
+            const webpush = await import('web-push');
+            webpush.setVapidDetails(
+              'mailto:contato@pereirao.com.br',
+              vapidPublicKey,
+              vapidPrivateKey
+            );
+            
+            const payload = JSON.stringify({
+              title: "Novo serviço para você!",
+              body: `${clientName} precisa de ${category?.name || 'serviço'}. Valor: R$ ${(adjustedPrice / 100).toFixed(2)}`,
+              url: `/prestador?serviceId=${serviceId}`,
+              serviceId,
+              actions: [
+                { action: 'accept', title: 'Aceitar' },
+                { action: 'reject', title: 'Recusar' }
+              ]
+            });
+            
+            for (const sub of subscriptions) {
+              try {
+                await webpush.sendNotification({
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth }
+                }, payload);
+                pushSent = true;
+              } catch (pushError: any) {
+                if (pushError.statusCode === 410) {
+                  await storage.deletePushSubscription(sub.endpoint);
+                }
+              }
+            }
+          }
+        } catch (pushError) {
+          console.error("Error sending push notification:", pushError);
+        }
+      }
+      
       res.json({ 
         ...updatedService, 
         notificationSent: true,
         callInitiated,
+        pushSent,
         twilioConfigured: !!twilioConfigured
       });
     } catch (error) {
@@ -2608,6 +2656,131 @@ Responda apenas: "ACEITO" ou "RECUSADO"`;
     } catch (error) {
       console.error("Error fetching Twilio calls:", error);
       res.status(500).json({ error: "Erro ao buscar chamadas" });
+    }
+  });
+
+  // ==================== PUSH NOTIFICATIONS ====================
+  
+  // Obter VAPID public key
+  app.get("/api/push/vapid-public-key", (req, res) => {
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    if (!publicKey) {
+      return res.status(503).json({ 
+        error: "Push notifications não configurado",
+        configured: false
+      });
+    }
+    res.json({ publicKey, configured: true });
+  });
+
+  // Registrar subscription de push
+  app.post("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { endpoint, keys } = req.body;
+      
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return res.status(400).json({ error: "Dados de subscription inválidos" });
+      }
+      
+      // Verificar se já existe
+      const existing = await storage.getPushSubscriptionByEndpoint(endpoint);
+      if (existing) {
+        return res.json({ success: true, message: "Já registrado" });
+      }
+      
+      await storage.createPushSubscription({
+        userId,
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+        userAgent: req.headers['user-agent'] || null
+      });
+      
+      res.json({ success: true, message: "Notificações ativadas!" });
+    } catch (error) {
+      console.error("Error subscribing to push:", error);
+      res.status(500).json({ error: "Erro ao ativar notificações" });
+    }
+  });
+
+  // Remover subscription
+  app.delete("/api/push/unsubscribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const { endpoint } = req.body;
+      
+      if (!endpoint) {
+        return res.status(400).json({ error: "Endpoint não fornecido" });
+      }
+      
+      await storage.deletePushSubscription(endpoint);
+      res.json({ success: true, message: "Notificações desativadas" });
+    } catch (error) {
+      console.error("Error unsubscribing from push:", error);
+      res.status(500).json({ error: "Erro ao desativar notificações" });
+    }
+  });
+
+  // Enviar push notification (interno)
+  app.post("/api/push/send", isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId, title, body, url, serviceId, actions } = req.body;
+      
+      const publicKey = process.env.VAPID_PUBLIC_KEY;
+      const privateKey = process.env.VAPID_PRIVATE_KEY;
+      
+      if (!publicKey || !privateKey) {
+        return res.status(503).json({ error: "Push notifications não configurado" });
+      }
+      
+      // Buscar subscriptions do usuário
+      const subscriptions = await storage.getPushSubscriptionsByUser(userId);
+      
+      if (subscriptions.length === 0) {
+        return res.json({ success: false, message: "Usuário não tem notificações ativadas" });
+      }
+      
+      // Importar web-push dinamicamente
+      const webpush = await import('web-push');
+      webpush.setVapidDetails(
+        'mailto:contato@pereirao.com.br',
+        publicKey,
+        privateKey
+      );
+      
+      const payload = JSON.stringify({
+        title,
+        body,
+        url,
+        serviceId,
+        actions,
+        tag: `service-${serviceId || Date.now()}`
+      });
+      
+      let sent = 0;
+      for (const sub of subscriptions) {
+        try {
+          await webpush.sendNotification({
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth
+            }
+          }, payload);
+          sent++;
+        } catch (pushError: any) {
+          console.error("Error sending push to endpoint:", pushError.message);
+          // Se a subscription expirou, remover
+          if (pushError.statusCode === 410) {
+            await storage.deletePushSubscription(sub.endpoint);
+          }
+        }
+      }
+      
+      res.json({ success: true, sent, total: subscriptions.length });
+    } catch (error) {
+      console.error("Error sending push notification:", error);
+      res.status(500).json({ error: "Erro ao enviar notificação" });
     }
   });
 
