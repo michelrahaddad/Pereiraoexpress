@@ -381,7 +381,7 @@ export async function registerRoutes(
       
       // Enriquecer cada serviço com faixa de preço do diagnóstico IA
       const enrichedServices = await Promise.all(services.map(async (service) => {
-        const aiDiagnosis = await storage.getAiDiagnosis(service.id);
+        const aiDiagnosis = await storage.getAiDiagnosisByServiceId(service.id);
         return {
           ...service,
           priceRangeMin: aiDiagnosis?.priceRangeMin || null,
