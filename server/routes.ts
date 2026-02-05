@@ -139,10 +139,39 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/provider/available", isAuthenticated, async (req, res) => {
+  app.get("/api/provider/available", isAuthenticated, async (req: any, res) => {
     try {
-      const services = await storage.getAvailableServices();
-      res.json(services);
+      const userId = req.user.claims.sub;
+      
+      // Get provider profile to check specialties
+      const profile = await storage.getUserProfile(userId);
+      const providerSpecialties = (profile?.specialties || "").toLowerCase();
+      
+      // Get all available services
+      const allServices = await storage.getAvailableServices();
+      
+      // Filter services based on provider's specialties
+      const filteredServices = allServices.filter(service => {
+        // If service is assigned to this provider, always show it
+        if (service.providerId === userId) return true;
+        
+        // Only show services in categories matching provider's specialties
+        const categoryId = service.categoryId;
+        
+        // Category to specialty mapping
+        // 1=Encanamento, 2=Elétrica, 3=Pintura, 4=Marcenaria, 5=Ar Condicionado, 6=Limpeza, 7=Passadeira
+        if (categoryId === 1 && (providerSpecialties.includes("encanamento") || providerSpecialties.includes("hidráulica") || providerSpecialties.includes("encanador"))) return true;
+        if (categoryId === 2 && (providerSpecialties.includes("elétrica") || providerSpecialties.includes("eletricista"))) return true;
+        if (categoryId === 3 && (providerSpecialties.includes("pintura") || providerSpecialties.includes("pintor"))) return true;
+        if (categoryId === 4 && (providerSpecialties.includes("marcenaria") || providerSpecialties.includes("marceneiro"))) return true;
+        if (categoryId === 5 && (providerSpecialties.includes("ar condicionado") || providerSpecialties.includes("ac") || providerSpecialties.includes("climatização"))) return true;
+        if (categoryId === 6 && (providerSpecialties.includes("limpeza") || providerSpecialties.includes("diarista") || providerSpecialties.includes("empregada") || providerSpecialties.includes("faxina"))) return true;
+        if (categoryId === 7 && (providerSpecialties.includes("passadeira") || providerSpecialties.includes("passar"))) return true;
+        
+        return false;
+      });
+      
+      res.json(filteredServices);
     } catch (error) {
       console.error("Error fetching available services:", error);
       res.status(500).json({ error: "Failed to fetch services" });
