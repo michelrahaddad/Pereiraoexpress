@@ -128,6 +128,19 @@ Preferred communication style: Simple, everyday language.
 2. Admins access `/admin` for platform management
 3. City-based user filtering for regional control
 
+### Notification System
+- **In-App Notifications**: Bell icon in header with unread count badge
+- **Real-time Updates**: Polling every 30 seconds for new notifications
+- **Notification Types**: service_request, service_accepted, service_rejected, service_completed, payment_received, new_message, call_requested
+- **Auto-trigger**: Notifications created when client selects a provider
+
+### Twilio Voice Integration (Ready for Credentials)
+- **AI Secretary**: Uses Gemini to conduct phone calls with providers
+- **Call Flow**: Greet provider → Explain service → Gather accept/reject → Update database
+- **TwiML Webhooks**: `/api/twilio/webhook/status`, `/api/twilio/webhook/voice`, `/api/twilio/webhook/gather`
+- **Required Secrets**: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+- **Status**: API ready, awaiting Twilio credentials from user
+
 ## External Dependencies
 
 ### Database
@@ -138,6 +151,10 @@ Preferred communication style: Simple, everyday language.
 - **bcryptjs**: Password hashing
 - **jsonwebtoken**: JWT token generation and verification
 - **express-rate-limit**: API rate limiting
+
+### Communication (Prepared)
+- **Twilio**: Voice calls to providers (requires credentials)
+- **Voice Model**: Amazon Polly Camila (Brazilian Portuguese)
 
 ### AI Services
 - **Google Gemini via Replit AI Integrations**: Requires `AI_INTEGRATIONS_GEMINI_API_KEY` and `AI_INTEGRATIONS_GEMINI_BASE_URL`

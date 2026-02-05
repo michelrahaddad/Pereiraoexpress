@@ -2342,7 +2342,7 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   });
 
   // Marcar notificação como lida
-  app.patch("/api/notifications/:id/read", isAuthenticated, async (req, res) => {
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
     try {
       const idParam = req.params.id;
       const id = parseInt(Array.isArray(idParam) ? idParam[0] : idParam);
