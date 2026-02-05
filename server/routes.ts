@@ -1313,6 +1313,37 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         title 
       } = req.body;
 
+      // Mapear tipo de serviço para categoria correta
+      const getCategoryFromServiceType = async (answers: any[]): Promise<number> => {
+        const serviceTypeAnswer = answers?.find((a: any) => 
+          a.question?.includes("tipo") || a.question?.includes("problema")
+        )?.answer || "";
+        
+        // Categorias: 1=Encanamento, 2=Elétrica, 3=Pintura, 4=Marcenaria, 5=Ar Condicionado, 6=Limpeza, 7=Passadeira
+        if (serviceTypeAnswer.includes("Empregada") || serviceTypeAnswer.includes("Doméstica") || serviceTypeAnswer.includes("Limpeza") || serviceTypeAnswer.includes("Faxina")) {
+          return 6; // Limpeza
+        }
+        if (serviceTypeAnswer.includes("Passadeira") || serviceTypeAnswer.includes("Passar roupa")) {
+          return 7; // Passadeira
+        }
+        if (serviceTypeAnswer.includes("Elétrica") || serviceTypeAnswer.includes("eletricista")) {
+          return 2; // Elétrica
+        }
+        if (serviceTypeAnswer.includes("Hidráulica") || serviceTypeAnswer.includes("Encanamento") || serviceTypeAnswer.includes("encanador")) {
+          return 1; // Encanamento
+        }
+        if (serviceTypeAnswer.includes("Pintura") || serviceTypeAnswer.includes("pintor")) {
+          return 3; // Pintura
+        }
+        if (serviceTypeAnswer.includes("Marcenaria") || serviceTypeAnswer.includes("marceneiro")) {
+          return 4; // Marcenaria
+        }
+        if (serviceTypeAnswer.includes("Ar condicionado") || serviceTypeAnswer.includes("ar-condicionado") || serviceTypeAnswer.includes("climatização")) {
+          return 5; // Ar Condicionado
+        }
+        return categoryId || 1; // Default para Encanamento
+      };
+
       // Verificar se é serviço doméstico (cálculo direto, sem IA)
       const isDomesticService = guidedAnswers?.some((a: any) => 
         a.answer?.includes("Empregada") || 
@@ -1321,6 +1352,9 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
       );
 
       if (isDomesticService) {
+        // Determinar categoria correta
+        const resolvedCategoryId = await getCategoryFromServiceType(guidedAnswers);
+        
         // Cálculo direto para serviços domésticos (RÁPIDO - sem IA)
         const houseSize = guidedAnswers?.find((a: any) => a.question?.includes("tamanho"))?.answer || "";
         const serviceType = guidedAnswers?.find((a: any) => a.question?.includes("tipo"))?.answer || "";
@@ -1349,12 +1383,12 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         const finalPrice = Math.round(basePrice * serviceMultiplier * frequencyMultiplier);
         const diagnosisFee = Math.round(finalPrice * 0.15);
 
-        // Criar serviço
+        // Criar serviço com categoria correta
         const service = await storage.createService({
           clientId: userId,
           title: title || "Serviço Doméstico",
           description,
-          categoryId: categoryId || 1,
+          categoryId: resolvedCategoryId,
           status: "pending",
           slaPriority: "standard",
         });
@@ -1384,12 +1418,15 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         });
       }
 
+      // Determinar categoria correta para outros tipos de serviço
+      const resolvedCategoryId = await getCategoryFromServiceType(guidedAnswers);
+      
       // Criar serviço inicial (para outros tipos de serviço)
       const service = await storage.createService({
         clientId: userId,
         title: title || "Novo Serviço",
         description,
-        categoryId: categoryId || 1,
+        categoryId: resolvedCategoryId,
         status: "pending",
         slaPriority: "standard",
       });
