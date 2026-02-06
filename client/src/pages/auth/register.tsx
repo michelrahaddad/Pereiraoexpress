@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CityAutocomplete } from "@/components/city-autocomplete";
 import { 
   Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, User, Wrench,
-  Phone, Calendar, CreditCard, CheckCircle2, AlertCircle, Upload, FileText, Shield
+  Phone, Calendar, CreditCard, CheckCircle2, AlertCircle, Upload, FileText, Shield, MapPin, Search
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -30,6 +30,12 @@ function formatPhone(value: string): string {
   if (numbers.length <= 2) return numbers;
   if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
   return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+}
+
+function formatCEP(value: string): string {
+  const numbers = value.replace(/\D/g, "").slice(0, 8);
+  if (numbers.length <= 5) return numbers;
+  return `${numbers.slice(0, 5)}-${numbers.slice(5)}`;
 }
 
 function PasswordStrengthIndicator({ password }: { password: string }) {
@@ -95,12 +101,61 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
     phone: "",
     age: "",
     city: "",
+    cep: "",
+    state: "",
+    neighborhood: "",
     password: "",
     confirmPassword: "",
     documentFile: null as File | null,
     documentPreview: "",
     termsAccepted: false,
   });
+  const [isFetchingCep, setIsFetchingCep] = useState(false);
+
+  const fetchCep = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    setIsFetchingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setFormData(prev => ({
+          ...prev,
+          city: data.localidade || prev.city,
+          state: data.uf || "",
+          neighborhood: data.bairro || "",
+        }));
+        toast({
+          title: "Endereço encontrado",
+          description: `${data.localidade} - ${data.uf}`,
+        });
+      } else {
+        toast({
+          title: "CEP não encontrado",
+          description: "Verifique o CEP digitado.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Erro ao buscar CEP",
+        description: "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFetchingCep(false);
+    }
+  };
+
+  const handleCepChange = (value: string) => {
+    const formatted = formatCEP(value);
+    setFormData(prev => ({ ...prev, cep: formatted }));
+    const clean = value.replace(/\D/g, "");
+    if (clean.length === 8) {
+      fetchCep(clean);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -150,6 +205,7 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
     setIsLoading(true);
 
     try {
+      const fullCity = formData.state ? `${formData.city} - ${formData.state}` : formData.city;
       const requestData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -157,7 +213,8 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
         cpf: formData.cpf,
         phone: formData.phone,
         age: parseInt(formData.age),
-        city: formData.city,
+        city: fullCity,
+        cep: formData.cep.replace(/\D/g, ""),
         password: formData.password,
         role: userType,
       };
@@ -358,25 +415,47 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="age">Idade</Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="age"
-                          type="number"
-                          min="18"
-                          max="120"
-                          placeholder="25"
-                          className="pl-10"
-                          value={formData.age}
-                          onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                          required
-                          data-testid="input-age"
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="age">Idade</Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="age"
+                        type="number"
+                        min="18"
+                        max="120"
+                        placeholder="25"
+                        className="pl-10"
+                        value={formData.age}
+                        onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                        required
+                        data-testid="input-age"
+                      />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cep">CEP</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="cep"
+                        placeholder="00000-000"
+                        className="pl-10"
+                        value={formData.cep}
+                        onChange={(e) => handleCepChange(e.target.value)}
+                        data-testid="input-cep"
+                      />
+                      {isFetchingCep && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Digite o CEP para preencher a cidade automaticamente
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="city">Cidade</Label>
                       <CityAutocomplete
@@ -386,6 +465,17 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
                         data-testid="select-city"
                       />
                     </div>
+                    {formData.state && (
+                      <div className="space-y-2">
+                        <Label>Estado</Label>
+                        <Input
+                          value={formData.state}
+                          disabled
+                          className="bg-muted"
+                          data-testid="input-state"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <Button 

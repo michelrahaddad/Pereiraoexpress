@@ -40,12 +40,23 @@ export default function Settings() {
     enabled: isAuthenticated,
   });
 
+  const parseCityState = (value: string) => {
+    if (value && value.includes(" - ")) {
+      const [c, s] = value.split(" - ");
+      return { city: c, state: s };
+    }
+    return { city: value, state: "" };
+  };
+
   useEffect(() => {
     if (user) {
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
       setPhone((user as any).phone || "");
-      setCity((user as any).city || "");
+      const savedCity = (user as any).city || "";
+      const parsed = parseCityState(savedCity);
+      setCity(parsed.city);
+      setState(parsed.state);
     }
   }, [user]);
 
@@ -53,7 +64,11 @@ export default function Settings() {
     if (profile) {
       if (!phone && profile.phone) setPhone(profile.phone);
       setAddress(profile.address || "");
-      if (!city && profile.city) setCity(profile.city);
+      if (!city && profile.city) {
+        const parsed = parseCityState(profile.city);
+        setCity(parsed.city);
+        if (!state) setState(parsed.state);
+      }
     }
   }, [profile]);
 

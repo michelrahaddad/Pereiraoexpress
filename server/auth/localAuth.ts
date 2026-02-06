@@ -11,6 +11,7 @@ import { registerUserSchema, loginSchema } from "@shared/models/auth";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import OpenAI from "openai";
+import { geocodeCity, geocodeCep } from "../geocoding";
 
 const geminiClient = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY || "dummy-key",
@@ -274,7 +275,7 @@ export function setupLocalAuth(app: Express) {
 
   app.post("/api/auth/register", registerLimiter, async (req, res) => {
     try {
-      const { email, password, firstName, lastName, cpf, phone, age, city, role, documentUrl, termsAccepted } = req.body;
+      const { email, password, firstName, lastName, cpf, phone, age, city, cep, role, documentUrl, termsAccepted } = req.body;
       
       const passwordCheck = validatePasswordStrength(password);
       if (!passwordCheck.valid) {
@@ -318,6 +319,21 @@ export function setupLocalAuth(app: Express) {
       
       const hashedPassword = await bcrypt.hash(password, 12);
       
+      let latitude: string | undefined;
+      let longitude: string | undefined;
+      try {
+        let geoResult = cep ? await geocodeCep(cep) : null;
+        if (!geoResult) {
+          geoResult = await geocodeCity(city);
+        }
+        if (geoResult) {
+          latitude = geoResult.latitude.toFixed(7);
+          longitude = geoResult.longitude.toFixed(7);
+        }
+      } catch (geoErr) {
+        console.error("Geocoding during registration failed (non-blocking):", geoErr);
+      }
+      
       const [newUser] = await db.insert(users).values({
         email,
         password: hashedPassword,
@@ -327,6 +343,7 @@ export function setupLocalAuth(app: Express) {
         phone: phone.replace(/\D/g, ""),
         age,
         city,
+        ...(latitude && longitude ? { latitude, longitude } : {}),
       }).returning();
       
       const userRole = role === "provider" ? "provider" : "client";

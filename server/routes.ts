@@ -2926,12 +2926,24 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
       const userId = req.user.claims.sub;
       const { firstName, lastName, phone, address, city } = req.body;
       
-      // Update users table (name, city, phone)
       const userUpdates: any = {};
       if (firstName !== undefined) userUpdates.firstName = firstName;
       if (lastName !== undefined) userUpdates.lastName = lastName;
       if (city !== undefined) userUpdates.city = city;
       if (phone !== undefined) userUpdates.phone = phone;
+      
+      if (city) {
+        try {
+          const { geocodeCity } = await import("./geocoding");
+          const geoResult = await geocodeCity(city);
+          if (geoResult) {
+            userUpdates.latitude = geoResult.latitude.toFixed(7);
+            userUpdates.longitude = geoResult.longitude.toFixed(7);
+          }
+        } catch (geoErr) {
+          console.error("Geocoding on settings update failed (non-blocking):", geoErr);
+        }
+      }
       
       if (Object.keys(userUpdates).length > 0) {
         await db.update(users)
@@ -2982,6 +2994,40 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     } catch (error) {
       console.error("Error updating profile image:", error);
       res.status(500).json({ error: "Failed to update profile image" });
+    }
+  });
+
+  app.get("/api/geocode/cep/:cep", async (req, res) => {
+    try {
+      const { geocodeCep } = await import("./geocoding");
+      const result = await geocodeCep(req.params.cep);
+      if (result) {
+        res.json(result);
+      } else {
+        res.status(404).json({ error: "CEP não encontrado ou sem coordenadas" });
+      }
+    } catch (error) {
+      console.error("Geocode CEP error:", error);
+      res.status(500).json({ error: "Erro ao geocodificar CEP" });
+    }
+  });
+
+  app.get("/api/geocode/city", async (req, res) => {
+    try {
+      const { city, state } = req.query;
+      if (!city) {
+        return res.status(400).json({ error: "Parâmetro city é obrigatório" });
+      }
+      const { geocodeCity } = await import("./geocoding");
+      const result = await geocodeCity(city as string, state as string | undefined);
+      if (result) {
+        res.json(result);
+      } else {
+        res.status(404).json({ error: "Cidade não encontrada" });
+      }
+    } catch (error) {
+      console.error("Geocode city error:", error);
+      res.status(500).json({ error: "Erro ao geocodificar cidade" });
     }
   });
 
