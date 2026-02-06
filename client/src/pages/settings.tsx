@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { User, Phone, MapPin, Bell, Shield, Moon, Sun, Camera, Loader2, ArrowLeft } from "lucide-react";
+import { User, Phone, MapPin, Bell, Shield, Moon, Sun, Camera, Loader2, ArrowLeft, Search } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "@/components/theme-provider";
 import { useUpload } from "@/hooks/use-upload";
@@ -29,6 +29,11 @@ export default function Settings() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [state, setState] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [isFetchingCep, setIsFetchingCep] = useState(false);
 
   const { data: profile } = useQuery<any>({
     queryKey: ["/api/user/profile"],
@@ -39,23 +44,87 @@ export default function Settings() {
     if (user) {
       setFirstName(user.firstName || "");
       setLastName(user.lastName || "");
+      setPhone((user as any).phone || "");
+      setCity((user as any).city || "");
     }
   }, [user]);
 
   useEffect(() => {
     if (profile) {
-      setPhone(profile.phone || "");
+      if (!phone && profile.phone) setPhone(profile.phone);
       setAddress(profile.address || "");
+      if (!city && profile.city) setCity(profile.city);
     }
   }, [profile]);
 
+  const fetchCep = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+    
+    setIsFetchingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      
+      if (data.erro) {
+        toast({
+          title: "CEP não encontrado",
+          description: "Verifique o CEP digitado e tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setCity(data.localidade || "");
+      setState(data.uf || "");
+      setNeighborhood(data.bairro || "");
+      if (data.logradouro) {
+        setAddress(`${data.logradouro}${data.bairro ? `, ${data.bairro}` : ""}`);
+      }
+      
+      toast({
+        title: "Endereço encontrado",
+        description: `${data.localidade} - ${data.uf}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao buscar CEP",
+        description: "Não foi possível consultar o CEP. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFetchingCep(false);
+    }
+  };
+
+  const formatCep = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+    if (digits.length > 5) {
+      return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    }
+    return digits;
+  };
+
+  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCep(e.target.value);
+    setZipCode(formatted);
+    
+    const clean = formatted.replace(/\D/g, "");
+    if (clean.length === 8) {
+      fetchCep(clean);
+    }
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const fullCity = state ? `${city} - ${state}` : city;
+      const fullAddress = address + (neighborhood && !address.includes(neighborhood) ? `, ${neighborhood}` : "");
       const res = await apiRequest("PATCH", "/api/user/settings", {
         firstName,
         lastName,
         phone,
-        address,
+        address: fullAddress,
+        city: fullCity,
       });
       return res.json();
     },
@@ -66,6 +135,7 @@ export default function Settings() {
       });
       refetch?.();
       queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
     onError: () => {
       toast({
@@ -143,8 +213,19 @@ export default function Settings() {
   const handleCancel = () => {
     setFirstName(user?.firstName || "");
     setLastName(user?.lastName || "");
-    setPhone(profile?.phone || "");
+    setPhone((user as any)?.phone || profile?.phone || "");
     setAddress(profile?.address || "");
+    const savedCity = (user as any)?.city || profile?.city || "";
+    if (savedCity.includes(" - ")) {
+      const [c, s] = savedCity.split(" - ");
+      setCity(c);
+      setState(s);
+    } else {
+      setCity(savedCity);
+      setState("");
+    }
+    setZipCode("");
+    setNeighborhood("");
     toast({
       title: "Alterações descartadas",
       description: "Os campos voltaram aos valores originais.",
@@ -277,17 +358,79 @@ export default function Settings() {
                   data-testid="input-phone"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Localização
+              </CardTitle>
+              <CardDescription>Seu endereço para buscar profissionais próximos (máx. 300km)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="zipCode">CEP</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    id="zipCode"
+                    value={zipCode}
+                    onChange={handleCepChange}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    className="rounded-xl flex-1"
+                    data-testid="input-zip-code"
+                  />
+                  <Button
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => fetchCep(zipCode)}
+                    disabled={isFetchingCep || zipCode.replace(/\D/g, "").length !== 8}
+                    data-testid="button-search-cep"
+                  >
+                    {isFetchingCep ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Digite o CEP para preencher o endereço automaticamente</p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="city">Cidade</Label>
+                  <Input 
+                    id="city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Ex: São Paulo"
+                    className="rounded-xl"
+                    data-testid="input-city"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">Estado</Label>
+                  <Input 
+                    id="state"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    placeholder="Ex: SP"
+                    className="rounded-xl"
+                    data-testid="input-state"
+                  />
+                </div>
+              </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address" className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Endereço
-                </Label>
+                <Label htmlFor="address">Endereço completo</Label>
                 <Textarea 
                   id="address" 
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Rua, número, bairro, cidade" 
+                  placeholder="Rua, número, bairro" 
                   className="rounded-xl resize-none"
                   data-testid="input-address"
                 />

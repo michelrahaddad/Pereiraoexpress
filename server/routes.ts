@@ -2924,12 +2924,14 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   app.patch("/api/user/settings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { firstName, lastName, phone, address } = req.body;
+      const { firstName, lastName, phone, address, city } = req.body;
       
-      // Update users table (name)
+      // Update users table (name, city, phone)
       const userUpdates: any = {};
       if (firstName !== undefined) userUpdates.firstName = firstName;
       if (lastName !== undefined) userUpdates.lastName = lastName;
+      if (city !== undefined) userUpdates.city = city;
+      if (phone !== undefined) userUpdates.phone = phone;
       
       if (Object.keys(userUpdates).length > 0) {
         await db.update(users)
@@ -2937,17 +2939,18 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
           .where(eq(users.id, userId));
       }
       
-      // Update userProfiles table (phone, address)
+      // Update userProfiles table (phone, address, city)
       const profileUpdates: any = {};
       if (phone !== undefined) profileUpdates.phone = phone;
       if (address !== undefined) profileUpdates.address = address;
+      if (city !== undefined) profileUpdates.city = city;
       
       if (Object.keys(profileUpdates).length > 0) {
         await storage.updateUserProfile(userId, profileUpdates);
       }
       
       // Return updated user data
-      const updatedUser = await storage.getUser(userId);
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       const updatedProfile = await storage.getUserProfile(userId);
       
       res.json({ 
