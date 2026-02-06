@@ -2907,6 +2907,60 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
   });
 
   // Profile photo upload endpoint
+  app.get("/api/user/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      if (!profile) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  app.patch("/api/user/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { firstName, lastName, phone, address } = req.body;
+      
+      // Update users table (name)
+      const userUpdates: any = {};
+      if (firstName !== undefined) userUpdates.firstName = firstName;
+      if (lastName !== undefined) userUpdates.lastName = lastName;
+      
+      if (Object.keys(userUpdates).length > 0) {
+        await db.update(users)
+          .set(userUpdates)
+          .where(eq(users.id, userId));
+      }
+      
+      // Update userProfiles table (phone, address)
+      const profileUpdates: any = {};
+      if (phone !== undefined) profileUpdates.phone = phone;
+      if (address !== undefined) profileUpdates.address = address;
+      
+      if (Object.keys(profileUpdates).length > 0) {
+        await storage.updateUserProfile(userId, profileUpdates);
+      }
+      
+      // Return updated user data
+      const updatedUser = await storage.getUser(userId);
+      const updatedProfile = await storage.getUserProfile(userId);
+      
+      res.json({ 
+        success: true, 
+        user: updatedUser,
+        profile: updatedProfile
+      });
+    } catch (error) {
+      console.error("Error updating user settings:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
   app.patch("/api/user/profile-image", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

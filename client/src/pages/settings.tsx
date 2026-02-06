@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { User, Phone, MapPin, Bell, Shield, Moon, Sun, Camera, Loader2, ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "@/components/theme-provider";
 import { useUpload } from "@/hooks/use-upload";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Settings() {
   const { user, isAuthenticated, refetch } = useAuth();
@@ -24,10 +25,60 @@ export default function Settings() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+
+  const { data: profile } = useQuery<any>({
+    queryKey: ["/api/user/profile"],
+    enabled: isAuthenticated,
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || "");
+      setLastName(user.lastName || "");
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (profile) {
+      setPhone(profile.phone || "");
+      setAddress(profile.address || "");
+    }
+  }, [profile]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PATCH", "/api/user/settings", {
+        firstName,
+        lastName,
+        phone,
+        address,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Configurações salvas",
+        description: "Suas informações foram atualizadas com sucesso.",
+      });
+      refetch?.();
+      queryClient.invalidateQueries({ queryKey: ["/api/user/profile"] });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar as alterações.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const { uploadFile } = useUpload({
     onSuccess: async (response) => {
       try {
-        // Save the uploaded image URL to the user's profile
         await apiRequest("PATCH", "/api/user/profile-image", {
           profileImageUrl: response.objectPath,
         });
@@ -60,7 +111,6 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Arquivo inválido",
@@ -70,7 +120,6 @@ export default function Settings() {
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "Arquivo muito grande",
@@ -91,10 +140,14 @@ export default function Settings() {
     return (first + last).toUpperCase() || user.email?.[0]?.toUpperCase() || "U";
   };
 
-  const handleSave = () => {
+  const handleCancel = () => {
+    setFirstName(user?.firstName || "");
+    setLastName(user?.lastName || "");
+    setPhone(profile?.phone || "");
+    setAddress(profile?.address || "");
     toast({
-      title: "Configurações salvas",
-      description: "Suas preferências foram atualizadas com sucesso.",
+      title: "Alterações descartadas",
+      description: "Os campos voltaram aos valores originais.",
     });
   };
 
@@ -192,7 +245,8 @@ export default function Settings() {
                   <Label htmlFor="firstName">Nome</Label>
                   <Input 
                     id="firstName" 
-                    defaultValue={user?.firstName || ""} 
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
                     className="rounded-xl"
                     data-testid="input-first-name"
                   />
@@ -201,7 +255,8 @@ export default function Settings() {
                   <Label htmlFor="lastName">Sobrenome</Label>
                   <Input 
                     id="lastName" 
-                    defaultValue={user?.lastName || ""} 
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
                     className="rounded-xl"
                     data-testid="input-last-name"
                   />
@@ -215,6 +270,8 @@ export default function Settings() {
                 </Label>
                 <Input 
                   id="phone" 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   placeholder="(11) 99999-9999" 
                   className="rounded-xl"
                   data-testid="input-phone"
@@ -228,6 +285,8 @@ export default function Settings() {
                 </Label>
                 <Textarea 
                   id="address" 
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
                   placeholder="Rua, número, bairro, cidade" 
                   className="rounded-xl resize-none"
                   data-testid="input-address"
@@ -314,10 +373,21 @@ export default function Settings() {
           </Card>
 
           <div className="flex justify-end gap-4 pt-4">
-            <Button variant="outline" className="rounded-xl" data-testid="button-cancel">
+            <Button 
+              variant="outline" 
+              className="rounded-xl" 
+              onClick={handleCancel}
+              data-testid="button-cancel"
+            >
               Cancelar
             </Button>
-            <Button className="rounded-xl" onClick={handleSave} data-testid="button-save">
+            <Button 
+              className="rounded-xl" 
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              data-testid="button-save"
+            >
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Salvar alterações
             </Button>
           </div>
