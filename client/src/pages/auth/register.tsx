@@ -11,7 +11,7 @@ import {
   Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, User, Wrench,
   Phone, Calendar, CreditCard, CheckCircle2, AlertCircle, Upload, FileText, Shield, MapPin, Search, DollarSign
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface RegisterPageProps {
   userType: "client" | "provider";
@@ -250,6 +250,8 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
 
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
+
+      queryClient.setQueryData(["/api/auth/user"], data.user);
 
       toast({
         title: "Conta criada!",

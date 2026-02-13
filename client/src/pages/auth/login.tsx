@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, User, Wrench, Settings } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface LoginPageProps {
   userType: "client" | "provider" | "admin";
@@ -36,6 +36,8 @@ export default function LoginPage({ userType }: LoginPageProps) {
 
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
+
+      queryClient.setQueryData(["/api/auth/user"], data.user);
 
       toast({
         title: "Login realizado!",
