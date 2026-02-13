@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
+import { AiTrainingManager } from "@/components/admin/ai-training-manager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,8 @@ import {
   Clock,
   Eye,
   AlertTriangle,
-  Star
+  Star,
+  Brain
 } from "lucide-react";
 import type { UserProfile, SystemSetting } from "@shared/schema";
 
@@ -570,7 +572,11 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="reference-prices" className="rounded-lg gap-2" data-testid="tab-reference-prices">
               <BarChart3 className="h-4 w-4" />
-              Preços SINAPI
+              Precos SINAPI
+            </TabsTrigger>
+            <TabsTrigger value="ai-training" className="rounded-lg gap-2" data-testid="tab-ai-training">
+              <Brain className="h-4 w-4" />
+              Treinamento IA
             </TabsTrigger>
           </TabsList>
 
@@ -1370,6 +1376,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="reference-prices" className="space-y-6">
             <ReferencePricesManager />
+          </TabsContent>
+
+          <TabsContent value="ai-training" className="space-y-6">
+            <AiTrainingManager />
           </TabsContent>
         </Tabs>
       </main>

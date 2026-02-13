@@ -31,6 +31,8 @@ import {
   type Notification, type InsertNotification,
   type TwilioCall, type InsertTwilioCall,
   type PushSubscription, type InsertPushSubscription,
+  aiTrainingConfigs,
+  type AiTrainingConfig, type InsertAiTrainingConfig,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { db } from "./db";
@@ -182,6 +184,12 @@ export interface IStorage {
   createMaterialSupplier(data: InsertMaterialSupplier): Promise<MaterialSupplier>;
   updateMaterialSupplier(id: number, data: Partial<InsertMaterialSupplier>): Promise<MaterialSupplier | undefined>;
   deleteMaterialSupplier(id: number): Promise<void>;
+  
+  // AI Training Configs
+  getAiTrainingConfigs(): Promise<AiTrainingConfig[]>;
+  getAiTrainingConfigByCategory(categoryId: number): Promise<AiTrainingConfig | undefined>;
+  upsertAiTrainingConfig(categoryId: number, data: Partial<InsertAiTrainingConfig>): Promise<AiTrainingConfig>;
+  deleteAiTrainingConfig(id: number): Promise<void>;
   
   // Helper: Get full symptom data for AI
   getFullSymptomData(categoryId?: number): Promise<{
@@ -977,6 +985,34 @@ class DatabaseStorage implements IStorage {
 
   async deletePushSubscriptionsByUser(userId: string): Promise<void> {
     await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+  }
+
+  async getAiTrainingConfigs(): Promise<AiTrainingConfig[]> {
+    return db.select().from(aiTrainingConfigs).orderBy(aiTrainingConfigs.categoryId);
+  }
+
+  async getAiTrainingConfigByCategory(categoryId: number): Promise<AiTrainingConfig | undefined> {
+    const [config] = await db.select().from(aiTrainingConfigs).where(eq(aiTrainingConfigs.categoryId, categoryId));
+    return config;
+  }
+
+  async upsertAiTrainingConfig(categoryId: number, data: Partial<InsertAiTrainingConfig>): Promise<AiTrainingConfig> {
+    const existing = await this.getAiTrainingConfigByCategory(categoryId);
+    if (existing) {
+      const [updated] = await db.update(aiTrainingConfigs)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(aiTrainingConfigs.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(aiTrainingConfigs)
+      .values({ ...data, categoryId })
+      .returning();
+    return created;
+  }
+
+  async deleteAiTrainingConfig(id: number): Promise<void> {
+    await db.delete(aiTrainingConfigs).where(eq(aiTrainingConfigs.id, id));
   }
 }
 

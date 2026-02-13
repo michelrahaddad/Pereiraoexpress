@@ -807,11 +807,115 @@ export async function registerRoutes(
         console.error("Error fetching knowledge base:", err);
       }
 
-      const systemPrompt = `Você é o assistente do Pereirão Express. Seu trabalho é entender o problema do cliente em MÁXIMO 3 PERGUNTAS rápidas e simples.${knowledgeBaseContext}
+      // Carregar treinamento da IA do banco de dados
+      let trainingContext = "";
+      let maxQuestions = 3;
+      try {
+        const allTrainingConfigs = await storage.getAiTrainingConfigs();
+        const activeConfigs = allTrainingConfigs.filter(c => c.isActive);
+        const allCategories = await storage.getCategories();
+
+        if (activeConfigs.length > 0) {
+          const specificConfig = categoryId ? activeConfigs.find(c => c.categoryId === categoryId) : null;
+          const configsToUse = specificConfig ? [specificConfig] : activeConfigs;
+
+          for (const cfg of configsToUse) {
+            if (specificConfig && cfg.systemPromptOverride) {
+              trainingContext = cfg.systemPromptOverride;
+              maxQuestions = cfg.engineMaxQuestions || 3;
+              break;
+            }
+
+            maxQuestions = cfg.engineMaxQuestions || 3;
+            const catName = allCategories.find((c: any) => c.id === cfg.categoryId)?.name || `Categoria ${cfg.categoryId}`;
+
+            // Perguntas condicionais
+            const cqs = safeJsonParse(cfg.conditionalQuestions);
+            if (cqs.length > 0) {
+              trainingContext += `\n\nPERGUNTAS CONDICIONAIS PARA ${catName.toUpperCase()}:`;
+              for (const cq of cqs) {
+                if (cq.keywords && cq.keywords.length > 0) {
+                  trainingContext += `\n**Se o cliente mencionar "${cq.keywords.join('", "')}":**`;
+                  for (const q of (cq.questions || [])) {
+                    trainingContext += `\n- ${q}`;
+                  }
+                }
+              }
+            }
+
+            // Regras de precificação
+            const prices = safeJsonParse(cfg.pricingRules);
+            if (prices.length > 0) {
+              trainingContext += `\n\nPRECIFICAÇÃO ${catName.toUpperCase()}:`;
+              for (const p of prices) {
+                if (p.basePrice > 0) {
+                  trainingContext += `\n- ${p.item}: R$ ${(p.basePrice).toFixed(2)}`;
+                } else if (p.multiplier && p.multiplier !== 1.0) {
+                  trainingContext += `\n- ${p.item}: ${p.multiplier}x`;
+                }
+                if (p.note) trainingContext += ` (${p.note})`;
+              }
+            }
+
+            // Dicas de diagnóstico
+            const tips = safeJsonParse(cfg.diagnosisTips);
+            if (tips.length > 0) {
+              trainingContext += `\n\nDICAS TÉCNICAS ${catName.toUpperCase()}:`;
+              for (const tip of tips) {
+                trainingContext += `\n- ${tip}`;
+              }
+            }
+
+            // Exemplos de conversa
+            const examples = safeJsonParse(cfg.exampleConversations);
+            if (examples.length > 0) {
+              trainingContext += `\n\nEXEMPLOS DE CONVERSA ${catName.toUpperCase()}:`;
+              for (const ex of examples) {
+                trainingContext += `\nCliente: "${ex.userMessage}" → IA: "${ex.aiResponse}"`;
+              }
+            }
+          }
+
+          // Regras globais (unificar de todas as configs ativas)
+          let allRules: string[] = [];
+          let allForbidden: string[] = [];
+          let allVocab: string[] = [];
+          for (const cfg of configsToUse) {
+            allRules = allRules.concat(safeJsonParse(cfg.rules));
+            allForbidden = allForbidden.concat(safeJsonParse(cfg.forbiddenTopics));
+            allVocab = allVocab.concat(safeJsonParse(cfg.vocabulary));
+          }
+
+          if (allRules.length > 0) {
+            trainingContext += `\n\nREGRAS DO TREINAMENTO:`;
+            for (const r of [...new Set(allRules)]) {
+              trainingContext += `\n- ${r}`;
+            }
+          }
+
+          if (allForbidden.length > 0) {
+            trainingContext += `\n\nPROIBIDO:`;
+            for (const f of [...new Set(allForbidden)]) {
+              trainingContext += `\n- ${f}`;
+            }
+          }
+
+          if (allVocab.length > 0) {
+            trainingContext += `\n\nVOCABULÁRIO:`;
+            for (const v of [...new Set(allVocab)]) {
+              trainingContext += `\n- ${v}`;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading AI training configs:", err);
+      }
+
+      const systemPrompt = `Você é o assistente do Pereirão Express. Seu trabalho é entender o problema do cliente em MÁXIMO ${maxQuestions} PERGUNTAS rápidas e simples.${knowledgeBaseContext}${trainingContext}
 
 REGRAS OBRIGATÓRIAS:
 - TODA resposta deve ser uma PERGUNTA (nunca afirmações)
-- Máximo 3 perguntas curtas e diretas
+- Máximo ${maxQuestions} perguntas curtas e diretas
 - Respostas CURTAS (máximo 2 frases)
 - Português brasileiro simples
 - Faça UMA pergunta por vez
@@ -821,62 +925,16 @@ REGRAS OBRIGATÓRIAS:
 - Se a pergunta não for sobre serviços domésticos ou reparos, diga educadamente que só pode ajudar com esses serviços
 - NUNCA faça afirmações como "É um problema elétrico" - sempre pergunte para confirmar
 
-PERGUNTAS CONDICIONAIS (ajuste baseado no problema):
-**Se o cliente mencionar "vazamento", "vazando", "goteira", "água":**
-- Pergunte sobre PRESSÃO da água: "A água sai com força ou só goteja?"
-- Pergunte sobre COR da água: "A água está limpa/transparente ou suja/amarelada?"
-- Pergunte se é água limpa ou esgoto: "É água da torneira ou do vaso/ralo?"
-
-**Se o cliente mencionar "elétrica", "tomada", "luz", "choque", "disjuntor":**
-- Pergunte sobre o DISJUNTOR: "O disjuntor está desarmando/caindo?"
-- Pergunte sobre CHEIRO: "Você sente cheiro de queimado?"
-- Pergunte se afeta outros pontos: "Outras tomadas ou luzes da casa funcionam?"
-
-**Se o cliente mencionar "entupimento", "entupido", "não desce":**
-- Pergunte onde: "É pia, vaso, ralo ou outro?"
-- Pergunte se volta: "A água volta quando você usa?"
-- Pergunte há quanto tempo: "Começou hoje ou já faz dias?"
-
-**Se o cliente mencionar "portão", "controle", "motor":**
-- Pergunte o tipo: "É portão de garagem, social ou basculante?"
-- Pergunte o problema: "Não abre, não fecha, faz barulho ou é o controle?"
-- Pergunte se é elétrico: "O motor liga/faz algum barulho?"
-
-**Se o cliente mencionar "empregada", "doméstica", "faxina", "faxineira", "diarista", "limpeza":**
-1. TAMANHO DA CASA: "Qual o tamanho aproximado? (1-2 quartos, 3-4 quartos, 5+ quartos ou apartamento)"
-2. TIPO DE SERVIÇO: "Que tipo de limpeza você precisa? (Limpeza geral, limpeza pesada/pós-obra, passar roupa, cozinhar, ou completo)"
-3. FREQUÊNCIA: "Com que frequência? (Diária fixa, semanal, quinzenal, mensal, ou só uma vez)"
-
-PRECIFICAÇÃO EMPREGADA DOMÉSTICA (valores base em centavos):
-- Apartamento/1-2 quartos: base 15000 (R$150)
-- 3-4 quartos: base 20000 (R$200)
-- 5+ quartos/casa grande: base 30000 (R$300)
-
-Multiplicadores por tipo de serviço:
-- Limpeza geral: 1.0x
-- Limpeza pesada/pós-obra: 1.8x
-- Passar roupa adicional: +5000
-- Cozinhar adicional: +8000
-- Serviço completo: 1.5x
-
-Multiplicadores por frequência:
-- Uma vez (avulso): 1.0x (preço cheio)
-- Mensal: 0.95x (5% desconto)
-- Quinzenal: 0.90x (10% desconto)
-- Semanal: 0.85x (15% desconto)
-- Diária fixa: 0.80x (20% desconto)
-
-FLUXO DE PERGUNTAS (exatamente 3 perguntas + 1 opcional para foto):
+FLUXO DE PERGUNTAS (exatamente ${maxQuestions} perguntas + 1 opcional para foto):
 1. Qual o problema exatamente? (ou pergunta de esclarecimento)
-2. [Pergunta condicional baseada no tipo de problema - ver acima]
+2. [Pergunta condicional baseada no tipo de problema - ver treinamento acima]
 3. Onde fica na sua casa? / Há quanto tempo está assim?
-4. (OPCIONAL - só quando foto ajuda) "Pode enviar uma foto? 📷 Ajuda no diagnóstico!"
+4. (OPCIONAL - só quando foto ajuda) "Pode enviar uma foto? Ajuda no diagnóstico!"
 
-QUANDO PEDIR FOTO (4ª pergunta):
+QUANDO PEDIR FOTO:
 - Vazamentos visíveis, manchas de água, mofo
 - Problemas elétricos com sinais visuais (tomada queimada, fios expostos)
 - Rachaduras, danos estruturais, infiltrações
-- Portões/motores com danos visíveis
 
 QUANDO NÃO PEDIR FOTO:
 - Problemas de som (barulho, chiado)
@@ -884,25 +942,12 @@ QUANDO NÃO PEDIR FOTO:
 - Problemas elétricos sem sinais visuais (disjuntor caindo)
 - Cheiro de gás/queimado
 
-REGRA: Faça exatamente 3 perguntas obrigatórias. A 4ª pergunta (foto) só quando realmente necessário.
-
-CATEGORIAS DE SERVIÇOS:
-- Técnico de Portões e Controles
-- Encanador
-- Eletricista
-- Chaveiro
-- Pedreiro (reformas e reparos simples)
-- Assentador de Pisos
-- Gesseiro
-- Calheiro
-- Empregada Doméstica / Diarista / Faxineira (limpeza residencial)
-
 SOBRE MATERIAIS:
-- "providerMaterials": ferramentas e equipamentos que o PRESTADOR traz (máquina desentupidora, furadeira, escada, EPI, etc)
-- "clientMaterials": peças ou materiais que o CLIENTE precisa comprar (torneira nova, tinta, lâmpada, tomada, etc)
+- "providerMaterials": ferramentas e equipamentos que o PRESTADOR traz
+- "clientMaterials": peças ou materiais que o CLIENTE precisa comprar
 - Se não houver materiais para o cliente, deixe "clientMaterials" vazio []
 
-REGRA FINAL: Após coletar informações suficientes (3 perguntas), faça uma PERGUNTA DE CONFIRMAÇÃO antes do diagnóstico.
+REGRA FINAL: Após coletar informações suficientes (${maxQuestions} perguntas), faça uma PERGUNTA DE CONFIRMAÇÃO antes do diagnóstico.
 Exemplo: "Entendi! Então você tem [resumo do problema]. Posso preparar o orçamento para você?"
 
 Quando o cliente CONFIRMAR (responder sim/pode/ok/claro), adicione o diagnóstico:
@@ -2601,6 +2646,65 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     } catch (error) {
       console.error("Error deleting local knowledge:", error);
       res.status(500).json({ error: "Failed to delete local knowledge" });
+    }
+  });
+
+  // ==================== TREINAMENTO DA IA ====================
+
+  app.get("/api/admin/ai-training", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const configs = await storage.getAiTrainingConfigs();
+      res.json(configs);
+    } catch (error) {
+      console.error("Error fetching AI training configs:", error);
+      res.status(500).json({ error: "Failed to fetch AI training configs" });
+    }
+  });
+
+  app.get("/api/admin/ai-training/:categoryId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const categoryId = parseInt(req.params.categoryId as string);
+      const config = await storage.getAiTrainingConfigByCategory(categoryId);
+      res.json(config || null);
+    } catch (error) {
+      console.error("Error fetching AI training config:", error);
+      res.status(500).json({ error: "Failed to fetch AI training config" });
+    }
+  });
+
+  app.put("/api/admin/ai-training/:categoryId", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const categoryId = parseInt(req.params.categoryId as string);
+      if (isNaN(categoryId)) {
+        return res.status(400).json({ error: "Invalid category ID" });
+      }
+      const allowedFields = [
+        "rules", "engineModel", "engineTemperature", "engineMaxTokens", "engineMaxQuestions",
+        "tone", "greeting", "vocabulary", "conditionalQuestions", "exampleConversations",
+        "forbiddenTopics", "pricingRules", "diagnosisTips", "isActive", "systemPromptOverride"
+      ];
+      const sanitized: Record<string, any> = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          sanitized[field] = req.body[field];
+        }
+      }
+      const config = await storage.upsertAiTrainingConfig(categoryId, sanitized);
+      res.json(config);
+    } catch (error) {
+      console.error("Error saving AI training config:", error);
+      res.status(500).json({ error: "Failed to save AI training config" });
+    }
+  });
+
+  app.delete("/api/admin/ai-training/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteAiTrainingConfig(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting AI training config:", error);
+      res.status(500).json({ error: "Failed to delete AI training config" });
     }
   });
 

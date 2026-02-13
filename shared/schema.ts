@@ -385,6 +385,41 @@ export const materialSuppliers = pgTable("material_suppliers", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ==========================================
+// TREINAMENTO DA IA POR CATEGORIA
+// ==========================================
+
+export const aiTrainingConfigs = pgTable("ai_training_configs", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").notNull(),
+  
+  rules: text("rules"),
+  engineModel: varchar("engine_model").default("gemini-2.5-flash"),
+  engineTemperature: decimal("engine_temperature", { precision: 3, scale: 2 }).default("0.70"),
+  engineMaxTokens: integer("engine_max_tokens").default(2048),
+  engineMaxQuestions: integer("engine_max_questions").default(3),
+  
+  tone: varchar("tone").default("friendly"),
+  greeting: text("greeting"),
+  vocabulary: text("vocabulary"),
+  
+  conditionalQuestions: text("conditional_questions"),
+  exampleConversations: text("example_conversations"),
+  forbiddenTopics: text("forbidden_topics"),
+  pricingRules: text("pricing_rules"),
+  diagnosisTips: text("diagnosis_tips"),
+  
+  systemPromptOverride: text("system_prompt_override"),
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAiTrainingConfigSchema = createInsertSchema(aiTrainingConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export type AiTrainingConfig = typeof aiTrainingConfigs.$inferSelect;
+export type InsertAiTrainingConfig = z.infer<typeof insertAiTrainingConfigSchema>;
+
 // Insert schemas para sintomas
 export const insertSymptomSchema = createInsertSchema(symptoms).omit({ id: true, createdAt: true });
 export const insertSymptomQuestionSchema = createInsertSchema(symptomQuestions).omit({ id: true, createdAt: true });
