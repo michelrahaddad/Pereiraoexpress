@@ -661,51 +661,34 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="create-role">Tipo de Usuário</Label>
-                      <Select
-                        value={newUserForm.role}
-                        onValueChange={(value: "client" | "provider" | "admin") => 
-                          setNewUserForm({ ...newUserForm, role: value })
-                        }
-                      >
-                        <SelectTrigger data-testid="select-create-role">
-                          <SelectValue placeholder="Selecione o tipo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="client">Cliente</SelectItem>
-                          <SelectItem value="provider">Prestador</SelectItem>
-                          <SelectItem value="admin">Administrador</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="create-cpf">CPF</Label>
-                        <Input
-                          id="create-cpf"
-                          value={newUserForm.cpf}
-                          onChange={(e) => setNewUserForm({ ...newUserForm, cpf: e.target.value })}
-                          placeholder="000.000.000-00"
-                          data-testid="input-create-cpf"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="create-age">Idade</Label>
-                        <Input
-                          id="create-age"
-                          type="number"
-                          value={newUserForm.age}
-                          onChange={(e) => setNewUserForm({ ...newUserForm, age: e.target.value })}
-                          placeholder="25"
-                          data-testid="input-create-age"
-                        />
+                      <Label>Tipo de Usuário</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: "client" as const, label: "Cliente", icon: Users },
+                          { value: "provider" as const, label: "Prestador", icon: Wrench },
+                          { value: "admin" as const, label: "Admin", icon: Shield },
+                        ]).map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            variant={newUserForm.role === option.value ? "default" : "outline"}
+                            className="flex flex-col items-center gap-1 h-auto py-3"
+                            onClick={() => setNewUserForm({ ...newUserForm, role: option.value, selectedCategories: [] })}
+                            data-testid={`button-role-${option.value}`}
+                          >
+                            <option.icon className="h-5 w-5" />
+                            <span className="text-xs font-medium">{option.label}</span>
+                          </Button>
+                        ))}
                       </div>
                     </div>
 
                     {newUserForm.role === "provider" && (
-                      <div className="space-y-2">
-                        <Label>Categorias de Serviço</Label>
+                      <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                        <Label className="flex items-center gap-2">
+                          <Wrench className="h-4 w-4 text-primary" />
+                          Categorias de Serviço
+                        </Label>
                         <div className="flex flex-wrap gap-2">
                           {allCategories.map((cat) => {
                             const isSelected = newUserForm.selectedCategories.includes(cat.id);
@@ -734,10 +717,34 @@ export default function AdminDashboard() {
                           <p className="text-xs text-muted-foreground">Nenhuma categoria cadastrada</p>
                         )}
                         {newUserForm.selectedCategories.length === 0 && allCategories.length > 0 && (
-                          <p className="text-xs text-muted-foreground">Selecione pelo menos uma categoria</p>
+                          <p className="text-xs text-destructive">Selecione pelo menos uma categoria</p>
                         )}
                       </div>
                     )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="create-cpf">CPF</Label>
+                        <Input
+                          id="create-cpf"
+                          value={newUserForm.cpf}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, cpf: e.target.value })}
+                          placeholder="000.000.000-00"
+                          data-testid="input-create-cpf"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="create-age">Idade</Label>
+                        <Input
+                          id="create-age"
+                          type="number"
+                          value={newUserForm.age}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, age: e.target.value })}
+                          placeholder="25"
+                          data-testid="input-create-age"
+                        />
+                      </div>
+                    </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="create-password">Senha</Label>
