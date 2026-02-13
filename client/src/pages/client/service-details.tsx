@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useRoute, Link, useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useRoute, Link, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
@@ -118,6 +118,7 @@ export default function ServiceDetails() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const searchString = useSearch();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [includeMaterials, setIncludeMaterials] = useState(true);
@@ -126,6 +127,13 @@ export default function ServiceDetails() {
     queryKey: [`/api/service/${params?.id}/full`],
     enabled: !!params?.id && isAuthenticated,
   });
+
+  useEffect(() => {
+    if (searchString.includes("action=pay") && serviceDetails?.providerDiagnosis && !serviceDetails?.acceptance) {
+      setAcceptTerms(true);
+      setShowPaymentModal(true);
+    }
+  }, [searchString, serviceDetails]);
 
   const { data: pricingSettings } = useQuery<{ diagnosisPrice: number; serviceFee: number }>({
     queryKey: ["/api/settings/pricing"],

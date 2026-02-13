@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Sparkles,
   ThumbsUp,
-  FileText
+  FileText,
+  CreditCard
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
@@ -168,12 +169,12 @@ function ServiceCard({ service }: { service: EnrichedServiceRequest }) {
               className="w-full gap-2"
               onClick={(e) => {
                 e.stopPropagation();
-                navigate(`/client/service/${service.id}`);
+                navigate(`/client/service/${service.id}?action=pay`);
               }}
               data-testid={`button-view-quote-${service.id}`}
             >
-              <FileText className="h-4 w-4" />
-              Ver orçamento e aprovar
+              <CreditCard className="h-4 w-4" />
+              Ver orçamento e pagar
             </Button>
           </div>
         )}
