@@ -10,6 +10,23 @@ import { serviceRequests, serviceCategories } from "@shared/schema";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
+// Helper para ler configurações do admin com fallback
+async function getAdminSetting(key: string, defaultValue: string): Promise<string> {
+  try {
+    const settings = await storage.getSystemSettings();
+    const setting = settings.find(s => s.key === key);
+    return setting?.value || defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+async function getAdminSettingNumber(key: string, defaultValue: number): Promise<number> {
+  const val = await getAdminSetting(key, String(defaultValue));
+  const num = parseFloat(val);
+  return isNaN(num) ? defaultValue : num;
+}
+
 // Schemas de validação
 const aiDiagnoseSchema = z.object({
   message: z.string().optional(),
@@ -361,6 +378,18 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching materials:", error);
       res.status(500).json({ error: "Failed to fetch materials" });
+    }
+  });
+
+  app.get("/api/settings/pricing", async (req, res) => {
+    try {
+      const diagnosisPrice = await getAdminSettingNumber("ai_diagnosis_price", 1000);
+      const serviceFee = await getAdminSettingNumber("service_fee_percent", 10);
+      const expressMultiplier = await getAdminSettingNumber("express_multiplier", 1.5);
+      const urgentMultiplier = await getAdminSettingNumber("urgent_multiplier", 2.0);
+      res.json({ diagnosisPrice, serviceFee, expressMultiplier, urgentMultiplier });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch pricing" });
     }
   });
 
@@ -1913,29 +1942,44 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         const serviceType = guidedAnswers?.find((a: any) => a.question?.includes("tipo"))?.answer || "";
         const frequency = guidedAnswers?.find((a: any) => a.question?.includes("frequência"))?.answer || "";
 
-        // Preço base por tamanho
-        let basePrice = 15000; // R$ 150
-        if (houseSize.includes("3-4")) basePrice = 20000;
-        else if (houseSize.includes("5+") || houseSize.includes("grande")) basePrice = 30000;
-        else if (houseSize.includes("Comercial") || houseSize.includes("Escritório")) basePrice = 25000;
+        // Ler preços base do admin (em centavos)
+        const priceSmall = await getAdminSettingNumber("domestic_price_small", 15000);
+        const priceMedium = await getAdminSettingNumber("domestic_price_medium", 20000);
+        const priceLarge = await getAdminSettingNumber("domestic_price_large", 30000);
+        const priceCommercial = await getAdminSettingNumber("domestic_price_commercial", 25000);
+        const extraPassing = await getAdminSettingNumber("domestic_extra_passing", 5000);
+        const extraCooking = await getAdminSettingNumber("domestic_extra_cooking", 8000);
 
-        // Multiplicador por tipo de serviço
+        // Preço base por tamanho (do admin)
+        let basePrice = priceSmall;
+        if (houseSize.includes("3-4")) basePrice = priceMedium;
+        else if (houseSize.includes("5+") || houseSize.includes("grande")) basePrice = priceLarge;
+        else if (houseSize.includes("Comercial") || houseSize.includes("Escritório")) basePrice = priceCommercial;
+
+        // Multiplicadores por tipo de serviço (do admin)
+        const multHeavy = await getAdminSettingNumber("domestic_mult_heavy", 1.8);
+        const multComplete = await getAdminSettingNumber("domestic_mult_complete", 1.5);
         let serviceMultiplier = 1.0;
-        if (serviceType.includes("pesada") || serviceType.includes("pós-obra")) serviceMultiplier = 1.8;
-        else if (serviceType.includes("completo")) serviceMultiplier = 1.5;
-        else if (serviceType.includes("Passar")) basePrice += 5000;
-        else if (serviceType.includes("Cozinhar")) basePrice += 8000;
+        if (serviceType.includes("pesada") || serviceType.includes("pós-obra")) serviceMultiplier = multHeavy;
+        else if (serviceType.includes("completo")) serviceMultiplier = multComplete;
+        else if (serviceType.includes("Passar")) basePrice += extraPassing;
+        else if (serviceType.includes("Cozinhar")) basePrice += extraCooking;
 
-        // Multiplicador por frequência (descontos)
-        // 1x avulso, 0.95x mensal, 0.90x quinzenal, 0.85x semanal, 0.80x diária fixa
+        // Multiplicadores por frequência (do admin)
+        const freqDaily = await getAdminSettingNumber("domestic_freq_daily", 0.80);
+        const freqWeekly = await getAdminSettingNumber("domestic_freq_weekly", 0.85);
+        const freqBiweekly = await getAdminSettingNumber("domestic_freq_biweekly", 0.90);
+        const freqMonthly = await getAdminSettingNumber("domestic_freq_monthly", 0.95);
         let frequencyMultiplier = 1.0;
-        if (frequency.includes("Diária")) frequencyMultiplier = 0.80;
-        else if (frequency.includes("Semanal")) frequencyMultiplier = 0.85;
-        else if (frequency.includes("Quinzenal")) frequencyMultiplier = 0.90;
-        else if (frequency.includes("Mensal")) frequencyMultiplier = 0.95;
+        if (frequency.includes("Diária")) frequencyMultiplier = freqDaily;
+        else if (frequency.includes("Semanal")) frequencyMultiplier = freqWeekly;
+        else if (frequency.includes("Quinzenal")) frequencyMultiplier = freqBiweekly;
+        else if (frequency.includes("Mensal")) frequencyMultiplier = freqMonthly;
 
+        // Taxa da plataforma doméstica (do admin)
+        const domesticPlatformFee = await getAdminSettingNumber("domestic_platform_fee", 15);
         const finalPrice = Math.round(basePrice * serviceMultiplier * frequencyMultiplier);
-        const diagnosisFee = Math.round(finalPrice * 0.15);
+        const diagnosisFee = Math.round(finalPrice * (domesticPlatformFee / 100));
 
         // Criar serviço com categoria correta
         const service = await storage.createService({
@@ -2030,8 +2074,9 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
         };
       }
 
-      // Calcular taxa de diagnóstico (15% do preço mínimo)
-      const diagnosisFee = Math.round(aiResult.priceRangeMin * 0.15);
+      // Calcular taxa de diagnóstico (valor fixo do admin, padrão R$10 = 1000 centavos)
+      const diagnosisPrice = await getAdminSettingNumber("ai_diagnosis_price", 1000);
+      const diagnosisFee = diagnosisPrice;
 
       // Criar diagnóstico IA
       const aiDiagnosis = await storage.createAiDiagnosis({
@@ -2220,7 +2265,8 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
 
       const laborCost = providerDiagnosis?.laborCost || 0;
       const materialsCost = providerDiagnosis?.materialsCost || 0;
-      const platformFee = Math.round((laborCost + materialsCost) * 0.10); // 10% taxa plataforma
+      const serviceFeePercent = await getAdminSettingNumber("service_fee_percent", 10);
+      const platformFee = Math.round((laborCost + materialsCost) * (serviceFeePercent / 100));
       const totalPrice = laborCost + materialsCost + platformFee;
 
       // Criar aceite digital
@@ -2429,7 +2475,8 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
       });
 
       // Criar aceite digital
-      const platformFee = Math.round(laborCost * 0.10);
+      const domesticFeePercent = await getAdminSettingNumber("domestic_platform_fee", 15);
+      const platformFee = Math.round(laborCost * (domesticFeePercent / 100));
       await storage.createDigitalAcceptance({
         serviceRequestId: serviceId,
         clientId,

@@ -86,7 +86,11 @@ Preferred communication style: Simple, everyday language.
 ### Admin Panel Features
 - **User Management**: Filter by city, role, and search
 - **City Overview**: Users grouped by city with stats
-- **Pricing Controls**: AI diagnosis price, service fees, SLA multipliers
+- **Pricing Controls**: All pricing is admin-configurable via system_settings table
+  - AI diagnosis fee (default R$10), platform fee for repairs (default 10%), SLA multipliers
+  - Domestic services: base prices by house size, frequency multipliers, service type multipliers, platform fee (15%)
+  - GET `/api/settings/pricing` - Public endpoint for frontend to read current pricing
+  - All pricing reads from admin settings with fallback to defaults
 - **Backup**: Data export functionality
 - **Sintomas IA**: Manage symptom knowledge base for AI diagnosis improvement
 

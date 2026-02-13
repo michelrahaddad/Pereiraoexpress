@@ -127,6 +127,11 @@ export default function ServiceDetails() {
     enabled: !!params?.id && isAuthenticated,
   });
 
+  const { data: pricingSettings } = useQuery<{ diagnosisPrice: number; serviceFee: number }>({
+    queryKey: ["/api/settings/pricing"],
+  });
+  const platformFeeRate = (pricingSettings?.serviceFee || 10) / 100;
+
   const acceptQuoteMutation = useMutation({
     mutationFn: async (data: { method: string }) => {
       const response = await apiRequest("POST", `/api/service/${params?.id}/accept`, data);
@@ -409,14 +414,14 @@ export default function ServiceDetails() {
                     )}
                     
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Taxa da plataforma (10%):</span>
-                      <span>R$ {(((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * 0.10) / 100).toFixed(2)}</span>
+                      <span className="text-muted-foreground">Taxa da plataforma ({Math.round(platformFeeRate * 100)}%):</span>
+                      <span>R$ {(((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * platformFeeRate) / 100).toFixed(2)}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between font-semibold">
                       <span>Total:</span>
                       <span className="text-primary">
-                        R$ {(((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * 1.10) / 100).toFixed(2)}
+                        R$ {(((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * (1 + platformFeeRate)) / 100).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -745,7 +750,7 @@ export default function ServiceDetails() {
         <PaymentModal
           open={showPaymentModal}
           onOpenChange={setShowPaymentModal}
-          amount={Math.round((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * 1.10)}
+          amount={Math.round((providerDiagnosis.laborCost + (includeMaterials ? providerDiagnosis.materialsCost : 0)) * (1 + platformFeeRate))}
           description={`Serviço: ${service.title}${includeMaterials && providerDiagnosis.materialsCost > 0 ? " (com materiais)" : ""}`}
           onPaymentComplete={handlePaymentComplete}
         />

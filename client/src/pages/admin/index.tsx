@@ -72,6 +72,7 @@ import {
   LayoutDashboard,
   Trash2,
   Pencil,
+  Home,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -119,10 +120,23 @@ interface ClientWithStats extends UserProfile {
 }
 
 const defaultSettings = [
-  { key: "ai_diagnosis_price", value: "500", description: "Preço do diagnóstico IA (centavos)" },
-  { key: "service_fee_percent", value: "15", description: "Taxa sobre serviços (%)" },
+  { key: "ai_diagnosis_price", value: "1000", description: "Preço do diagnóstico IA (centavos)" },
+  { key: "service_fee_percent", value: "10", description: "Taxa da plataforma - Reparos (%)" },
   { key: "express_multiplier", value: "1.5", description: "Multiplicador Express" },
   { key: "urgent_multiplier", value: "2.0", description: "Multiplicador Urgente" },
+  { key: "domestic_price_small", value: "15000", description: "Preço base - Até 2 quartos (centavos)" },
+  { key: "domestic_price_medium", value: "20000", description: "Preço base - 3-4 quartos (centavos)" },
+  { key: "domestic_price_large", value: "30000", description: "Preço base - 5+ quartos (centavos)" },
+  { key: "domestic_price_commercial", value: "25000", description: "Preço base - Comercial (centavos)" },
+  { key: "domestic_extra_passing", value: "5000", description: "Extra - Passar roupa (centavos)" },
+  { key: "domestic_extra_cooking", value: "8000", description: "Extra - Cozinhar (centavos)" },
+  { key: "domestic_mult_heavy", value: "1.8", description: "Multiplicador - Limpeza pesada/pós-obra" },
+  { key: "domestic_mult_complete", value: "1.5", description: "Multiplicador - Limpeza completa" },
+  { key: "domestic_freq_daily", value: "0.80", description: "Desconto frequência - Diária" },
+  { key: "domestic_freq_weekly", value: "0.85", description: "Desconto frequência - Semanal" },
+  { key: "domestic_freq_biweekly", value: "0.90", description: "Desconto frequência - Quinzenal" },
+  { key: "domestic_freq_monthly", value: "0.95", description: "Desconto frequência - Mensal" },
+  { key: "domestic_platform_fee", value: "15", description: "Taxa da plataforma - Domésticos (%)" },
 ];
 
 type AdminSection = 
@@ -1481,64 +1495,48 @@ function CitiesSection({ cityStats, setCityFilter, setActiveSection }: any) {
 
 // ==================== PRICING SECTION ====================
 function PricingSection({ getSettingValue, setSettingValues, handleSaveSetting, updateSettingMutation }: any) {
+  const renderSettingField = (key: string, label: string, placeholder: string, hint?: string, step?: string) => (
+    <div className="space-y-2">
+      <Label htmlFor={key}>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          id={key}
+          type="number"
+          step={step || "1"}
+          value={getSettingValue(key)}
+          onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, [key]: e.target.value }))}
+          placeholder={placeholder}
+          data-testid={`input-${key}`}
+        />
+        <Button
+          size="icon"
+          onClick={() => handleSaveSetting(key, label)}
+          disabled={updateSettingMutation.isPending}
+          data-testid={`button-save-${key}`}
+        >
+          {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        </Button>
+      </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5" />
-            Preços do Diagnóstico IA
+            Diagnóstico IA e Taxas Gerais
           </CardTitle>
-          <CardDescription>Configure os valores cobrados pelo diagnóstico automático</CardDescription>
+          <CardDescription>Valores cobrados pelo diagnóstico e taxas da plataforma para serviços de reparo</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="ai_diagnosis_price">Preço do Diagnóstico (centavos)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="ai_diagnosis_price"
-                  type="number"
-                  value={getSettingValue("ai_diagnosis_price")}
-                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, ai_diagnosis_price: e.target.value }))}
-                  placeholder="500"
-                  data-testid="input-ai-price"
-                />
-                <Button 
-                  size="icon" 
-                  onClick={() => handleSaveSetting("ai_diagnosis_price", "Preço do diagnóstico IA (centavos)")}
-                  disabled={updateSettingMutation.isPending}
-                  data-testid="button-save-ai-price"
-                >
-                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Valor atual: R$ {(parseInt(getSettingValue("ai_diagnosis_price") || "500") / 100).toFixed(2)}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="service_fee_percent">Taxa sobre Serviços (%)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="service_fee_percent"
-                  type="number"
-                  value={getSettingValue("service_fee_percent")}
-                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, service_fee_percent: e.target.value }))}
-                  placeholder="15"
-                  data-testid="input-service-fee"
-                />
-                <Button 
-                  size="icon" 
-                  onClick={() => handleSaveSetting("service_fee_percent", "Taxa sobre serviços (%)")}
-                  disabled={updateSettingMutation.isPending}
-                  data-testid="button-save-service-fee"
-                >
-                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
+            {renderSettingField("ai_diagnosis_price", "Taxa Diagnóstico IA (centavos)", "1000",
+              `Valor atual: R$ ${(parseInt(getSettingValue("ai_diagnosis_price") || "1000") / 100).toFixed(2)}`)}
+            {renderSettingField("service_fee_percent", "Taxa Plataforma - Reparos (%)", "10",
+              `${getSettingValue("service_fee_percent") || "10"}% sobre mão de obra + materiais`)}
           </div>
         </CardContent>
       </Card>
@@ -1549,53 +1547,80 @@ function PricingSection({ getSettingValue, setSettingValues, handleSaveSetting, 
             <Settings className="h-5 w-5" />
             Multiplicadores SLA
           </CardTitle>
-          <CardDescription>Configure os multiplicadores de preço por prioridade</CardDescription>
+          <CardDescription>Multiplicadores de preço por prioridade de atendimento</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="express_multiplier">Multiplicador Express</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="express_multiplier"
-                  type="number"
-                  step="0.1"
-                  value={getSettingValue("express_multiplier")}
-                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, express_multiplier: e.target.value }))}
-                  placeholder="1.5"
-                />
-                <Button 
-                  size="icon" 
-                  onClick={() => handleSaveSetting("express_multiplier", "Multiplicador Express")}
-                  disabled={updateSettingMutation.isPending}
-                >
-                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Atendimento em até 4h</p>
-            </div>
+            {renderSettingField("express_multiplier", "Multiplicador Express", "1.5", "Atendimento em até 4h", "0.1")}
+            {renderSettingField("urgent_multiplier", "Multiplicador Urgente", "2.0", "Atendimento em até 2h", "0.1")}
+          </div>
+        </CardContent>
+      </Card>
 
-            <div className="space-y-2">
-              <Label htmlFor="urgent_multiplier">Multiplicador Urgente</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="urgent_multiplier"
-                  type="number"
-                  step="0.1"
-                  value={getSettingValue("urgent_multiplier")}
-                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, urgent_multiplier: e.target.value }))}
-                  placeholder="2.0"
-                />
-                <Button 
-                  size="icon" 
-                  onClick={() => handleSaveSetting("urgent_multiplier", "Multiplicador Urgente")}
-                  disabled={updateSettingMutation.isPending}
-                >
-                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Atendimento em até 2h</p>
-            </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Home className="h-5 w-5" />
+            Serviços Domésticos - Preços Base
+          </CardTitle>
+          <CardDescription>Preços base por tamanho do imóvel (em centavos). Ex: 15000 = R$ 150,00</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {renderSettingField("domestic_price_small", "Até 2 quartos (centavos)", "15000",
+              `R$ ${(parseInt(getSettingValue("domestic_price_small") || "15000") / 100).toFixed(2)}`)}
+            {renderSettingField("domestic_price_medium", "3-4 quartos (centavos)", "20000",
+              `R$ ${(parseInt(getSettingValue("domestic_price_medium") || "20000") / 100).toFixed(2)}`)}
+            {renderSettingField("domestic_price_large", "5+ quartos (centavos)", "30000",
+              `R$ ${(parseInt(getSettingValue("domestic_price_large") || "30000") / 100).toFixed(2)}`)}
+            {renderSettingField("domestic_price_commercial", "Comercial/Escritório (centavos)", "25000",
+              `R$ ${(parseInt(getSettingValue("domestic_price_commercial") || "25000") / 100).toFixed(2)}`)}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {renderSettingField("domestic_extra_passing", "Extra: Passar roupa (centavos)", "5000",
+              `R$ ${(parseInt(getSettingValue("domestic_extra_passing") || "5000") / 100).toFixed(2)}`)}
+            {renderSettingField("domestic_extra_cooking", "Extra: Cozinhar (centavos)", "8000",
+              `R$ ${(parseInt(getSettingValue("domestic_extra_cooking") || "8000") / 100).toFixed(2)}`)}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Serviços Domésticos - Multiplicadores
+          </CardTitle>
+          <CardDescription>Multiplicadores por tipo de limpeza e descontos por frequência</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm font-medium text-muted-foreground">Tipo de Serviço</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {renderSettingField("domestic_mult_heavy", "Limpeza Pesada / Pós-obra", "1.8", "Multiplicador sobre preço base", "0.1")}
+            {renderSettingField("domestic_mult_complete", "Limpeza Completa", "1.5", "Multiplicador sobre preço base", "0.1")}
+          </div>
+          <p className="text-sm font-medium text-muted-foreground mt-4">Descontos por Frequência</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {renderSettingField("domestic_freq_daily", "Diária Fixa", "0.80", "-20% desconto", "0.01")}
+            {renderSettingField("domestic_freq_weekly", "Semanal", "0.85", "-15% desconto", "0.01")}
+            {renderSettingField("domestic_freq_biweekly", "Quinzenal", "0.90", "-10% desconto", "0.01")}
+            {renderSettingField("domestic_freq_monthly", "Mensal", "0.95", "-5% desconto", "0.01")}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Taxa Plataforma - Domésticos
+          </CardTitle>
+          <CardDescription>Percentual cobrado sobre o valor do serviço doméstico</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-sm">
+            {renderSettingField("domestic_platform_fee", "Taxa da Plataforma (%)", "15",
+              `${getSettingValue("domestic_platform_fee") || "15"}% sobre o valor calculado`)}
           </div>
         </CardContent>
       </Card>

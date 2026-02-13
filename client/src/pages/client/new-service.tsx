@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { PaymentModal } from "@/components/payment-modal";
@@ -135,7 +135,10 @@ export default function NewService() {
   const [feePaid, setFeePaid] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   
-  const DIAGNOSIS_FEE = 1000; // R$ 10,00 fixo
+  const { data: pricingSettings } = useQuery<{ diagnosisPrice: number; serviceFee: number; expressMultiplier: number; urgentMultiplier: number }>({
+    queryKey: ["/api/settings/pricing"],
+  });
+  const DIAGNOSIS_FEE = pricingSettings?.diagnosisPrice || 1000;
 
   const createAIDiagnosisMutation = useMutation({
     mutationFn: async (data: { 
@@ -219,7 +222,9 @@ export default function NewService() {
 
   const handleDomesticPaymentComplete = (paymentId: number) => {
     if (aiDiagnosis) {
-      const totalAmount = Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10);
+      const basePrice = aiDiagnosis.aiDiagnosis.priceRangeMin;
+      const platformFee = aiDiagnosis.aiDiagnosis.diagnosisFee || Math.round(basePrice * 0.15);
+      const totalAmount = basePrice + platformFee;
       payDomesticServiceMutation.mutate({
         serviceId: aiDiagnosis.service.id,
         method: "pix",
@@ -1011,7 +1016,7 @@ export default function NewService() {
           <PaymentModal
             open={showDomesticPaymentModal}
             onOpenChange={setShowDomesticPaymentModal}
-            amount={Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 1.10)}
+            amount={aiDiagnosis.aiDiagnosis.priceRangeMin + (aiDiagnosis.aiDiagnosis.diagnosisFee || Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 0.15))}
             description={`Serviço: ${aiDiagnosis.service.title}`}
             onPaymentComplete={handleDomesticPaymentComplete}
           />
