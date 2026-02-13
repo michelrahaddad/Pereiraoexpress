@@ -623,3 +623,22 @@ export const serviceMaterials = pgTable("service_materials", {
 export const insertServiceMaterialSchema = createInsertSchema(serviceMaterials).omit({ id: true, createdAt: true });
 export type InsertServiceMaterial = z.infer<typeof insertServiceMaterialSchema>;
 export type ServiceMaterial = typeof serviceMaterials.$inferSelect;
+
+// Perguntas Guiadas por Categoria (gerenciáveis pelo admin)
+export const guidedQuestionTypeEnum = pgEnum("guided_question_type", ["repair", "domestic"]);
+
+export const guidedQuestions = pgTable("guided_questions", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id"),
+  questionType: guidedQuestionTypeEnum("question_type").notNull().default("repair"),
+  questionKey: varchar("question_key", { length: 100 }).notNull(),
+  questionText: text("question_text").notNull(),
+  options: text("options").notNull(), // JSON array of option strings
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertGuidedQuestionSchema = createInsertSchema(guidedQuestions).omit({ id: true, createdAt: true });
+export type InsertGuidedQuestion = z.infer<typeof insertGuidedQuestionSchema>;
+export type GuidedQuestion = typeof guidedQuestions.$inferSelect;
