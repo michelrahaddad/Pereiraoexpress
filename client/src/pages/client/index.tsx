@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { LoadingSkeleton, CardSkeleton } from "@/components/loading-skeleton";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { 
   Plus, 
   MessageSquare, 
@@ -16,7 +18,9 @@ import {
   AlertCircle,
   Wrench,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  ThumbsUp,
+  FileText
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
@@ -44,50 +48,58 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
 
 function ServiceCard({ service }: { service: EnrichedServiceRequest }) {
   const status = statusMap[service.status] || { label: service.status, variant: "secondary" as const, color: "bg-muted" };
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
   
-  // Exibir faixa de preço do diagnóstico IA se disponível
+  const confirmMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/service/${service.id}/confirm`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/service"] });
+      toast({
+        title: "Serviço confirmado!",
+        description: "O pagamento foi liberado ao profissional.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível confirmar. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const hasPriceRange = service.priceRangeMin && service.priceRangeMax;
+  const needsConfirmation = service.status === "awaiting_confirmation";
+  const hasQuote = service.status === "quote_sent" || service.status === "provider_diagnosed";
   
   return (
-    <Card className="group border-2 border-transparent hover:border-primary/20 transition-all duration-300 rounded-2xl overflow-hidden">
-      <Link href={`/client/service/${service.id}`}>
-        <CardContent className="p-5">
+    <Card className={`hover-elevate rounded-md ${needsConfirmation ? "border-amber-500/40 border-2" : hasQuote ? "border-primary/30 border-2" : ""}`}>
+      <CardContent className="p-5">
+        <Link href={`/client/service/${service.id}`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-3">
-                <Badge variant={status.variant} className="rounded-lg">
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                <Badge variant={status.variant}>
                   {status.label}
                 </Badge>
                 {service.slaPriority === "urgent" && (
-                  <Badge variant="destructive" className="rounded-lg">Urgente</Badge>
+                  <Badge variant="destructive">Urgente</Badge>
                 )}
                 {service.slaPriority === "express" && (
-                  <Badge className="bg-accent text-accent-foreground rounded-lg">Express</Badge>
+                  <Badge className="bg-accent text-accent-foreground">Express</Badge>
                 )}
               </div>
-              <h3 className="font-semibold text-lg truncate group-hover:text-primary transition-colors" data-testid={`text-service-title-${service.id}`}>
+              <h3 className="font-semibold text-lg truncate" data-testid={`text-service-title-${service.id}`}>
                 {service.title}
               </h3>
               <p className="text-sm text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
                 {service.description}
               </p>
-              {(service.status === "quote_sent" || service.status === "provider_diagnosed") && (
-                <div className="mt-2 p-2 bg-primary/10 rounded-lg border border-primary/20">
-                  <p className="text-xs font-medium text-primary flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    Orçamento recebido - Toque para ver e aprovar
-                  </p>
-                </div>
-              )}
-              {service.status === "awaiting_confirmation" && (
-                <div className="mt-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    Serviço concluído - Confirme para liberar pagamento
-                  </p>
-                </div>
-              )}
-              <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5" />
                   {new Date(service.createdAt!).toLocaleDateString("pt-BR")}
@@ -103,12 +115,69 @@ function ServiceCard({ service }: { service: EnrichedServiceRequest }) {
                 ) : null}
               </div>
             </div>
-            <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+            {!needsConfirmation && !hasQuote && (
+              <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center">
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+        </Link>
+
+        {needsConfirmation && (
+          <div className="mt-4 p-4 bg-amber-500/10 rounded-md border border-amber-500/20">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              O profissional finalizou o serviço. O pagamento será liberado após sua confirmação.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                className="flex-1 gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirmMutation.mutate();
+                }}
+                disabled={confirmMutation.isPending}
+                data-testid={`button-confirm-service-${service.id}`}
+              >
+                <ThumbsUp className="h-4 w-4" />
+                {confirmMutation.isPending ? "Confirmando..." : "Confirmar execução"}
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/client/service/${service.id}`);
+                }}
+                data-testid={`button-view-details-${service.id}`}
+              >
+                <FileText className="h-4 w-4" />
+                Detalhes
+              </Button>
             </div>
           </div>
-        </CardContent>
-      </Link>
+        )}
+
+        {hasQuote && (
+          <div className="mt-4 p-4 bg-primary/10 rounded-md border border-primary/20">
+            <p className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Orçamento recebido! Veja os detalhes e aprove para iniciar o serviço.
+            </p>
+            <Button
+              className="w-full gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/client/service/${service.id}`);
+              }}
+              data-testid={`button-view-quote-${service.id}`}
+            >
+              <FileText className="h-4 w-4" />
+              Ver orçamento e aprovar
+            </Button>
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
