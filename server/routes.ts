@@ -2660,6 +2660,21 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
       // Atualizar status
       await storage.updateService(serviceId, { status: "awaiting_confirmation" });
 
+      // Notificar cliente que o prestador finalizou o serviço
+      try {
+        if (service.clientId) {
+          await storage.createNotification({
+            userId: service.clientId,
+            type: "service_completed",
+            title: "Serviço finalizado!",
+            message: `O profissional concluiu o serviço "${service.title}". Por favor, confirme a conclusão para liberar o pagamento.`,
+            data: JSON.stringify({ serviceId }),
+          });
+        }
+      } catch (notifError) {
+        console.error("Error creating completion notification:", notifError);
+      }
+
       res.json({ message: "Service completed, awaiting client confirmation" });
     } catch (error) {
       console.error("Error completing service:", error);

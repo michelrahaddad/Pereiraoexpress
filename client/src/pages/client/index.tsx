@@ -226,7 +226,7 @@ export default function ClientDashboard() {
             </p>
           </div>
           
-          <Button asChild className="gap-2 w-full sm:w-auto rounded-xl px-6 py-5 shadow-lg shadow-primary/20" data-testid="button-new-service">
+          <Button asChild size="lg" className="gap-2 w-full sm:w-auto" data-testid="button-new-service">
             <Link href="/client/new">
               <Plus className="h-5 w-5" />
               Pedir serviço
@@ -242,12 +242,12 @@ export default function ClientDashboard() {
           </div>
         ) : services && services.length > 0 ? (
           <Tabs defaultValue="active" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 p-1.5 rounded-2xl h-auto">
-              <TabsTrigger value="active" className="gap-2 py-3 rounded-xl text-sm" data-testid="tab-active">
+            <TabsList className="grid w-full grid-cols-2 mb-8">
+              <TabsTrigger value="active" className="gap-2" data-testid="tab-active">
                 <Wrench className="h-4 w-4" />
                 Ativos ({activeServices.length})
               </TabsTrigger>
-              <TabsTrigger value="completed" className="gap-2 py-3 rounded-xl text-sm" data-testid="tab-completed">
+              <TabsTrigger value="completed" className="gap-2" data-testid="tab-completed">
                 <CheckCircle2 className="h-4 w-4" />
                 Histórico ({completedServices.length})
               </TabsTrigger>
@@ -259,13 +259,13 @@ export default function ClientDashboard() {
                   <ServiceCard key={service.id} service={service} />
                 ))
               ) : (
-                <Card className="rounded-2xl">
+                <Card className="rounded-md">
                   <CardContent className="py-16 text-center">
-                    <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                    <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center mx-auto mb-4">
                       <AlertCircle className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <p className="text-muted-foreground text-lg">Nenhum serviço ativo no momento</p>
-                    <Button asChild className="mt-6 rounded-xl" data-testid="button-create-first">
+                    <Button asChild className="mt-6" data-testid="button-create-first">
                       <Link href="/client/new">Pedir primeiro serviço</Link>
                     </Button>
                   </CardContent>
@@ -279,9 +279,9 @@ export default function ClientDashboard() {
                   <ServiceCard key={service.id} service={service} />
                 ))
               ) : (
-                <Card className="rounded-2xl">
+                <Card className="rounded-md">
                   <CardContent className="py-16 text-center">
-                    <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                    <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center mx-auto mb-4">
                       <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <p className="text-muted-foreground text-lg">Nenhum serviço concluído ainda</p>
@@ -291,10 +291,9 @@ export default function ClientDashboard() {
             </TabsContent>
           </Tabs>
         ) : (
-          <Card className="mt-8 rounded-3xl overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
-            <CardHeader className="text-center pt-12 pb-4 relative">
-              <div className="mx-auto h-20 w-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center mb-6 shadow-xl">
+          <Card className="mt-8 rounded-md">
+            <CardHeader className="text-center pt-12 pb-4">
+              <div className="mx-auto h-20 w-20 rounded-md bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center mb-6">
                 <Sparkles className="h-10 w-10 text-primary-foreground" />
               </div>
               <CardTitle className="text-2xl">Bem-vindo ao Pereirão Express!</CardTitle>
@@ -302,8 +301,8 @@ export default function ClientDashboard() {
                 Descreva seu problema e nossa IA vai ajudar a identificar a solução ideal
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center pb-12 relative">
-              <Button asChild size="lg" className="gap-2 rounded-xl px-8 py-6 shadow-lg shadow-primary/20" data-testid="button-start-first">
+            <CardContent className="text-center pb-12">
+              <Button asChild size="lg" className="gap-2" data-testid="button-start-first">
                 <Link href="/client/new">
                   <MessageSquare className="h-5 w-5" />
                   Descrever meu problema
