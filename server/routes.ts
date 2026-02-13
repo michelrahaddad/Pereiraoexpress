@@ -5,7 +5,7 @@ import { setupLocalAuth, isLocalAuthenticated } from "./auth/localAuth";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "./db";
 import { users, userProfiles } from "@shared/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, desc } from "drizzle-orm";
 import { serviceRequests, serviceCategories } from "@shared/schema";
 import { z } from "zod";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
@@ -1562,8 +1562,27 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
 
   app.get("/api/admin/users", isAuthenticated, isAdmin, async (req, res) => {
     try {
-      const profiles = await storage.getAllUserProfiles();
-      res.json(profiles);
+      const results = await db.select({
+        profile: userProfiles,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        cpf: users.cpf,
+        age: users.age,
+      })
+        .from(userProfiles)
+        .leftJoin(users, eq(userProfiles.userId, users.id))
+        .orderBy(desc(userProfiles.createdAt));
+      
+      const enriched = results.map(r => ({
+        ...r.profile,
+        email: r.email,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        cpf: r.cpf,
+        age: r.age,
+      }));
+      res.json(enriched);
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ error: "Failed to fetch users" });
@@ -1579,6 +1598,42 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
     } catch (error) {
       console.error("Error updating user role:", error);
       res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
+  // Edit user data from admin panel
+  app.patch("/api/admin/users/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const { firstName, lastName, email, phone, city, cpf, age, specialties, role } = req.body;
+
+      const userUpdates: any = {};
+      if (firstName !== undefined) userUpdates.firstName = firstName;
+      if (lastName !== undefined) userUpdates.lastName = lastName;
+      if (email !== undefined) userUpdates.email = email;
+      if (cpf !== undefined) userUpdates.cpf = cpf;
+      if (age !== undefined) userUpdates.age = age ? parseInt(age) : null;
+      if (phone !== undefined) userUpdates.phone = phone;
+      if (city !== undefined) userUpdates.city = city;
+
+      if (Object.keys(userUpdates).length > 0) {
+        await db.update(users).set(userUpdates).where(eq(users.id, userId));
+      }
+
+      const profileUpdates: any = {};
+      if (phone !== undefined) profileUpdates.phone = phone;
+      if (city !== undefined) profileUpdates.city = city;
+      if (specialties !== undefined) profileUpdates.specialties = specialties;
+      if (role !== undefined) profileUpdates.role = role;
+
+      if (Object.keys(profileUpdates).length > 0) {
+        await storage.updateUserProfile(userId, profileUpdates);
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: error.message || "Erro ao atualizar usuário" });
     }
   });
 

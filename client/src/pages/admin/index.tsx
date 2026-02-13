@@ -71,6 +71,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -175,6 +176,18 @@ export default function AdminDashboard() {
     specialties: "",
   });
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    city: "",
+    cpf: "",
+    age: "",
+    specialties: "",
+    role: "client" as string,
+  });
 
   const isAdmin = user?.role === "admin";
 
@@ -206,12 +219,16 @@ export default function AdminDashboard() {
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     
-    return users.filter(u => {
+    return users.filter((u: any) => {
       const matchesCity = cityFilter === "Todas" || u.city === cityFilter;
       const matchesRole = roleFilter === "all" || u.role === roleFilter;
+      const term = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === "" || 
-        u.userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.phone && u.phone.includes(searchTerm));
+        u.userId.toLowerCase().includes(term) ||
+        (u.phone && u.phone.includes(searchTerm)) ||
+        (u.email && u.email.toLowerCase().includes(term)) ||
+        (u.firstName && u.firstName.toLowerCase().includes(term)) ||
+        (u.lastName && u.lastName.toLowerCase().includes(term));
       
       return matchesCity && matchesRole && matchesSearch;
     });
@@ -320,6 +337,48 @@ export default function AdminDashboard() {
       });
     },
   });
+
+  const editUserMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: string; data: typeof editForm }) => {
+      return apiRequest("PATCH", `/api/admin/users/${userId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/providers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clients"] });
+      toast({ title: "Usuário atualizado com sucesso!" });
+      setEditingUser(null);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erro ao atualizar usuário", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const handleOpenEdit = (profile: any) => {
+    setEditForm({
+      firstName: profile.firstName || "",
+      lastName: profile.lastName || "",
+      email: profile.email || "",
+      phone: profile.phone || "",
+      city: profile.city || "",
+      cpf: profile.cpf || "",
+      age: profile.age ? String(profile.age) : "",
+      specialties: profile.specialties || "",
+      role: profile.role || "client",
+    });
+    setEditingUser(profile);
+  };
+
+  const handleSubmitEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingUser) {
+      editUserMutation.mutate({ userId: editingUser.userId, data: editForm });
+    }
+  };
 
   const updateDocumentStatusMutation = useMutation({
     mutationFn: async ({ userId, status, notes }: { userId: string; status: "approved" | "rejected"; notes?: string }) => {
@@ -682,6 +741,13 @@ export default function AdminDashboard() {
                 deleteUserMutation={deleteUserMutation}
                 deleteConfirmUserId={deleteConfirmUserId}
                 setDeleteConfirmUserId={setDeleteConfirmUserId}
+                editUserMutation={editUserMutation}
+                editingUser={editingUser}
+                setEditingUser={setEditingUser}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                handleOpenEdit={handleOpenEdit}
+                handleSubmitEdit={handleSubmitEdit}
               />
             )}
             {activeSection === "documents" && (
@@ -813,6 +879,7 @@ function DashboardSection({ stats, statsLoading }: { stats?: AdminStats; statsLo
 function UsersSection({
   users, filteredUsers, usersLoading, cityFilter, setCityFilter, roleFilter, setRoleFilter, searchTerm, setSearchTerm, updateRoleMutation,
   deleteUserMutation, deleteConfirmUserId, setDeleteConfirmUserId,
+  editUserMutation, editingUser, setEditingUser, editForm, setEditForm, handleOpenEdit, handleSubmitEdit,
 }: any) {
   return (
     <Card>
@@ -829,7 +896,7 @@ function UsersSection({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por ID ou telefone..."
+                placeholder="Buscar por nome, email ou telefone..."
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e: any) => setSearchTerm(e.target.value)}
@@ -875,7 +942,7 @@ function UsersSection({
             {filteredUsers.map((profile: any) => (
               <div 
                 key={profile.id} 
-                className="flex items-center justify-between gap-3 p-4 border rounded-xl flex-wrap"
+                className="flex items-center justify-between gap-3 p-4 border rounded-md flex-wrap"
                 data-testid={`user-row-${profile.userId}`}
               >
                 <div className="flex items-center gap-3">
@@ -889,8 +956,14 @@ function UsersSection({
                     )}
                   </div>
                   <div>
-                    <p className="font-medium">{profile.userId.substring(0, 8)}...</p>
+                    <p className="font-medium">
+                      {profile.firstName && profile.lastName 
+                        ? `${profile.firstName} ${profile.lastName}` 
+                        : profile.userId.substring(0, 8) + "..."}
+                    </p>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                      {profile.email && <span>{profile.email}</span>}
+                      {profile.email && profile.phone && <span>•</span>}
                       <span>{profile.phone || "Sem telefone"}</span>
                       {profile.city && (
                         <>
@@ -904,7 +977,7 @@ function UsersSection({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   {profile.role === "provider" && (
                     <Badge variant={
                       profile.documentStatus === "approved" ? "default" :
@@ -916,13 +989,6 @@ function UsersSection({
                        "Pendente"}
                     </Badge>
                   )}
-                  <Badge variant={
-                    profile.role === "admin" ? "default" : 
-                    profile.role === "provider" ? "secondary" : 
-                    "outline"
-                  }>
-                    {profile.role === "admin" ? "Admin" : profile.role === "provider" ? "Prestador" : "Cliente"}
-                  </Badge>
                   <Select
                     value={profile.role}
                     onValueChange={(value: string) => updateRoleMutation.mutate({ userId: profile.userId, role: value })}
@@ -939,6 +1005,14 @@ function UsersSection({
                   <Button
                     size="icon"
                     variant="ghost"
+                    onClick={() => handleOpenEdit(profile)}
+                    data-testid={`button-edit-user-${profile.userId}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
                     className="text-destructive"
                     onClick={() => setDeleteConfirmUserId(profile.userId)}
                     data-testid={`button-delete-user-${profile.userId}`}
@@ -952,6 +1026,137 @@ function UsersSection({
         ) : (
           <p className="text-center text-muted-foreground py-8">Nenhum usuário encontrado</p>
         )}
+
+        <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+              <DialogDescription>
+                Altere os dados cadastrais do usuário
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmitEdit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-firstName">Nome</Label>
+                  <Input
+                    id="edit-firstName"
+                    value={editForm.firstName}
+                    onChange={(e: any) => setEditForm({ ...editForm, firstName: e.target.value })}
+                    data-testid="input-edit-firstname"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lastName">Sobrenome</Label>
+                  <Input
+                    id="edit-lastName"
+                    value={editForm.lastName}
+                    onChange={(e: any) => setEditForm({ ...editForm, lastName: e.target.value })}
+                    data-testid="input-edit-lastname"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })}
+                  data-testid="input-edit-email"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Telefone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editForm.phone}
+                  onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })}
+                  placeholder="(00) 00000-0000"
+                  data-testid="input-edit-phone"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Cidade</Label>
+                <CityAutocomplete
+                  value={editForm.city}
+                  onChange={(value: string) => setEditForm({ ...editForm, city: value })}
+                  data-testid="input-edit-city"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-cpf">CPF</Label>
+                  <Input
+                    id="edit-cpf"
+                    value={editForm.cpf}
+                    onChange={(e: any) => setEditForm({ ...editForm, cpf: e.target.value })}
+                    placeholder="000.000.000-00"
+                    data-testid="input-edit-cpf"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-age">Idade</Label>
+                  <Input
+                    id="edit-age"
+                    type="number"
+                    value={editForm.age}
+                    onChange={(e: any) => setEditForm({ ...editForm, age: e.target.value })}
+                    data-testid="input-edit-age"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">Tipo de Usuário</Label>
+                <Select
+                  value={editForm.role}
+                  onValueChange={(value: string) => setEditForm({ ...editForm, role: value })}
+                >
+                  <SelectTrigger data-testid="select-edit-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="client">Cliente</SelectItem>
+                    <SelectItem value="provider">Prestador</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(editForm.role === "provider") && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-specialties">Especialidades</Label>
+                  <Input
+                    id="edit-specialties"
+                    value={editForm.specialties}
+                    onChange={(e: any) => setEditForm({ ...editForm, specialties: e.target.value })}
+                    placeholder="Eletricista, Encanador, Pintor..."
+                    data-testid="input-edit-specialties"
+                  />
+                  <p className="text-xs text-muted-foreground">Separe as especialidades por vírgula</p>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={editUserMutation.isPending}
+                data-testid="button-submit-edit-user"
+              >
+                {editUserMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Salvar Alterações"
+                )}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <AlertDialog open={!!deleteConfirmUserId} onOpenChange={(open) => !open && setDeleteConfirmUserId(null)}>
           <AlertDialogContent>
