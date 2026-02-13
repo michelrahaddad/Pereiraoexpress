@@ -175,6 +175,7 @@ export interface IStorage {
   // Reference Prices (SINAPI, regional, market)
   getReferencePrices(filters?: { categoryId?: number; state?: string; city?: string; itemType?: string }): Promise<ReferencePrice[]>;
   getReferencePricesByKeywords(keywords: string[], state?: string): Promise<ReferencePrice[]>;
+  getReferencePricesByCategoryId(categoryId: number): Promise<ReferencePrice[]>;
   createReferencePrice(data: InsertReferencePrice): Promise<ReferencePrice>;
   updateReferencePrice(id: number, data: Partial<InsertReferencePrice>): Promise<ReferencePrice | undefined>;
   deleteReferencePrice(id: number): Promise<void>;
@@ -848,6 +849,16 @@ class DatabaseStorage implements IStorage {
       .limit(20);
   }
   
+  async getReferencePricesByCategoryId(categoryId: number): Promise<ReferencePrice[]> {
+    return db.select().from(referencePrices)
+      .where(and(
+        eq(referencePrices.isActive, true),
+        eq(referencePrices.categoryId, categoryId)
+      ))
+      .orderBy(referencePrices.name)
+      .limit(30);
+  }
+
   async createReferencePrice(data: InsertReferencePrice): Promise<ReferencePrice> {
     const [price] = await db.insert(referencePrices).values(data).returning();
     return price;

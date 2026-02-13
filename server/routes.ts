@@ -814,12 +814,24 @@ export async function registerRoutes(
           }
         }
         
-        // Buscar preços de referência relevantes usando palavras do texto
-        const textKeywords = fullText.split(/\s+/).filter(w => w.length > 3);
-        const referencePriceData = await storage.getReferencePricesByKeywords(textKeywords);
+        // Buscar preços de referência: primeiro por categoryId, depois complementar por keywords
+        let referencePriceData: any[] = [];
+        if (categoryId) {
+          referencePriceData = await storage.getReferencePricesByCategoryId(categoryId);
+        }
+        if (referencePriceData.length < 5) {
+          const textKeywords = fullText.split(/\s+/).filter(w => w.length > 3);
+          if (textKeywords.length > 0) {
+            const keywordPrices = await storage.getReferencePricesByKeywords(textKeywords);
+            const existingIds = new Set(referencePriceData.map(r => r.id));
+            for (const kp of keywordPrices) {
+              if (!existingIds.has(kp.id)) referencePriceData.push(kp);
+            }
+          }
+        }
         if (referencePriceData.length > 0) {
-          knowledgeBaseContext += `\n\nPREÇOS DE REFERÊNCIA (SINAPI/Mercado Regional):\n`;
-          for (const rp of referencePriceData.slice(0, 10)) {
+          knowledgeBaseContext += `\n\nPREÇOS DE REFERÊNCIA SINAPI/MERCADO REGIONAL (OBRIGATÓRIO - use estes valores como base):\n`;
+          for (const rp of referencePriceData.slice(0, 15)) {
             const priceMin = rp.priceMin / 100;
             const priceMax = rp.priceMax ? rp.priceMax / 100 : priceMin * 1.5;
             const priceAvg = rp.priceAvg ? rp.priceAvg / 100 : (priceMin + priceMax) / 2;
@@ -832,7 +844,7 @@ export async function registerRoutes(
             }
             knowledgeBaseContext += `\n`;
           }
-          knowledgeBaseContext += `\nUSE estes preços como referência para suas estimativas. Ajuste conforme complexidade do problema.`;
+          knowledgeBaseContext += `\nIMPORTANTE: Você DEVE usar estes preços SINAPI/regionais como base para suas estimativas. NÃO invente valores. Ajuste apenas conforme complexidade específica do problema descrito.`;
         }
       } catch (err) {
         console.error("Error fetching knowledge base:", err);
@@ -997,7 +1009,8 @@ Quando o cliente CONFIRMAR (responder sim/pode/ok/claro), adicione o diagnóstic
 }
 ###END_DIAGNOSIS###
 
-Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.`;
+Preços em centavos. Express = 1.5x, Urgente = 2x do Standard.
+REGRA CRUCIAL DE PREÇOS: Seus preços estimados DEVEM ser baseados nos PREÇOS DE REFERÊNCIA SINAPI/MERCADO REGIONAL fornecidos acima. NÃO invente valores. Se houver preços SINAPI disponíveis, use-os como base e ajuste conforme a complexidade do problema específico.`;
 
       const chatMessages: any[] = [
         { role: "user", parts: [{ text: systemPrompt }] },
@@ -1903,29 +1916,35 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
           a.question?.includes("tipo") || a.question?.includes("problema")
         )?.answer || "";
         
-        // Categorias: 1=Encanamento, 2=Elétrica, 3=Pintura, 4=Marcenaria, 5=Ar Condicionado, 6=Limpeza, 7=Passadeira
+        // Categorias: 1=Encanamento, 2=Elétrica, 3=Pintura, 4=Marcenaria, 5=Ar Condicionado, 6=Limpeza, 7=Passadeira, 8=Chaveiro, 9=Portões
         if (serviceTypeAnswer.includes("Empregada") || serviceTypeAnswer.includes("Doméstica") || serviceTypeAnswer.includes("Limpeza") || serviceTypeAnswer.includes("Faxina")) {
-          return 6; // Limpeza
+          return 6;
         }
         if (serviceTypeAnswer.includes("Passadeira") || serviceTypeAnswer.includes("Passar roupa")) {
-          return 7; // Passadeira
+          return 7;
         }
         if (serviceTypeAnswer.includes("Elétrica") || serviceTypeAnswer.includes("eletricista")) {
-          return 2; // Elétrica
+          return 2;
         }
         if (serviceTypeAnswer.includes("Hidráulica") || serviceTypeAnswer.includes("Encanamento") || serviceTypeAnswer.includes("encanador")) {
-          return 1; // Encanamento
+          return 1;
         }
         if (serviceTypeAnswer.includes("Pintura") || serviceTypeAnswer.includes("pintor")) {
-          return 3; // Pintura
+          return 3;
         }
-        if (serviceTypeAnswer.includes("Marcenaria") || serviceTypeAnswer.includes("marceneiro")) {
-          return 4; // Marcenaria
+        if (serviceTypeAnswer.includes("Marcenaria") || serviceTypeAnswer.includes("marceneiro") || serviceTypeAnswer.includes("Reforma")) {
+          return 4;
         }
         if (serviceTypeAnswer.includes("Ar condicionado") || serviceTypeAnswer.includes("ar-condicionado") || serviceTypeAnswer.includes("climatização")) {
-          return 5; // Ar Condicionado
+          return 5;
         }
-        return categoryId || 1; // Default para Encanamento
+        if (serviceTypeAnswer.includes("Chaveiro") || serviceTypeAnswer.includes("fechadura") || serviceTypeAnswer.includes("chave")) {
+          return 8;
+        }
+        if (serviceTypeAnswer.includes("Portões") || serviceTypeAnswer.includes("portão") || serviceTypeAnswer.includes("Portão")) {
+          return 9;
+        }
+        return categoryId || 1;
       };
 
       // Verificar se é serviço doméstico (cálculo direto, sem IA)
@@ -2031,16 +2050,90 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         slaPriority: "standard",
       });
 
-      // Preparar prompt para IA (apenas para reparos)
-      const systemPrompt = `Você é um especialista em diagnóstico de problemas residenciais. Analise a descrição do problema e forneça:
+      // Buscar contexto de conhecimento para enriquecer diagnóstico
+      let diagnosisKnowledgeContext = "";
+      try {
+        const normalizeForDiagnosis = (text: string): string => {
+          return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        };
+        const safeJsonParseDiag = (str: string | null): any[] => {
+          if (!str) return [];
+          try { const parsed = JSON.parse(str); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+        };
+        const descNormalized = normalizeForDiagnosis(description || "");
 
+        // 1. Buscar SINAPI por categoryId
+        const categoryPrices = await storage.getReferencePricesByCategoryId(resolvedCategoryId);
+        if (categoryPrices.length > 0) {
+          diagnosisKnowledgeContext += `\nPREÇOS DE REFERÊNCIA SINAPI/MERCADO REGIONAL (USE OBRIGATORIAMENTE como base para estimativas):\n`;
+          for (const rp of categoryPrices.slice(0, 20)) {
+            const pMin = rp.priceMin / 100;
+            const pMax = rp.priceMax ? rp.priceMax / 100 : pMin * 1.5;
+            diagnosisKnowledgeContext += `- ${rp.name} (${rp.unit}): R$ ${pMin.toFixed(2)} - R$ ${pMax.toFixed(2)}`;
+            if (rp.laborPercent) diagnosisKnowledgeContext += ` [${rp.laborPercent}% mão de obra]`;
+            if (rp.source === "sinapi") diagnosisKnowledgeContext += ` [SINAPI]`;
+            diagnosisKnowledgeContext += `\n`;
+          }
+        }
+
+        // 2. Buscar sintomas relevantes
+        const allSymptoms = await storage.getSymptoms();
+        const relevantSymptoms = allSymptoms.filter(s => {
+          if (s.categoryId !== resolvedCategoryId) return false;
+          const keywords = safeJsonParseDiag(s.keywords);
+          return keywords.some(kw => descNormalized.includes(normalizeForDiagnosis(kw)));
+        });
+        if (relevantSymptoms.length > 0) {
+          diagnosisKnowledgeContext += `\nSINTOMAS IDENTIFICADOS:\n`;
+          for (const sym of relevantSymptoms.slice(0, 3)) {
+            const detail = await storage.getSymptomWithDetails(sym.id);
+            if (detail) {
+              diagnosisKnowledgeContext += `- ${detail.name}: ${detail.description || ""}\n`;
+              if (detail.diagnoses && detail.diagnoses.length > 0) {
+                for (const d of detail.diagnoses.slice(0, 2)) {
+                  diagnosisKnowledgeContext += `  Diagnóstico: ${d.title} - ${d.description}`;
+                  if (d.estimatedPriceMin && d.estimatedPriceMax) {
+                    diagnosisKnowledgeContext += ` (R$ ${d.estimatedPriceMin / 100} - R$ ${d.estimatedPriceMax / 100})`;
+                  }
+                  const mats = safeJsonParseDiag(d.providerMaterials);
+                  if (mats.length > 0) diagnosisKnowledgeContext += ` Materiais: ${mats.join(", ")}`;
+                  diagnosisKnowledgeContext += `\n`;
+                }
+              }
+            }
+          }
+        }
+
+        // 3. Buscar treinamento IA da categoria
+        const trainingConfig = await storage.getAiTrainingConfigByCategory(resolvedCategoryId);
+        if (trainingConfig && trainingConfig.isActive) {
+          const tips = safeJsonParseDiag(trainingConfig.diagnosisTips);
+          if (tips.length > 0) {
+            diagnosisKnowledgeContext += `\nDICAS TÉCNICAS:\n`;
+            for (const tip of tips) diagnosisKnowledgeContext += `- ${tip}\n`;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching diagnosis knowledge context:", err);
+      }
+
+      // Preparar prompt para IA (reparos com contexto completo)
+      const systemPrompt = `Você é um especialista em diagnóstico de problemas residenciais do Pereirão Express. Analise a descrição do problema e forneça um diagnóstico preciso.
+${diagnosisKnowledgeContext}
+REGRAS DE PRECIFICAÇÃO:
+- Você DEVE basear seus preços nos valores SINAPI/regionais acima. NÃO invente preços.
+- Se encontrou preços de referência, use-os como base e ajuste pela complexidade.
+- Se encontrou diagnósticos de sintomas com faixas de preço, use essas faixas.
+- Preços em centavos (R$150,00 = 15000 centavos).
+
+Forneça:
 1. Classificação do tipo de serviço
 2. Nível de urgência (baixa, média, alta, urgente)
 3. Tempo estimado de execução
 4. Materiais provavelmente necessários
-5. Faixa de preço estimada (mínimo e máximo em centavos)
+5. Faixa de preço estimada (mínimo e máximo em centavos) baseada nos preços SINAPI/regionais
 
-Responda em JSON com este formato:
+Responda APENAS em JSON com este formato:
 {
   "classification": "tipo de serviço",
   "urgencyLevel": "média",

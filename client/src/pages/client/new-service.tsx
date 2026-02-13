@@ -63,11 +63,25 @@ interface ServiceWithDiagnosis {
   diagnosisFee: number;
 }
 
+const SERVICE_TYPE_TO_CATEGORY: Record<string, number> = {
+  "Hidráulica": 1,
+  "Elétrica": 2,
+  "Pintura": 3,
+  "Marcenaria": 4,
+  "Ar condicionado": 5,
+  "Limpeza": 6,
+  "Empregada Doméstica": 6,
+  "Passadeira": 7,
+  "Chaveiro": 8,
+  "Portões": 9,
+  "Reforma": 4,
+};
+
 const GUIDED_QUESTIONS_REPAIR = [
   {
     id: "problem_type",
     question: "Qual tipo de problema você está enfrentando?",
-    options: ["Elétrica", "Hidráulica", "Pintura", "Reforma", "Ar condicionado", "Empregada Doméstica", "Passadeira", "Outro"]
+    options: ["Elétrica", "Hidráulica", "Pintura", "Marcenaria", "Ar condicionado", "Chaveiro", "Portões", "Empregada Doméstica", "Passadeira", "Outro"]
   },
   {
     id: "urgency",
@@ -377,6 +391,9 @@ export default function NewService() {
     setIsStreaming(true);
 
     try {
+      const serviceTypeAnswer = guidedAnswers.find(a => a.question.includes("tipo") || a.question.includes("problema"))?.answer || "";
+      const resolvedCategoryId = SERVICE_TYPE_TO_CATEGORY[serviceTypeAnswer] || undefined;
+
       const response = await fetch("/api/ai/diagnose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -385,6 +402,7 @@ export default function NewService() {
           imageBase64: selectedImage,
           conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
           guidedContext: guidedAnswers,
+          categoryId: resolvedCategoryId,
         }),
       });
 
