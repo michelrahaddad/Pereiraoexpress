@@ -33,6 +33,8 @@ import {
   type PushSubscription, type InsertPushSubscription,
   aiTrainingConfigs,
   type AiTrainingConfig, type InsertAiTrainingConfig,
+  guidedQuestions,
+  type GuidedQuestion, type InsertGuidedQuestion,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { db } from "./db";
@@ -1035,6 +1037,33 @@ class DatabaseStorage implements IStorage {
     await db.delete(conversations).where(eq(conversations.userId, userId));
     await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
     await db.delete(users).where(eq(users.id, userId));
+  }
+
+  async getGuidedQuestions(): Promise<GuidedQuestion[]> {
+    return db.select().from(guidedQuestions).orderBy(guidedQuestions.questionType, guidedQuestions.sortOrder);
+  }
+
+  async getGuidedQuestionsByType(questionType: string): Promise<GuidedQuestion[]> {
+    return db.select().from(guidedQuestions)
+      .where(and(
+        eq(guidedQuestions.questionType, questionType as any),
+        eq(guidedQuestions.isActive, true)
+      ))
+      .orderBy(guidedQuestions.sortOrder);
+  }
+
+  async createGuidedQuestion(data: InsertGuidedQuestion): Promise<GuidedQuestion> {
+    const [q] = await db.insert(guidedQuestions).values(data).returning();
+    return q;
+  }
+
+  async updateGuidedQuestion(id: number, data: Partial<InsertGuidedQuestion>): Promise<GuidedQuestion | undefined> {
+    const [q] = await db.update(guidedQuestions).set(data).where(eq(guidedQuestions.id, id)).returning();
+    return q;
+  }
+
+  async deleteGuidedQuestion(id: number): Promise<void> {
+    await db.delete(guidedQuestions).where(eq(guidedQuestions.id, id));
   }
 }
 
