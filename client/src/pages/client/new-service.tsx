@@ -77,40 +77,16 @@ const SERVICE_TYPE_TO_CATEGORY: Record<string, number> = {
   "Reforma": 4,
 };
 
-const GUIDED_QUESTIONS_REPAIR = [
-  {
-    id: "problem_type",
-    question: "Qual tipo de problema você está enfrentando?",
-    options: ["Elétrica", "Hidráulica", "Pintura", "Marcenaria", "Ar condicionado", "Chaveiro", "Portões", "Empregada Doméstica", "Passadeira", "Outro"]
-  },
-  {
-    id: "urgency",
-    question: "Qual a urgência do problema?",
-    options: ["Não é urgente", "Preciso resolver esta semana", "Preciso resolver hoje", "É emergência!"]
-  },
-  {
-    id: "location",
-    question: "Onde está o problema?",
-    options: ["Sala", "Quarto", "Cozinha", "Banheiro", "Área externa", "Outro"]
-  }
+const FALLBACK_QUESTIONS_REPAIR = [
+  { id: "problem_type", question: "Qual tipo de problema você está enfrentando?", options: ["Elétrica", "Hidráulica", "Pintura", "Marcenaria", "Ar condicionado", "Chaveiro", "Portões", "Empregada Doméstica", "Passadeira", "Outro"] },
+  { id: "urgency", question: "Qual a urgência do problema?", options: ["Não é urgente", "Preciso resolver esta semana", "Preciso resolver hoje", "É emergência!"] },
+  { id: "location", question: "Onde está o problema?", options: ["Sala", "Quarto", "Cozinha", "Banheiro", "Área externa", "Outro"] },
 ];
 
-const GUIDED_QUESTIONS_DOMESTIC = [
-  {
-    id: "house_size",
-    question: "Qual o tamanho da sua casa?",
-    options: ["Apartamento pequeno (1-2 quartos)", "Casa média (3-4 quartos)", "Casa grande (5+ quartos)", "Escritório/Comercial"]
-  },
-  {
-    id: "service_type",
-    question: "Qual tipo de serviço você precisa?",
-    options: ["Limpeza geral", "Limpeza pesada/pós-obra", "Passar roupa", "Cozinhar", "Serviço completo (limpeza + passar + cozinhar)"]
-  },
-  {
-    id: "frequency",
-    question: "Com que frequência você precisa?",
-    options: ["Só uma vez (avulso)", "Mensal", "Quinzenal", "Semanal", "Diária fixa"]
-  }
+const FALLBACK_QUESTIONS_DOMESTIC = [
+  { id: "house_size", question: "Qual o tamanho da sua casa?", options: ["Apartamento pequeno (1-2 quartos)", "Casa média (3-4 quartos)", "Casa grande (5+ quartos)", "Escritório/Comercial"] },
+  { id: "service_type", question: "Qual tipo de serviço você precisa?", options: ["Limpeza geral", "Limpeza pesada/pós-obra", "Passar roupa", "Cozinhar", "Serviço completo (limpeza + passar + cozinhar)"] },
+  { id: "frequency", question: "Com que frequência você precisa?", options: ["Só uma vez (avulso)", "Mensal", "Quinzenal", "Semanal", "Diária fixa"] },
 ];
 
 function cleanMessageContent(content: string): string {
@@ -153,6 +129,31 @@ export default function NewService() {
     queryKey: ["/api/settings/pricing"],
   });
   const DIAGNOSIS_FEE = pricingSettings?.diagnosisPrice || 1000;
+
+  const { data: apiRepairQuestions } = useQuery<any[]>({
+    queryKey: ["/api/guided-questions", "repair"],
+    queryFn: async () => {
+      const res = await fetch("/api/guided-questions/repair");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+  const { data: apiDomesticQuestions } = useQuery<any[]>({
+    queryKey: ["/api/guided-questions", "domestic"],
+    queryFn: async () => {
+      const res = await fetch("/api/guided-questions/domestic");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const GUIDED_QUESTIONS_REPAIR = (apiRepairQuestions && apiRepairQuestions.length > 0)
+    ? apiRepairQuestions.map(q => ({ id: q.questionKey, question: q.questionText, options: q.options }))
+    : FALLBACK_QUESTIONS_REPAIR;
+
+  const GUIDED_QUESTIONS_DOMESTIC = (apiDomesticQuestions && apiDomesticQuestions.length > 0)
+    ? apiDomesticQuestions.map(q => ({ id: q.questionKey, question: q.questionText, options: q.options }))
+    : FALLBACK_QUESTIONS_DOMESTIC;
 
   const createAIDiagnosisMutation = useMutation({
     mutationFn: async (data: { 

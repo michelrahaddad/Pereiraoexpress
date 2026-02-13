@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Header } from "@/components/header";
 import { AiTrainingManager } from "@/components/admin/ai-training-manager";
+import { GuidedQuestionsManager } from "@/components/admin/guided-questions-manager";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ import {
   Trash2,
   Pencil,
   Home,
+  HelpCircle,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -151,6 +153,7 @@ type AdminSection =
   | "antifraud" 
   | "symptoms" 
   | "ai-training" 
+  | "guided-questions"
   | "backup";
 
 interface NavGroup {
@@ -475,6 +478,7 @@ export default function AdminDashboard() {
     {
       label: "Inteligência Artificial",
       items: [
+        { id: "guided-questions", label: "Perguntas Guiadas", icon: HelpCircle },
         { id: "symptoms", label: "Sintomas IA", icon: Sparkles },
         { id: "ai-training", label: "Treinamento IA", icon: Brain },
       ],
@@ -840,6 +844,7 @@ export default function AdminDashboard() {
               <ClientsSection clientsData={clientsData} clientsLoading={clientsLoading} />
             )}
             {activeSection === "reference-prices" && <ReferencePricesManager />}
+            {activeSection === "guided-questions" && <GuidedQuestionsManager />}
             {activeSection === "ai-training" && <AiTrainingManager />}
             </div>
           </main>

@@ -2932,6 +2932,168 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
     }
   });
 
+  // ==================== PERGUNTAS GUIADAS ====================
+
+  // Público: Listar perguntas ativas por tipo (repair/domestic)
+  app.get("/api/guided-questions/:type", async (req, res) => {
+    try {
+      const questionType = req.params.type as string;
+      const questions = await storage.getGuidedQuestionsByType(questionType);
+      const parsed = questions.map(q => ({
+        ...q,
+        options: JSON.parse(q.options || "[]"),
+      }));
+      res.json(parsed);
+    } catch (error) {
+      console.error("Error fetching guided questions:", error);
+      res.status(500).json({ error: "Failed to fetch guided questions" });
+    }
+  });
+
+  // Admin: Listar todas as perguntas
+  app.get("/api/admin/guided-questions", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const questions = await storage.getGuidedQuestions();
+      const parsed = questions.map(q => ({
+        ...q,
+        options: JSON.parse(q.options || "[]"),
+      }));
+      res.json(parsed);
+    } catch (error) {
+      console.error("Error fetching guided questions:", error);
+      res.status(500).json({ error: "Failed to fetch guided questions" });
+    }
+  });
+
+  // Admin: Criar pergunta
+  app.post("/api/admin/guided-questions", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { questionKey, questionText, options, questionType, categoryId, sortOrder, isActive } = req.body;
+      const q = await storage.createGuidedQuestion({
+        questionKey,
+        questionText,
+        options: JSON.stringify(options || []),
+        questionType: questionType || "repair",
+        categoryId: categoryId || null,
+        sortOrder: sortOrder || 0,
+        isActive: isActive !== false,
+      });
+      res.json({ ...q, options: JSON.parse(q.options || "[]") });
+    } catch (error) {
+      console.error("Error creating guided question:", error);
+      res.status(500).json({ error: "Failed to create guided question" });
+    }
+  });
+
+  // Admin: Atualizar pergunta
+  app.put("/api/admin/guided-questions/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      const { questionKey, questionText, options, questionType, categoryId, sortOrder, isActive } = req.body;
+      const updateData: any = {};
+      if (questionKey !== undefined) updateData.questionKey = questionKey;
+      if (questionText !== undefined) updateData.questionText = questionText;
+      if (options !== undefined) updateData.options = JSON.stringify(options);
+      if (questionType !== undefined) updateData.questionType = questionType;
+      if (categoryId !== undefined) updateData.categoryId = categoryId;
+      if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      const q = await storage.updateGuidedQuestion(id, updateData);
+      if (!q) return res.status(404).json({ error: "Question not found" });
+      res.json({ ...q, options: JSON.parse(q.options || "[]") });
+    } catch (error) {
+      console.error("Error updating guided question:", error);
+      res.status(500).json({ error: "Failed to update guided question" });
+    }
+  });
+
+  // Admin: Deletar pergunta
+  app.delete("/api/admin/guided-questions/:id", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id as string);
+      await storage.deleteGuidedQuestion(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting guided question:", error);
+      res.status(500).json({ error: "Failed to delete guided question" });
+    }
+  });
+
+  // Admin: Seed perguntas padrão
+  app.post("/api/admin/guided-questions/seed", isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const existing = await storage.getGuidedQuestions();
+      if (existing.length > 0) {
+        return res.json({ message: "Perguntas já existem", count: existing.length });
+      }
+      const defaultQuestions = [
+        {
+          questionKey: "problem_type",
+          questionText: "Qual tipo de problema você está enfrentando?",
+          options: JSON.stringify(["Elétrica", "Hidráulica", "Pintura", "Marcenaria", "Ar condicionado", "Chaveiro", "Portões", "Empregada Doméstica", "Passadeira", "Outro"]),
+          questionType: "repair" as const,
+          categoryId: null,
+          sortOrder: 1,
+          isActive: true,
+        },
+        {
+          questionKey: "urgency",
+          questionText: "Qual a urgência do problema?",
+          options: JSON.stringify(["Não é urgente", "Preciso resolver esta semana", "Preciso resolver hoje", "É emergência!"]),
+          questionType: "repair" as const,
+          categoryId: null,
+          sortOrder: 2,
+          isActive: true,
+        },
+        {
+          questionKey: "location",
+          questionText: "Onde está o problema?",
+          options: JSON.stringify(["Sala", "Quarto", "Cozinha", "Banheiro", "Área externa", "Outro"]),
+          questionType: "repair" as const,
+          categoryId: null,
+          sortOrder: 3,
+          isActive: true,
+        },
+        {
+          questionKey: "house_size",
+          questionText: "Qual o tamanho da sua casa?",
+          options: JSON.stringify(["Apartamento pequeno (1-2 quartos)", "Casa média (3-4 quartos)", "Casa grande (5+ quartos)", "Escritório/Comercial"]),
+          questionType: "domestic" as const,
+          categoryId: null,
+          sortOrder: 1,
+          isActive: true,
+        },
+        {
+          questionKey: "service_type",
+          questionText: "Qual tipo de serviço você precisa?",
+          options: JSON.stringify(["Limpeza geral", "Limpeza pesada/pós-obra", "Passar roupa", "Cozinhar", "Serviço completo (limpeza + passar + cozinhar)"]),
+          questionType: "domestic" as const,
+          categoryId: null,
+          sortOrder: 2,
+          isActive: true,
+        },
+        {
+          questionKey: "frequency",
+          questionText: "Com que frequência você precisa?",
+          options: JSON.stringify(["Só uma vez (avulso)", "Mensal", "Quinzenal", "Semanal", "Diária fixa"]),
+          questionType: "domestic" as const,
+          categoryId: null,
+          sortOrder: 3,
+          isActive: true,
+        },
+      ];
+      const created = [];
+      for (const q of defaultQuestions) {
+        const result = await storage.createGuidedQuestion(q);
+        created.push(result);
+      }
+      res.json({ message: "Perguntas criadas com sucesso", count: created.length });
+    } catch (error) {
+      console.error("Error seeding guided questions:", error);
+      res.status(500).json({ error: "Failed to seed guided questions" });
+    }
+  });
+
   // Helper: Obter dados completos de sintomas para IA
   app.get("/api/symptoms/data/full", isAuthenticated, async (req, res) => {
     try {
