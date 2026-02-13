@@ -173,7 +173,8 @@ export default function AdminDashboard() {
     password: "",
     cpf: "",
     age: "",
-    specialties: "",
+    specialties: "" as string,
+    selectedCategories: [] as number[],
   });
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<any | null>(null);
@@ -213,6 +214,11 @@ export default function AdminDashboard() {
 
   const { data: clientsData, isLoading: clientsLoading } = useQuery<ClientWithStats[]>({
     queryKey: ["/api/admin/clients"],
+    enabled: isAuthenticated && isAdmin,
+  });
+
+  const { data: allCategories = [] } = useQuery<{ id: number; name: string; icon: string; description: string | null }[]>({
+    queryKey: ["/api/categories"],
     enabled: isAuthenticated && isAdmin,
   });
 
@@ -288,7 +294,13 @@ export default function AdminDashboard() {
 
   const createUserMutation = useMutation({
     mutationFn: async (userData: typeof newUserForm) => {
-      return apiRequest("POST", "/api/admin/users", userData);
+      const payload = {
+        ...userData,
+        specialties: userData.selectedCategories.length > 0
+          ? allCategories.filter(c => userData.selectedCategories.includes(c.id)).map(c => c.name).join(", ")
+          : userData.specialties,
+      };
+      return apiRequest("POST", "/api/admin/users", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -306,6 +318,7 @@ export default function AdminDashboard() {
         cpf: "",
         age: "",
         specialties: "",
+        selectedCategories: [],
       });
     },
     onError: (error: any) => {
@@ -642,7 +655,7 @@ export default function AdminDashboard() {
                         }
                       >
                         <SelectTrigger data-testid="select-create-role">
-                          <SelectValue />
+                          <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="client">Cliente</SelectItem>
@@ -678,15 +691,37 @@ export default function AdminDashboard() {
 
                     {newUserForm.role === "provider" && (
                       <div className="space-y-2">
-                        <Label htmlFor="create-specialties">Especialidades</Label>
-                        <Input
-                          id="create-specialties"
-                          value={newUserForm.specialties}
-                          onChange={(e) => setNewUserForm({ ...newUserForm, specialties: e.target.value })}
-                          placeholder="Eletricista, Encanador, Pintor..."
-                          data-testid="input-create-specialties"
-                        />
-                        <p className="text-xs text-muted-foreground">Separe as especialidades por vírgula</p>
+                        <Label>Categorias de Serviço</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {allCategories.map((cat) => {
+                            const isSelected = newUserForm.selectedCategories.includes(cat.id);
+                            return (
+                              <Button
+                                key={cat.id}
+                                type="button"
+                                variant={isSelected ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                  setNewUserForm(prev => ({
+                                    ...prev,
+                                    selectedCategories: isSelected
+                                      ? prev.selectedCategories.filter(id => id !== cat.id)
+                                      : [...prev.selectedCategories, cat.id],
+                                  }));
+                                }}
+                                data-testid={`button-category-${cat.id}`}
+                              >
+                                {cat.name}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                        {allCategories.length === 0 && (
+                          <p className="text-xs text-muted-foreground">Nenhuma categoria cadastrada</p>
+                        )}
+                        {newUserForm.selectedCategories.length === 0 && allCategories.length > 0 && (
+                          <p className="text-xs text-muted-foreground">Selecione pelo menos uma categoria</p>
+                        )}
                       </div>
                     )}
 
@@ -748,6 +783,7 @@ export default function AdminDashboard() {
                 setEditForm={setEditForm}
                 handleOpenEdit={handleOpenEdit}
                 handleSubmitEdit={handleSubmitEdit}
+                allCategories={allCategories}
               />
             )}
             {activeSection === "documents" && (
@@ -880,6 +916,7 @@ function UsersSection({
   users, filteredUsers, usersLoading, cityFilter, setCityFilter, roleFilter, setRoleFilter, searchTerm, setSearchTerm, updateRoleMutation,
   deleteUserMutation, deleteConfirmUserId, setDeleteConfirmUserId,
   editUserMutation, editingUser, setEditingUser, editForm, setEditForm, handleOpenEdit, handleSubmitEdit,
+  allCategories,
 }: any) {
   return (
     <Card>
@@ -1130,15 +1167,34 @@ function UsersSection({
 
               {(editForm.role === "provider") && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-specialties">Especialidades</Label>
-                  <Input
-                    id="edit-specialties"
-                    value={editForm.specialties}
-                    onChange={(e: any) => setEditForm({ ...editForm, specialties: e.target.value })}
-                    placeholder="Eletricista, Encanador, Pintor..."
-                    data-testid="input-edit-specialties"
-                  />
-                  <p className="text-xs text-muted-foreground">Separe as especialidades por vírgula</p>
+                  <Label>Categorias de Serviço</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {allCategories.map((cat) => {
+                      const currentSpecs = editForm.specialties.split(",").map(s => s.trim()).filter(Boolean);
+                      const isSelected = currentSpecs.includes(cat.name);
+                      return (
+                        <Button
+                          key={cat.id}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            const specs = editForm.specialties.split(",").map(s => s.trim()).filter(Boolean);
+                            const updated = isSelected
+                              ? specs.filter(s => s !== cat.name)
+                              : [...specs, cat.name];
+                            setEditForm({ ...editForm, specialties: updated.join(", ") });
+                          }}
+                          data-testid={`button-edit-category-${cat.id}`}
+                        >
+                          {cat.name}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {allCategories.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhuma categoria cadastrada</p>
+                  )}
                 </div>
               )}
 
