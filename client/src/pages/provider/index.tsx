@@ -36,7 +36,12 @@ import {
   Plus,
   Minus,
   Search,
-  Package
+  Package,
+  Wallet,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Banknote,
+  Edit3
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
@@ -343,6 +348,102 @@ export default function ProviderDashboard() {
     enabled: isAuthenticated,
   });
 
+  interface WalletData {
+    totalEarned: number;
+    pendingAmount: number;
+    availableBalance: number;
+    totalWithdrawn: number;
+    pendingWithdrawal: number;
+    completedServices: number;
+    bankData: {
+      pixKeyType: string | null;
+      pixKey: string | null;
+      bankName: string | null;
+      bankAgency: string | null;
+      bankAccount: string | null;
+    } | null;
+  }
+
+  const { data: wallet, isLoading: walletLoading } = useQuery<WalletData>({
+    queryKey: ["/api/provider/wallet"],
+    enabled: isAuthenticated,
+  });
+
+  interface WithdrawalRecord {
+    id: number;
+    amount: number;
+    status: string;
+    pixKeyType: string;
+    pixKey: string;
+    createdAt: string;
+    processedAt: string | null;
+  }
+
+  const { data: withdrawals } = useQuery<WithdrawalRecord[]>({
+    queryKey: ["/api/provider/withdrawals"],
+    enabled: isAuthenticated,
+  });
+
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [showBankEditModal, setShowBankEditModal] = useState(false);
+  const [bankForm, setBankForm] = useState({
+    pixKeyType: "",
+    pixKey: "",
+    bankName: "",
+    bankAgency: "",
+    bankAccount: "",
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      return apiRequest("POST", "/api/provider/withdraw", { amount });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/provider/wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/provider/withdrawals"] });
+      setShowWithdrawModal(false);
+      setWithdrawAmount("");
+      toast({
+        title: "Saque solicitado!",
+        description: "O valor será transferido para sua conta PIX.",
+      });
+    },
+    onError: async (error: any) => {
+      let message = "Não foi possível solicitar o saque.";
+      try {
+        const data = await error.json?.();
+        if (data?.error) message = data.error;
+      } catch {}
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateBankMutation = useMutation({
+    mutationFn: async (data: typeof bankForm) => {
+      return apiRequest("PATCH", "/api/provider/bank-data", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/provider/wallet"] });
+      setShowBankEditModal(false);
+      toast({
+        title: "Dados bancários atualizados!",
+        description: "Seus dados PIX foram salvos.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar os dados bancários.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const acceptMutation = useMutation({
     mutationFn: async (serviceId: number) => {
       return apiRequest("POST", `/api/provider/accept/${serviceId}`);
@@ -594,6 +695,163 @@ export default function ProviderDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Financial Wallet Section */}
+        <Card className="mb-8">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                Minha Carteira
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setBankForm({
+                      pixKeyType: wallet?.bankData?.pixKeyType || "",
+                      pixKey: wallet?.bankData?.pixKey || "",
+                      bankName: wallet?.bankData?.bankName || "",
+                      bankAgency: wallet?.bankData?.bankAgency || "",
+                      bankAccount: wallet?.bankData?.bankAccount || "",
+                    });
+                    setShowBankEditModal(true);
+                  }}
+                  data-testid="button-edit-bank"
+                >
+                  <Edit3 className="h-4 w-4 mr-1" />
+                  Dados PIX
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!wallet?.availableBalance || wallet.availableBalance <= 0}
+                  onClick={() => setShowWithdrawModal(true)}
+                  data-testid="button-withdraw"
+                >
+                  <ArrowUpFromLine className="h-4 w-4 mr-1" />
+                  Sacar
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <p className="text-xs text-muted-foreground">A receber</p>
+                </div>
+                <p className="text-lg font-bold text-amber-700 dark:text-amber-400" data-testid="text-pending-amount">
+                  R$ {((wallet?.pendingAmount || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Serviços em andamento</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <p className="text-xs text-muted-foreground">Disponível</p>
+                </div>
+                <p className="text-lg font-bold text-green-700 dark:text-green-400" data-testid="text-available-balance">
+                  R$ {((wallet?.availableBalance || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Pronto para saque</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <ArrowUpFromLine className="h-4 w-4 text-primary" />
+                  <p className="text-xs text-muted-foreground">Sacado</p>
+                </div>
+                <p className="text-lg font-bold" data-testid="text-total-withdrawn">
+                  R$ {((wallet?.totalWithdrawn || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Total transferido</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-muted/50 border">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">Total ganho</p>
+                </div>
+                <p className="text-lg font-bold" data-testid="text-total-earned">
+                  R$ {((wallet?.totalEarned || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">{wallet?.completedServices || 0} serviços</p>
+              </div>
+            </div>
+
+            {wallet?.bankData?.pixKey ? (
+              <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg text-sm">
+                <Banknote className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">PIX: </span>
+                <span className="font-medium" data-testid="text-pix-key">
+                  {wallet.bankData.pixKeyType === "cpf" ? "CPF" :
+                   wallet.bankData.pixKeyType === "phone" ? "Celular" :
+                   wallet.bankData.pixKeyType === "email" ? "Email" : "Chave"}: {wallet.bankData.pixKey}
+                </span>
+                {wallet.bankData.bankName && (
+                  <Badge variant="secondary">{wallet.bankData.bankName}</Badge>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 text-sm">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <span className="text-amber-700 dark:text-amber-400">
+                  Cadastre sua chave PIX para poder sacar seus ganhos
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => setShowBankEditModal(true)}
+                  data-testid="button-add-pix"
+                >
+                  Cadastrar PIX
+                </Button>
+              </div>
+            )}
+
+            {wallet?.pendingWithdrawal ? (
+              <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 text-sm">
+                <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                <span className="text-blue-700 dark:text-blue-400">
+                  Saque em processamento: R$ {(wallet.pendingWithdrawal / 100).toFixed(2)}
+                </span>
+              </div>
+            ) : null}
+
+            {withdrawals && withdrawals.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">Histórico de saques</p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {withdrawals.slice(0, 5).map((w) => (
+                    <div key={w.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/30 text-sm">
+                      <div className="flex items-center gap-2">
+                        <ArrowUpFromLine className="h-3 w-3 text-muted-foreground" />
+                        <span>R$ {(w.amount / 100).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(w.createdAt).toLocaleDateString("pt-BR")}
+                        </span>
+                        <Badge 
+                          variant={w.status === "completed" ? "secondary" : w.status === "rejected" ? "destructive" : "outline"}
+                          data-testid={`badge-withdrawal-status-${w.id}`}
+                        >
+                          {w.status === "pending" ? "Pendente" :
+                           w.status === "processing" ? "Processando" :
+                           w.status === "completed" ? "Concluído" : "Rejeitado"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Location card */}
         <Card className="mb-8">
@@ -1190,6 +1448,187 @@ export default function ProviderDashboard() {
               {completeExecutionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Finalizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Modal */}
+      <Dialog open={showWithdrawModal} onOpenChange={setShowWithdrawModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpFromLine className="h-5 w-5" />
+              Solicitar Saque
+            </DialogTitle>
+            <DialogDescription>
+              Transfira seu saldo disponível para sua conta PIX cadastrada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+              <p className="text-sm text-muted-foreground">Saldo disponível</p>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                R$ {((wallet?.availableBalance || 0) / 100).toFixed(2)}
+              </p>
+            </div>
+
+            {wallet?.bankData?.pixKey && (
+              <div className="p-3 bg-muted/30 rounded-lg text-sm">
+                <p className="text-muted-foreground mb-1">Transferir para:</p>
+                <p className="font-medium">
+                  PIX ({wallet.bankData.pixKeyType === "cpf" ? "CPF" :
+                         wallet.bankData.pixKeyType === "phone" ? "Celular" :
+                         wallet.bankData.pixKeyType === "email" ? "Email" : "Chave"}): {wallet.bankData.pixKey}
+                </p>
+                {wallet.bankData.bankName && (
+                  <p className="text-muted-foreground">{wallet.bankData.bankName}</p>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="withdrawAmount">Valor do saque (R$)</Label>
+              <Input
+                id="withdrawAmount"
+                type="number"
+                step="0.01"
+                min="1"
+                max={(wallet?.availableBalance || 0) / 100}
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                placeholder="0.00"
+                data-testid="input-withdraw-amount"
+              />
+              <div className="flex gap-2 mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWithdrawAmount(((wallet?.availableBalance || 0) / 100).toFixed(2))}
+                  data-testid="button-withdraw-all"
+                >
+                  Sacar tudo
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWithdrawModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                const amountCents = Math.round(parseFloat(withdrawAmount) * 100);
+                if (amountCents > 0) {
+                  withdrawMutation.mutate(amountCents);
+                }
+              }}
+              disabled={withdrawMutation.isPending || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+              data-testid="button-confirm-withdraw"
+            >
+              {withdrawMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Confirmar saque
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank Data Edit Modal */}
+      <Dialog open={showBankEditModal} onOpenChange={setShowBankEditModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5" />
+              Dados Bancários PIX
+            </DialogTitle>
+            <DialogDescription>
+              Configure sua chave PIX para receber os pagamentos dos serviços.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="editPixKeyType">Tipo de Chave PIX</Label>
+              <select
+                id="editPixKeyType"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1"
+                value={bankForm.pixKeyType}
+                onChange={(e) => setBankForm({ ...bankForm, pixKeyType: e.target.value, pixKey: "" })}
+                data-testid="select-edit-pix-type"
+              >
+                <option value="">Selecione...</option>
+                <option value="cpf">CPF</option>
+                <option value="phone">Celular</option>
+                <option value="email">Email</option>
+                <option value="random">Chave aleatória</option>
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="editPixKey">Chave PIX</Label>
+              <Input
+                id="editPixKey"
+                value={bankForm.pixKey}
+                onChange={(e) => setBankForm({ ...bankForm, pixKey: e.target.value })}
+                placeholder={
+                  bankForm.pixKeyType === "cpf" ? "000.000.000-00" :
+                  bankForm.pixKeyType === "phone" ? "(00) 00000-0000" :
+                  bankForm.pixKeyType === "email" ? "seu@email.com" :
+                  "Cole sua chave aleatória"
+                }
+                className="mt-1"
+                data-testid="input-edit-pix-key"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="editBankName">Banco (opcional)</Label>
+              <Input
+                id="editBankName"
+                value={bankForm.bankName}
+                onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
+                placeholder="Ex: Nubank, Bradesco..."
+                className="mt-1"
+                data-testid="input-edit-bank-name"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="editBankAgency">Agência (opcional)</Label>
+                <Input
+                  id="editBankAgency"
+                  value={bankForm.bankAgency}
+                  onChange={(e) => setBankForm({ ...bankForm, bankAgency: e.target.value })}
+                  placeholder="0001"
+                  className="mt-1"
+                  data-testid="input-edit-bank-agency"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editBankAccount">Conta (opcional)</Label>
+                <Input
+                  id="editBankAccount"
+                  value={bankForm.bankAccount}
+                  onChange={(e) => setBankForm({ ...bankForm, bankAccount: e.target.value })}
+                  placeholder="00000-0"
+                  className="mt-1"
+                  data-testid="input-edit-bank-account"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBankEditModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => updateBankMutation.mutate(bankForm)}
+              disabled={updateBankMutation.isPending || !bankForm.pixKeyType || !bankForm.pixKey}
+              data-testid="button-save-bank-data"
+            >
+              {updateBankMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>

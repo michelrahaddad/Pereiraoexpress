@@ -642,3 +642,24 @@ export const guidedQuestions = pgTable("guided_questions", {
 export const insertGuidedQuestionSchema = createInsertSchema(guidedQuestions).omit({ id: true, createdAt: true });
 export type InsertGuidedQuestion = z.infer<typeof insertGuidedQuestionSchema>;
 export type GuidedQuestion = typeof guidedQuestions.$inferSelect;
+
+export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "processing", "completed", "rejected"]);
+
+export const providerWithdrawals = pgTable("provider_withdrawals", {
+  id: serial("id").primaryKey(),
+  providerId: varchar("provider_id").notNull(),
+  amount: integer("amount").notNull(),
+  pixKeyType: varchar("pix_key_type").notNull(),
+  pixKey: varchar("pix_key").notNull(),
+  bankName: varchar("bank_name"),
+  bankAgency: varchar("bank_agency"),
+  bankAccount: varchar("bank_account"),
+  status: withdrawalStatusEnum("status").notNull().default("pending"),
+  processedAt: timestamp("processed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProviderWithdrawalSchema = createInsertSchema(providerWithdrawals).omit({ id: true, createdAt: true });
+export type InsertProviderWithdrawal = z.infer<typeof insertProviderWithdrawalSchema>;
+export type ProviderWithdrawal = typeof providerWithdrawals.$inferSelect;

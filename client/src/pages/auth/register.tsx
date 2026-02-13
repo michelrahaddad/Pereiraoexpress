@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CityAutocomplete } from "@/components/city-autocomplete";
 import { 
   Eye, EyeOff, Loader2, Mail, Lock, ArrowLeft, User, Wrench,
-  Phone, Calendar, CreditCard, CheckCircle2, AlertCircle, Upload, FileText, Shield, MapPin, Search
+  Phone, Calendar, CreditCard, CheckCircle2, AlertCircle, Upload, FileText, Shield, MapPin, Search, DollarSign
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -91,7 +91,7 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isProvider = userType === "provider";
-  const totalSteps = isProvider ? 4 : 3;
+  const totalSteps = isProvider ? 5 : 3;
   
   const [formData, setFormData] = useState({
     firstName: "",
@@ -109,6 +109,11 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
     documentFile: null as File | null,
     documentPreview: "",
     termsAccepted: false,
+    pixKeyType: "",
+    pixKey: "",
+    bankName: "",
+    bankAgency: "",
+    bankAccount: "",
   });
   const [isFetchingCep, setIsFetchingCep] = useState(false);
 
@@ -224,6 +229,13 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
         if (formData.documentPreview) {
           requestData.documentUrl = formData.documentPreview;
         }
+        if (formData.pixKeyType && formData.pixKey) {
+          requestData.pixKeyType = formData.pixKeyType;
+          requestData.pixKey = formData.pixKey;
+          requestData.bankName = formData.bankName || undefined;
+          requestData.bankAgency = formData.bankAgency || undefined;
+          requestData.bankAccount = formData.bankAccount || undefined;
+        }
       }
 
       const response = await apiRequest("POST", "/api/auth/register", requestData);
@@ -272,15 +284,7 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
   const canProceedStep3Provider = formData.documentFile && formData.termsAccepted;
 
   const handleNextStep = () => {
-    if (isProvider) {
-      if (step === 3) {
-        setStep(4);
-      } else {
-        setStep(step + 1);
-      }
-    } else {
-      setStep(step + 1);
-    }
+    setStep(step + 1);
   };
 
   return (
@@ -309,7 +313,8 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
               {step === 2 && "Complete seu perfil"}
               {step === 3 && isProvider && "Envie seu documento"}
               {step === 3 && !isProvider && "Crie sua senha"}
-              {step === 4 && isProvider && "Crie sua senha"}
+              {step === 4 && isProvider && "Dados bancários para recebimento"}
+              {step === 5 && isProvider && "Crie sua senha"}
             </CardDescription>
             <div className="flex justify-center gap-2 mt-4">
               {Array.from({ length: totalSteps }).map((_, i) => (
@@ -594,7 +599,7 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
                     type="button"
                     className="w-full rounded-xl h-12"
                     disabled={!canProceedStep3Provider}
-                    onClick={() => setStep(4)}
+                    onClick={handleNextStep}
                     data-testid="button-next-step3"
                   >
                     Continuar
@@ -602,7 +607,112 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
                 </>
               )}
 
-              {((step === 3 && !isProvider) || (step === 4 && isProvider)) && (
+              {step === 4 && isProvider && (
+                <>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
+                      <div className="flex items-start gap-3">
+                        <DollarSign className="h-5 w-5 text-primary mt-0.5" />
+                        <div className="text-sm">
+                          <p className="font-medium">Dados para Recebimento via PIX</p>
+                          <p className="text-muted-foreground mt-1">
+                            Informe sua chave PIX para receber os pagamentos dos serviços realizados.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pixKeyType">Tipo de Chave PIX</Label>
+                      <select
+                        id="pixKeyType"
+                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={formData.pixKeyType}
+                        onChange={(e) => setFormData({ ...formData, pixKeyType: e.target.value, pixKey: "" })}
+                        data-testid="select-pix-key-type"
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="cpf">CPF</option>
+                        <option value="phone">Celular</option>
+                        <option value="email">Email</option>
+                        <option value="random">Chave aleatória</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pixKey">Chave PIX</Label>
+                      <Input
+                        id="pixKey"
+                        placeholder={
+                          formData.pixKeyType === "cpf" ? "000.000.000-00" :
+                          formData.pixKeyType === "phone" ? "(00) 00000-0000" :
+                          formData.pixKeyType === "email" ? "seu@email.com" :
+                          "Cole sua chave aleatória"
+                        }
+                        value={formData.pixKey}
+                        onChange={(e) => setFormData({ ...formData, pixKey: e.target.value })}
+                        data-testid="input-pix-key"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="bankName">Banco (opcional)</Label>
+                      <Input
+                        id="bankName"
+                        placeholder="Ex: Nubank, Bradesco, Itaú..."
+                        value={formData.bankName}
+                        onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                        data-testid="input-bank-name"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="bankAgency">Agência (opcional)</Label>
+                        <Input
+                          id="bankAgency"
+                          placeholder="0001"
+                          value={formData.bankAgency}
+                          onChange={(e) => setFormData({ ...formData, bankAgency: e.target.value })}
+                          data-testid="input-bank-agency"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bankAccount">Conta (opcional)</Label>
+                        <Input
+                          id="bankAccount"
+                          placeholder="00000-0"
+                          value={formData.bankAccount}
+                          onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
+                          data-testid="input-bank-account"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    type="button"
+                    className="w-full rounded-xl h-12"
+                    disabled={!formData.pixKeyType || !formData.pixKey}
+                    onClick={handleNextStep}
+                    data-testid="button-next-step4"
+                  >
+                    Continuar
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full text-muted-foreground"
+                    onClick={handleNextStep}
+                    data-testid="button-skip-bank"
+                  >
+                    Pular por agora
+                  </Button>
+                </>
+              )}
+
+              {((step === 3 && !isProvider) || (step === 5 && isProvider)) && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="password">Senha</Label>

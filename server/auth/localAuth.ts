@@ -275,7 +275,7 @@ export function setupLocalAuth(app: Express) {
 
   app.post("/api/auth/register", registerLimiter, async (req, res) => {
     try {
-      const { email, password, firstName, lastName, cpf, phone, age, city, cep, role, documentUrl, termsAccepted } = req.body;
+      const { email, password, firstName, lastName, cpf, phone, age, city, cep, role, documentUrl, termsAccepted, pixKeyType, pixKey, bankName, bankAgency, bankAccount } = req.body;
       
       const passwordCheck = validatePasswordStrength(password);
       if (!passwordCheck.valid) {
@@ -344,6 +344,7 @@ export function setupLocalAuth(app: Express) {
         age,
         city,
         ...(latitude && longitude ? { latitude, longitude } : {}),
+        ...(role === "provider" && pixKeyType && pixKey ? { pixKeyType, pixKey, bankName: bankName || null, bankAgency: bankAgency || null, bankAccount: bankAccount || null } : {}),
       }).returning();
       
       const userRole = role === "provider" ? "provider" : "client";

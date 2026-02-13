@@ -26,6 +26,11 @@ export const users = pgTable("users", {
   latitude: decimal("latitude", { precision: 10, scale: 7 }),
   longitude: decimal("longitude", { precision: 10, scale: 7 }),
   profileImageUrl: varchar("profile_image_url"),
+  pixKeyType: varchar("pix_key_type"),
+  pixKey: varchar("pix_key"),
+  bankName: varchar("bank_name"),
+  bankAgency: varchar("bank_agency"),
+  bankAccount: varchar("bank_account"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

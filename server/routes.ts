@@ -641,6 +641,148 @@ export async function registerRoutes(
     }
   });
 
+  // Provider wallet - returns balance info (pending, available, withdrawn)
+  app.get("/api/provider/wallet", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const services = await storage.getServicesByProvider(userId);
+      const withdrawals = await storage.getWithdrawalsByProvider(userId);
+
+      const completedServices = services.filter(s => s.status === "completed");
+      const awaitingServices = services.filter(s => 
+        ["in_progress", "awaiting_confirmation"].includes(s.status)
+      );
+
+      const totalEarned = completedServices.reduce((sum, s) => sum + (s.finalPrice || s.estimatedPrice || 0), 0);
+      const pendingAmount = awaitingServices.reduce((sum, s) => sum + (s.finalPrice || s.estimatedPrice || 0), 0);
+
+      const totalWithdrawn = withdrawals
+        .filter(w => w.status === "completed")
+        .reduce((sum, w) => sum + w.amount, 0);
+
+      const pendingWithdrawal = withdrawals
+        .filter(w => w.status === "pending" || w.status === "processing")
+        .reduce((sum, w) => sum + w.amount, 0);
+
+      const availableBalance = totalEarned - totalWithdrawn - pendingWithdrawal;
+
+      // Get user bank data
+      const [userData] = await db.select().from(users).where(eq(users.id, userId));
+
+      res.json({
+        totalEarned,
+        pendingAmount,
+        availableBalance: Math.max(0, availableBalance),
+        totalWithdrawn,
+        pendingWithdrawal,
+        completedServices: completedServices.length,
+        bankData: userData ? {
+          pixKeyType: userData.pixKeyType,
+          pixKey: userData.pixKey,
+          bankName: userData.bankName,
+          bankAgency: userData.bankAgency,
+          bankAccount: userData.bankAccount,
+        } : null,
+      });
+    } catch (error) {
+      console.error("Error fetching provider wallet:", error);
+      res.status(500).json({ error: "Failed to fetch wallet" });
+    }
+  });
+
+  // Provider withdrawal history
+  app.get("/api/provider/withdrawals", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const withdrawals = await storage.getWithdrawalsByProvider(userId);
+      res.json(withdrawals);
+    } catch (error) {
+      console.error("Error fetching withdrawals:", error);
+      res.status(500).json({ error: "Failed to fetch withdrawals" });
+    }
+  });
+
+  // Request withdrawal
+  app.post("/api/provider/withdraw", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount } = req.body;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ error: "Valor inválido" });
+      }
+
+      // Check bank data
+      const [userData] = await db.select().from(users).where(eq(users.id, userId));
+      if (!userData?.pixKey || !userData?.pixKeyType) {
+        return res.status(400).json({ error: "Dados bancários PIX não cadastrados. Atualize seu perfil." });
+      }
+
+      // Check available balance
+      const services = await storage.getServicesByProvider(userId);
+      const withdrawals = await storage.getWithdrawalsByProvider(userId);
+
+      const totalEarned = services
+        .filter(s => s.status === "completed")
+        .reduce((sum, s) => sum + (s.finalPrice || s.estimatedPrice || 0), 0);
+
+      const totalWithdrawn = withdrawals
+        .filter(w => w.status === "completed")
+        .reduce((sum, w) => sum + w.amount, 0);
+
+      const pendingWithdrawal = withdrawals
+        .filter(w => w.status === "pending" || w.status === "processing")
+        .reduce((sum, w) => sum + w.amount, 0);
+
+      const availableBalance = totalEarned - totalWithdrawn - pendingWithdrawal;
+
+      if (amount > availableBalance) {
+        return res.status(400).json({ error: "Saldo insuficiente" });
+      }
+
+      const withdrawal = await storage.createWithdrawal({
+        providerId: userId,
+        amount,
+        pixKeyType: userData.pixKeyType,
+        pixKey: userData.pixKey,
+        bankName: userData.bankName,
+        bankAgency: userData.bankAgency,
+        bankAccount: userData.bankAccount,
+        status: "pending",
+      });
+
+      res.json(withdrawal);
+    } catch (error) {
+      console.error("Error creating withdrawal:", error);
+      res.status(500).json({ error: "Failed to create withdrawal" });
+    }
+  });
+
+  // Update provider bank data
+  app.patch("/api/provider/bank-data", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { pixKeyType, pixKey, bankName, bankAgency, bankAccount } = req.body;
+
+      if (!pixKeyType || !pixKey) {
+        return res.status(400).json({ error: "Tipo e chave PIX são obrigatórios" });
+      }
+
+      await db.update(users).set({
+        pixKeyType,
+        pixKey,
+        bankName: bankName || null,
+        bankAgency: bankAgency || null,
+        bankAccount: bankAccount || null,
+      }).where(eq(users.id, userId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating bank data:", error);
+      res.status(500).json({ error: "Failed to update bank data" });
+    }
+  });
+
   app.get("/api/admin/stats", isAuthenticated, async (req, res) => {
     try {
       const [usersResult] = await db.select({ count: sql<number>`count(*)` }).from(users);

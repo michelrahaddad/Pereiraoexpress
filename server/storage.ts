@@ -35,6 +35,8 @@ import {
   type AiTrainingConfig, type InsertAiTrainingConfig,
   guidedQuestions,
   type GuidedQuestion, type InsertGuidedQuestion,
+  providerWithdrawals,
+  type ProviderWithdrawal, type InsertProviderWithdrawal,
 } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { db } from "./db";
@@ -203,6 +205,12 @@ export interface IStorage {
     questions: SymptomQuestion[];
     diagnoses: SymptomDiagnosis[];
   }>;
+
+  // Provider Withdrawals
+  getWithdrawalsByProvider(providerId: string): Promise<ProviderWithdrawal[]>;
+  createWithdrawal(data: InsertProviderWithdrawal): Promise<ProviderWithdrawal>;
+  updateWithdrawalStatus(id: number, status: string, notes?: string): Promise<ProviderWithdrawal | undefined>;
+  getAllWithdrawals(): Promise<ProviderWithdrawal[]>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -1064,6 +1072,28 @@ class DatabaseStorage implements IStorage {
 
   async deleteGuidedQuestion(id: number): Promise<void> {
     await db.delete(guidedQuestions).where(eq(guidedQuestions.id, id));
+  }
+
+  async getWithdrawalsByProvider(providerId: string): Promise<ProviderWithdrawal[]> {
+    return db.select().from(providerWithdrawals)
+      .where(eq(providerWithdrawals.providerId, providerId))
+      .orderBy(desc(providerWithdrawals.createdAt));
+  }
+
+  async createWithdrawal(data: InsertProviderWithdrawal): Promise<ProviderWithdrawal> {
+    const [w] = await db.insert(providerWithdrawals).values(data).returning();
+    return w;
+  }
+
+  async updateWithdrawalStatus(id: number, status: string, notes?: string): Promise<ProviderWithdrawal | undefined> {
+    const updateData: any = { status, processedAt: new Date() };
+    if (notes) updateData.notes = notes;
+    const [w] = await db.update(providerWithdrawals).set(updateData).where(eq(providerWithdrawals.id, id)).returning();
+    return w;
+  }
+
+  async getAllWithdrawals(): Promise<ProviderWithdrawal[]> {
+    return db.select().from(providerWithdrawals).orderBy(desc(providerWithdrawals.createdAt));
   }
 }
 
