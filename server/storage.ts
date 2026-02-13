@@ -191,6 +191,9 @@ export interface IStorage {
   upsertAiTrainingConfig(categoryId: number, data: Partial<InsertAiTrainingConfig>): Promise<AiTrainingConfig>;
   deleteAiTrainingConfig(id: number): Promise<void>;
   
+  // Delete user (admin)
+  deleteUserAndProfile(userId: string): Promise<void>;
+
   // Helper: Get full symptom data for AI
   getFullSymptomData(categoryId?: number): Promise<{
     symptoms: Symptom[];
@@ -1013,6 +1016,14 @@ class DatabaseStorage implements IStorage {
 
   async deleteAiTrainingConfig(id: number): Promise<void> {
     await db.delete(aiTrainingConfigs).where(eq(aiTrainingConfigs.id, id));
+  }
+
+  async deleteUserAndProfile(userId: string): Promise<void> {
+    await db.delete(notifications).where(eq(notifications.userId, userId));
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    await db.delete(conversations).where(eq(conversations.userId, userId));
+    await db.delete(userProfiles).where(eq(userProfiles.userId, userId));
+    await db.delete(users).where(eq(users.id, userId));
   }
 }
 

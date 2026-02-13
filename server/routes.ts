@@ -1585,7 +1585,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
   // Create user from admin panel
   app.post("/api/admin/users", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const { firstName, lastName, email, phone, city, role, password } = req.body;
+      const { firstName, lastName, email, phone, city, role, password, cpf, age, specialties } = req.body;
       
       if (!firstName || !lastName || !email || !password) {
         return res.status(400).json({ error: "Dados incompletos" });
@@ -1609,6 +1609,10 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         password: hashedPassword,
         firstName,
         lastName,
+        cpf: cpf || undefined,
+        phone: phone || undefined,
+        age: age ? parseInt(age) : undefined,
+        city: city || undefined,
       });
 
       // Create profile
@@ -1617,6 +1621,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         role: role || "client",
         phone,
         city,
+        specialties: specialties || undefined,
         documentStatus: role === "provider" ? "pending" : undefined,
       });
 
@@ -1624,6 +1629,28 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
     } catch (error: any) {
       console.error("Error creating user:", error);
       res.status(500).json({ error: error.message || "Failed to create user" });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete("/api/admin/users/:userId", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      
+      if (req.user.id === userId) {
+        return res.status(400).json({ error: "Você não pode excluir a si mesmo" });
+      }
+
+      const profile = await storage.getUserProfile(userId);
+      if (!profile) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      await storage.deleteUserAndProfile(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: error.message || "Erro ao excluir usuário" });
     }
   });
 

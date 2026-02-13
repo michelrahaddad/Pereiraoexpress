@@ -69,8 +69,19 @@ import {
   Star,
   Brain,
   ChevronRight,
-  LayoutDashboard
+  LayoutDashboard,
+  Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { UserProfile, SystemSetting } from "@shared/schema";
 
 interface AdminStats {
@@ -159,7 +170,11 @@ export default function AdminDashboard() {
     city: "",
     role: "client" as "client" | "provider" | "admin",
     password: "",
+    cpf: "",
+    age: "",
+    specialties: "",
   });
+  const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
 
@@ -271,11 +286,35 @@ export default function AdminDashboard() {
         city: "",
         role: "client",
         password: "",
+        cpf: "",
+        age: "",
+        specialties: "",
       });
     },
     onError: (error: any) => {
       toast({ 
         title: "Erro ao criar usuário", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest("DELETE", `/api/admin/users/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/providers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clients"] });
+      toast({ title: "Usuário excluído com sucesso!" });
+      setDeleteConfirmUserId(null);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erro ao excluir usuário", 
         description: error.message,
         variant: "destructive" 
       });
@@ -554,6 +593,44 @@ export default function AdminDashboard() {
                       </Select>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="create-cpf">CPF</Label>
+                        <Input
+                          id="create-cpf"
+                          value={newUserForm.cpf}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, cpf: e.target.value })}
+                          placeholder="000.000.000-00"
+                          data-testid="input-create-cpf"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="create-age">Idade</Label>
+                        <Input
+                          id="create-age"
+                          type="number"
+                          value={newUserForm.age}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, age: e.target.value })}
+                          placeholder="25"
+                          data-testid="input-create-age"
+                        />
+                      </div>
+                    </div>
+
+                    {newUserForm.role === "provider" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="create-specialties">Especialidades</Label>
+                        <Input
+                          id="create-specialties"
+                          value={newUserForm.specialties}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, specialties: e.target.value })}
+                          placeholder="Eletricista, Encanador, Pintor..."
+                          data-testid="input-create-specialties"
+                        />
+                        <p className="text-xs text-muted-foreground">Separe as especialidades por vírgula</p>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <Label htmlFor="create-password">Senha</Label>
                       <Input
@@ -602,6 +679,9 @@ export default function AdminDashboard() {
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
                 updateRoleMutation={updateRoleMutation}
+                deleteUserMutation={deleteUserMutation}
+                deleteConfirmUserId={deleteConfirmUserId}
+                setDeleteConfirmUserId={setDeleteConfirmUserId}
               />
             )}
             {activeSection === "documents" && (
@@ -732,6 +812,7 @@ function DashboardSection({ stats, statsLoading }: { stats?: AdminStats; statsLo
 // ==================== USERS SECTION ====================
 function UsersSection({
   users, filteredUsers, usersLoading, cityFilter, setCityFilter, roleFilter, setRoleFilter, searchTerm, setSearchTerm, updateRoleMutation,
+  deleteUserMutation, deleteConfirmUserId, setDeleteConfirmUserId,
 }: any) {
   return (
     <Card>
@@ -855,6 +936,15 @@ function UsersSection({
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => setDeleteConfirmUserId(profile.userId)}
+                    data-testid={`button-delete-user-${profile.userId}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -862,6 +952,31 @@ function UsersSection({
         ) : (
           <p className="text-center text-muted-foreground py-8">Nenhum usuário encontrado</p>
         )}
+
+        <AlertDialog open={!!deleteConfirmUserId} onOpenChange={(open) => !open && setDeleteConfirmUserId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita. Todos os dados do perfil serão removidos permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-delete">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteConfirmUserId && deleteUserMutation.mutate(deleteConfirmUserId)}
+                className="bg-destructive text-destructive-foreground"
+                data-testid="button-confirm-delete"
+              >
+                {deleteUserMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Excluir"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
