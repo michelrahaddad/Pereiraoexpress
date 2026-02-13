@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   Select,
@@ -25,6 +24,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -54,7 +67,9 @@ import {
   Eye,
   AlertTriangle,
   Star,
-  Brain
+  Brain,
+  ChevronRight,
+  LayoutDashboard
 } from "lucide-react";
 import type { UserProfile, SystemSetting } from "@shared/schema";
 
@@ -98,11 +113,36 @@ const defaultSettings = [
   { key: "urgent_multiplier", value: "2.0", description: "Multiplicador Urgente" },
 ];
 
+type AdminSection = 
+  | "dashboard"
+  | "users" 
+  | "documents" 
+  | "providers" 
+  | "clients" 
+  | "cities" 
+  | "pricing" 
+  | "reference-prices" 
+  | "antifraud" 
+  | "symptoms" 
+  | "ai-training" 
+  | "backup";
+
+interface NavGroup {
+  label: string;
+  items: {
+    id: AdminSection;
+    label: string;
+    icon: React.ElementType;
+    badge?: number;
+  }[];
+}
+
 export default function AdminDashboard() {
   const { isLoading: authLoading, isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
   const [cityFilter, setCityFilter] = useState("Todas");
   const [roleFilter, setRoleFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -282,6 +322,46 @@ export default function AdminDashboard() {
     createUserMutation.mutate(newUserForm);
   };
 
+  const navGroups: NavGroup[] = [
+    {
+      label: "Visão Geral",
+      items: [
+        { id: "dashboard", label: "Painel", icon: LayoutDashboard },
+      ],
+    },
+    {
+      label: "Pessoas",
+      items: [
+        { id: "users", label: "Usuários", icon: Users },
+        { id: "documents", label: "Documentos", icon: FileText, badge: pendingDocuments.length || undefined },
+        { id: "providers", label: "Profissionais", icon: Wrench },
+        { id: "clients", label: "Clientes", icon: UserCheck },
+        { id: "cities", label: "Por Cidade", icon: MapPin },
+      ],
+    },
+    {
+      label: "Financeiro",
+      items: [
+        { id: "pricing", label: "Preços", icon: DollarSign },
+        { id: "reference-prices", label: "SINAPI", icon: BarChart3 },
+        { id: "antifraud", label: "Antifraude", icon: AlertTriangle },
+      ],
+    },
+    {
+      label: "Inteligência Artificial",
+      items: [
+        { id: "symptoms", label: "Sintomas IA", icon: Sparkles },
+        { id: "ai-training", label: "Treinamento IA", icon: Brain },
+      ],
+    },
+    {
+      label: "Sistema",
+      items: [
+        { id: "backup", label: "Backup", icon: Database },
+      ],
+    },
+  ];
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -324,1066 +404,1121 @@ export default function AdminDashboard() {
     );
   }
 
+  const currentNavItem = navGroups.flatMap(g => g.items).find(i => i.id === activeSection);
+
+  const sidebarStyle = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container px-6 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">Painel Administrativo</h1>
-            <p className="text-muted-foreground">Gerencie preços, usuários e configurações do sistema</p>
+      <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+        <div className="flex h-[calc(100vh-64px)] w-full">
+          <Sidebar>
+            <SidebarHeader className="p-4">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-sm">Administração</span>
+              </div>
+            </SidebarHeader>
+            <SidebarContent>
+              {navGroups.map((group) => (
+                <SidebarGroup key={group.label}>
+                  <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = activeSection === item.id;
+                        return (
+                          <SidebarMenuItem key={item.id}>
+                            <SidebarMenuButton
+                              isActive={isActive}
+                              onClick={() => setActiveSection(item.id)}
+                              data-testid={`nav-${item.id}`}
+                            >
+                              <Icon className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </SidebarMenuButton>
+                            {item.badge && item.badge > 0 && (
+                              <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
+                            )}
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ))}
+            </SidebarContent>
+          </Sidebar>
+
+          <main className="flex-1 min-w-0 overflow-auto">
+            <div className="border-b px-4 py-3 flex items-center gap-3 sticky top-0 bg-background z-30">
+              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Admin</span>
+                <ChevronRight className="h-3 w-3" />
+                <span className="text-foreground font-medium">{currentNavItem?.label || "Painel"}</span>
+              </div>
+              <div className="ml-auto">
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-2" data-testid="button-create-user">
+                      <Plus className="h-4 w-4" />
+                      <span className="hidden sm:inline">Criar Usuário</span>
+                    </Button>
+                  </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Criar Novo Usuário</DialogTitle>
+                    <DialogDescription>
+                      Cadastre um novo cliente, prestador ou administrador
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateUser} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="create-firstName">Nome</Label>
+                        <Input
+                          id="create-firstName"
+                          value={newUserForm.firstName}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, firstName: e.target.value })}
+                          required
+                          data-testid="input-create-firstname"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="create-lastName">Sobrenome</Label>
+                        <Input
+                          id="create-lastName"
+                          value={newUserForm.lastName}
+                          onChange={(e) => setNewUserForm({ ...newUserForm, lastName: e.target.value })}
+                          required
+                          data-testid="input-create-lastname"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="create-email">Email</Label>
+                      <Input
+                        id="create-email"
+                        type="email"
+                        value={newUserForm.email}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                        required
+                        data-testid="input-create-email"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="create-phone">Telefone</Label>
+                      <Input
+                        id="create-phone"
+                        value={newUserForm.phone}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
+                        placeholder="(00) 00000-0000"
+                        data-testid="input-create-phone"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Cidade</Label>
+                      <CityAutocomplete
+                        value={newUserForm.city}
+                        onChange={(value) => setNewUserForm({ ...newUserForm, city: value })}
+                        data-testid="input-create-city"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="create-role">Tipo de Usuário</Label>
+                      <Select
+                        value={newUserForm.role}
+                        onValueChange={(value: "client" | "provider" | "admin") => 
+                          setNewUserForm({ ...newUserForm, role: value })
+                        }
+                      >
+                        <SelectTrigger data-testid="select-create-role">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="client">Cliente</SelectItem>
+                          <SelectItem value="provider">Prestador</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="create-password">Senha</Label>
+                      <Input
+                        id="create-password"
+                        type="password"
+                        value={newUserForm.password}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                        required
+                        minLength={8}
+                        data-testid="input-create-password"
+                      />
+                      <p className="text-xs text-muted-foreground">Mínimo 8 caracteres</p>
+                    </div>
+
+                    <Button 
+                      type="submit" 
+                      className="w-full"
+                      disabled={createUserMutation.isPending}
+                      data-testid="button-submit-create-user"
+                    >
+                      {createUserMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Criar Usuário"
+                      )}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="p-4 md:p-6 max-w-6xl">
+            {activeSection === "dashboard" && (
+              <DashboardSection stats={stats} statsLoading={statsLoading} />
+            )}
+            {activeSection === "users" && (
+              <UsersSection
+                users={users}
+                filteredUsers={filteredUsers}
+                usersLoading={usersLoading}
+                cityFilter={cityFilter}
+                setCityFilter={setCityFilter}
+                roleFilter={roleFilter}
+                setRoleFilter={setRoleFilter}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                updateRoleMutation={updateRoleMutation}
+              />
+            )}
+            {activeSection === "documents" && (
+              <DocumentsSection
+                pendingDocuments={pendingDocuments}
+                selectedDocument={selectedDocument}
+                setSelectedDocument={setSelectedDocument}
+                documentNotes={documentNotes}
+                setDocumentNotes={setDocumentNotes}
+                updateDocumentStatusMutation={updateDocumentStatusMutation}
+              />
+            )}
+            {activeSection === "cities" && (
+              <CitiesSection cityStats={cityStats} setCityFilter={setCityFilter} setActiveSection={setActiveSection} />
+            )}
+            {activeSection === "pricing" && (
+              <PricingSection
+                getSettingValue={getSettingValue}
+                setSettingValues={setSettingValues}
+                handleSaveSetting={handleSaveSetting}
+                updateSettingMutation={updateSettingMutation}
+              />
+            )}
+            {activeSection === "backup" && (
+              <BackupSection stats={stats} users={users} handleExportData={handleExportData} />
+            )}
+            {activeSection === "antifraud" && <AntifraudSection />}
+            {activeSection === "symptoms" && <SymptomsManager />}
+            {activeSection === "providers" && (
+              <ProvidersSection providersData={providersData} providersLoading={providersLoading} />
+            )}
+            {activeSection === "clients" && (
+              <ClientsSection clientsData={clientsData} clientsLoading={clientsLoading} />
+            )}
+            {activeSection === "reference-prices" && <ReferencePricesManager />}
+            {activeSection === "ai-training" && <AiTrainingManager />}
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    </div>
+  );
+}
+
+// ==================== DASHBOARD SECTION ====================
+function DashboardSection({ stats, statsLoading }: { stats?: AdminStats; statsLoading: boolean }) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Painel Administrativo</h2>
+        <p className="text-muted-foreground">Visão geral da plataforma</p>
+      </div>
+      {statsLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-16 bg-muted rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : stats && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <BarChart3 className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Serviços</p>
+                  <p className="text-2xl font-bold" data-testid="stat-total-services">{stats.totalServices}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-green-500/10 flex items-center justify-center">
+                  <DollarSign className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Receita Total</p>
+                  <p className="text-2xl font-bold" data-testid="stat-revenue">
+                    R$ {(stats.totalRevenue / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-accent/20 flex items-center justify-center">
+                  <UserCheck className="h-6 w-6 text-accent-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Clientes</p>
+                  <p className="text-2xl font-bold" data-testid="stat-clients">{stats.totalClients}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
+                  <Wrench className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Prestadores</p>
+                  <p className="text-2xl font-bold" data-testid="stat-providers">{stats.totalProviders}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== USERS SECTION ====================
+function UsersSection({
+  users, filteredUsers, usersLoading, cityFilter, setCityFilter, roleFilter, setRoleFilter, searchTerm, setSearchTerm, updateRoleMutation,
+}: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          Gestão de Usuários
+        </CardTitle>
+        <CardDescription>Filtre e gerencie usuários por cidade, tipo e busca</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-[200px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por ID ou telefone..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e: any) => setSearchTerm(e.target.value)}
+                data-testid="input-search-users"
+              />
+            </div>
           </div>
           
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2" data-testid="button-create-user">
-                <Plus className="h-4 w-4" />
-                Criar Usuário
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Criar Novo Usuário</DialogTitle>
-                <DialogDescription>
-                  Cadastre um novo cliente, prestador ou administrador
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateUser} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="create-firstName">Nome</Label>
-                    <Input
-                      id="create-firstName"
-                      value={newUserForm.firstName}
-                      onChange={(e) => setNewUserForm({ ...newUserForm, firstName: e.target.value })}
-                      required
-                      data-testid="input-create-firstname"
-                    />
+          <CityAutocomplete
+            value={cityFilter === "Todas" ? "" : cityFilter}
+            onChange={(value: string) => setCityFilter(value || "Todas")}
+            placeholder="Todas as cidades"
+            className="w-[220px]"
+            data-testid="select-city-filter"
+          />
+          
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-[150px]" data-testid="select-role-filter">
+              <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="client">Clientes</SelectItem>
+              <SelectItem value="provider">Prestadores</SelectItem>
+              <SelectItem value="admin">Admins</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          Mostrando {filteredUsers.length} de {users?.length || 0} usuários
+        </div>
+
+        {usersLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_: any, i: number) => (
+              <div key={i} className="h-16 bg-muted rounded animate-pulse" />
+            ))}
+          </div>
+        ) : filteredUsers.length > 0 ? (
+          <div className="space-y-3 max-h-[500px] overflow-auto">
+            {filteredUsers.map((profile: any) => (
+              <div 
+                key={profile.id} 
+                className="flex items-center justify-between gap-3 p-4 border rounded-xl flex-wrap"
+                data-testid={`user-row-${profile.userId}`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                    {profile.role === "provider" ? (
+                      <Wrench className="h-5 w-5 text-muted-foreground" />
+                    ) : profile.role === "admin" ? (
+                      <Shield className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <Users className="h-5 w-5 text-muted-foreground" />
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="create-lastName">Sobrenome</Label>
-                    <Input
-                      id="create-lastName"
-                      value={newUserForm.lastName}
-                      onChange={(e) => setNewUserForm({ ...newUserForm, lastName: e.target.value })}
-                      required
-                      data-testid="input-create-lastname"
-                    />
+                  <div>
+                    <p className="font-medium">{profile.userId.substring(0, 8)}...</p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                      <span>{profile.phone || "Sem telefone"}</span>
+                      {profile.city && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {profile.city}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="create-email">Email</Label>
-                  <Input
-                    id="create-email"
-                    type="email"
-                    value={newUserForm.email}
-                    onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
-                    required
-                    data-testid="input-create-email"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="create-phone">Telefone</Label>
-                  <Input
-                    id="create-phone"
-                    value={newUserForm.phone}
-                    onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
-                    placeholder="(00) 00000-0000"
-                    data-testid="input-create-phone"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Cidade</Label>
-                  <CityAutocomplete
-                    value={newUserForm.city}
-                    onChange={(value) => setNewUserForm({ ...newUserForm, city: value })}
-                    data-testid="input-create-city"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="create-role">Tipo de Usuário</Label>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {profile.role === "provider" && (
+                    <Badge variant={
+                      profile.documentStatus === "approved" ? "default" :
+                      profile.documentStatus === "rejected" ? "destructive" :
+                      "secondary"
+                    } className="text-xs">
+                      {profile.documentStatus === "approved" ? "Verificado" :
+                       profile.documentStatus === "rejected" ? "Rejeitado" :
+                       "Pendente"}
+                    </Badge>
+                  )}
+                  <Badge variant={
+                    profile.role === "admin" ? "default" : 
+                    profile.role === "provider" ? "secondary" : 
+                    "outline"
+                  }>
+                    {profile.role === "admin" ? "Admin" : profile.role === "provider" ? "Prestador" : "Cliente"}
+                  </Badge>
                   <Select
-                    value={newUserForm.role}
-                    onValueChange={(value: "client" | "provider" | "admin") => 
-                      setNewUserForm({ ...newUserForm, role: value })
-                    }
+                    value={profile.role}
+                    onValueChange={(value: string) => updateRoleMutation.mutate({ userId: profile.userId, role: value })}
                   >
-                    <SelectTrigger data-testid="select-create-role">
+                    <SelectTrigger className="w-32" data-testid={`select-role-${profile.userId}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="client">Cliente</SelectItem>
                       <SelectItem value="provider">Prestador</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="create-password">Senha</Label>
-                  <Input
-                    id="create-password"
-                    type="password"
-                    value={newUserForm.password}
-                    onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                    required
-                    minLength={8}
-                    data-testid="input-create-password"
-                  />
-                  <p className="text-xs text-muted-foreground">Mínimo 8 caracteres</p>
-                </div>
-
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={createUserMutation.isPending}
-                  data-testid="button-submit-create-user"
-                >
-                  {createUserMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Criar Usuário"
-                  )}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {statsLoading ? (
-          <div className="grid gap-4 md:grid-cols-4 mb-8">
-            {[...Array(4)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardContent className="p-6">
-                  <div className="h-16 bg-muted rounded" />
-                </CardContent>
-              </Card>
+              </div>
             ))}
           </div>
-        ) : stats && (
-          <div className="grid gap-4 md:grid-cols-4 mb-8">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <BarChart3 className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Serviços</p>
-                    <p className="text-2xl font-bold" data-testid="stat-total-services">{stats.totalServices}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-green-500/10 flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Receita Total</p>
-                    <p className="text-2xl font-bold" data-testid="stat-revenue">
-                      R$ {(stats.totalRevenue / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-accent/20 flex items-center justify-center">
-                    <UserCheck className="h-6 w-6 text-accent-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Clientes</p>
-                    <p className="text-2xl font-bold" data-testid="stat-clients">{stats.totalClients}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
-                    <Wrench className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Prestadores</p>
-                    <p className="text-2xl font-bold" data-testid="stat-providers">{stats.totalProviders}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        ) : (
+          <p className="text-center text-muted-foreground py-8">Nenhum usuário encontrado</p>
         )}
+      </CardContent>
+    </Card>
+  );
+}
 
-        <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="rounded-xl flex-wrap">
-            <TabsTrigger value="users" className="rounded-lg gap-2" data-testid="tab-users">
-              <Users className="h-4 w-4" />
-              Usuários
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="rounded-lg gap-2" data-testid="tab-documents">
-              <FileText className="h-4 w-4" />
-              Documentos
-              {pendingDocuments.length > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 min-w-5 text-xs">
-                  {pendingDocuments.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="cities" className="rounded-lg gap-2" data-testid="tab-cities">
-              <MapPin className="h-4 w-4" />
-              Por Cidade
-            </TabsTrigger>
-            <TabsTrigger value="pricing" className="rounded-lg gap-2" data-testid="tab-pricing">
-              <DollarSign className="h-4 w-4" />
-              Preços
-            </TabsTrigger>
-            <TabsTrigger value="backup" className="rounded-lg gap-2" data-testid="tab-backup">
-              <Database className="h-4 w-4" />
-              Backup
-            </TabsTrigger>
-            <TabsTrigger value="antifraud" className="rounded-lg gap-2" data-testid="tab-antifraud">
-              <AlertTriangle className="h-4 w-4" />
-              Antifraude
-            </TabsTrigger>
-            <TabsTrigger value="symptoms" className="rounded-lg gap-2" data-testid="tab-symptoms">
-              <Sparkles className="h-4 w-4" />
-              Sintomas IA
-            </TabsTrigger>
-            <TabsTrigger value="providers" className="rounded-lg gap-2" data-testid="tab-providers">
-              <Wrench className="h-4 w-4" />
-              Profissionais
-            </TabsTrigger>
-            <TabsTrigger value="clients" className="rounded-lg gap-2" data-testid="tab-clients">
-              <UserCheck className="h-4 w-4" />
-              Clientes
-            </TabsTrigger>
-            <TabsTrigger value="reference-prices" className="rounded-lg gap-2" data-testid="tab-reference-prices">
-              <BarChart3 className="h-4 w-4" />
-              Precos SINAPI
-            </TabsTrigger>
-            <TabsTrigger value="ai-training" className="rounded-lg gap-2" data-testid="tab-ai-training">
-              <Brain className="h-4 w-4" />
-              Treinamento IA
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="users" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Gestão de Usuários
-                </CardTitle>
-                <CardDescription>Filtre e gerencie usuários por cidade, tipo e busca</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex-1 min-w-[200px]">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por ID ou telefone..."
-                        className="pl-10"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        data-testid="input-search-users"
-                      />
+// ==================== DOCUMENTS SECTION ====================
+function DocumentsSection({
+  pendingDocuments, selectedDocument, setSelectedDocument, documentNotes, setDocumentNotes, updateDocumentStatusMutation,
+}: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          Verificação de Documentos
+        </CardTitle>
+        <CardDescription>Analise e aprove documentos de prestadores de serviço</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {pendingDocuments.length > 0 ? (
+          <div className="space-y-4">
+            {pendingDocuments.map((provider: any) => (
+              <div 
+                key={provider.id}
+                className="flex items-center justify-between gap-4 p-4 border rounded-xl flex-wrap"
+                data-testid={`document-row-${provider.userId}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Prestador: {provider.userId.substring(0, 8)}...</p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>{provider.city || "Sem cidade"}</span>
+                      <span>•</span>
+                      <span>{provider.phone || "Sem telefone"}</span>
                     </div>
                   </div>
-                  
-                  <CityAutocomplete
-                    value={cityFilter === "Todas" ? "" : cityFilter}
-                    onChange={(value) => setCityFilter(value || "Todas")}
-                    placeholder="Todas as cidades"
-                    className="w-[220px]"
-                    data-testid="select-city-filter"
-                  />
-                  
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="w-[150px]" data-testid="select-role-filter">
-                      <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="client">Clientes</SelectItem>
-                      <SelectItem value="provider">Prestadores</SelectItem>
-                      <SelectItem value="admin">Admins</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-
-                <div className="text-sm text-muted-foreground">
-                  Mostrando {filteredUsers.length} de {users?.length || 0} usuários
-                </div>
-
-                {usersLoading ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-16 bg-muted rounded animate-pulse" />
-                    ))}
-                  </div>
-                ) : filteredUsers.length > 0 ? (
-                  <div className="space-y-3 max-h-[500px] overflow-auto">
-                    {filteredUsers.map((profile) => (
-                      <div 
-                        key={profile.id} 
-                        className="flex items-center justify-between p-4 border rounded-xl"
-                        data-testid={`user-row-${profile.userId}`}
+                <div className="flex items-center gap-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setSelectedDocument(provider);
+                          setDocumentNotes("");
+                        }}
+                        data-testid={`button-view-document-${provider.userId}`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                            {profile.role === "provider" ? (
-                              <Wrench className="h-5 w-5 text-muted-foreground" />
-                            ) : profile.role === "admin" ? (
-                              <Shield className="h-5 w-5 text-muted-foreground" />
-                            ) : (
-                              <Users className="h-5 w-5 text-muted-foreground" />
+                        <Eye className="h-4 w-4 mr-1" />
+                        Ver Documento
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Verificar Documento</DialogTitle>
+                        <DialogDescription>
+                          Analise o documento enviado e aprove ou rejeite
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {selectedDocument && (
+                        <div className="space-y-4">
+                          <div className="border rounded-xl overflow-hidden">
+                            {selectedDocument.documentUrl && (
+                              <img 
+                                src={selectedDocument.documentUrl}
+                                alt="Documento do prestador"
+                                className="w-full max-h-96 object-contain bg-muted"
+                              />
                             )}
                           </div>
-                          <div>
-                            <p className="font-medium">{profile.userId.substring(0, 8)}...</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{profile.phone || "Sem telefone"}</span>
-                              {profile.city && (
+
+                          <div className="p-4 bg-muted/50 rounded-xl">
+                            <h4 className="font-medium mb-2">Informações do Prestador</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">ID:</span>
+                                <span className="ml-2">{selectedDocument.userId.substring(0, 12)}...</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Cidade:</span>
+                                <span className="ml-2">{selectedDocument.city || "N/A"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Telefone:</span>
+                                <span className="ml-2">{selectedDocument.phone || "N/A"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Termos:</span>
+                                <span className="ml-2">
+                                  {selectedDocument.termsAccepted ? (
+                                    <span className="text-green-600">Aceitos</span>
+                                  ) : (
+                                    <span className="text-red-600">Não aceitos</span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Observações (opcional)</Label>
+                            <Textarea
+                              placeholder="Adicione uma nota sobre a verificação..."
+                              value={documentNotes}
+                              onChange={(e: any) => setDocumentNotes(e.target.value)}
+                              data-testid="input-document-notes"
+                            />
+                          </div>
+
+                          <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                              <div className="text-sm">
+                                <p className="font-medium text-amber-700">Verificação Manual</p>
+                                <p className="text-muted-foreground mt-1">
+                                  Confirme se o documento é oficial (RG, CNH, etc.), está legível 
+                                  e pertence ao prestador cadastrado.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3">
+                            <Button
+                              variant="outline"
+                              className="flex-1 gap-2 border-red-200 text-red-600 hover:bg-red-50"
+                              onClick={() => updateDocumentStatusMutation.mutate({
+                                userId: selectedDocument.userId,
+                                status: "rejected",
+                                notes: documentNotes
+                              })}
+                              disabled={updateDocumentStatusMutation.isPending}
+                              data-testid="button-reject-document"
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Rejeitar
+                            </Button>
+                            <Button
+                              className="flex-1 gap-2"
+                              onClick={() => updateDocumentStatusMutation.mutate({
+                                userId: selectedDocument.userId,
+                                status: "approved",
+                                notes: documentNotes
+                              })}
+                              disabled={updateDocumentStatusMutation.isPending}
+                              data-testid="button-approve-document"
+                            >
+                              {updateDocumentStatusMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
                                 <>
-                                  <span>•</span>
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {profile.city}
-                                  </span>
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  Aprovar
                                 </>
                               )}
-                            </div>
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          {profile.role === "provider" && (
-                            <Badge variant={
-                              profile.documentStatus === "approved" ? "default" :
-                              profile.documentStatus === "rejected" ? "destructive" :
-                              "secondary"
-                            } className="text-xs">
-                              {profile.documentStatus === "approved" ? "Verificado" :
-                               profile.documentStatus === "rejected" ? "Rejeitado" :
-                               "Pendente"}
-                            </Badge>
-                          )}
-                          <Badge variant={
-                            profile.role === "admin" ? "default" : 
-                            profile.role === "provider" ? "secondary" : 
-                            "outline"
-                          }>
-                            {profile.role === "admin" ? "Admin" : profile.role === "provider" ? "Prestador" : "Cliente"}
-                          </Badge>
-                          <Select
-                            value={profile.role}
-                            onValueChange={(value) => updateRoleMutation.mutate({ userId: profile.userId, role: value })}
-                          >
-                            <SelectTrigger className="w-32" data-testid={`select-role-${profile.userId}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="client">Cliente</SelectItem>
-                              <SelectItem value="provider">Prestador</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">Nenhum usuário encontrado</p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="documents" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Verificação de Documentos
-                </CardTitle>
-                <CardDescription>Analise e aprove documentos de prestadores de serviço</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {pendingDocuments.length > 0 ? (
-                  <div className="space-y-4">
-                    {pendingDocuments.map((provider) => (
-                      <div 
-                        key={provider.id}
-                        className="flex items-center justify-between p-4 border rounded-xl"
-                        data-testid={`document-row-${provider.userId}`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                            <Clock className="h-6 w-6 text-amber-500" />
-                          </div>
-                          <div>
-                            <p className="font-medium">Prestador: {provider.userId.substring(0, 8)}...</p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{provider.city || "Sem cidade"}</span>
-                              <span>•</span>
-                              <span>{provider.phone || "Sem telefone"}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedDocument(provider);
-                                  setDocumentNotes("");
-                                }}
-                                data-testid={`button-view-document-${provider.userId}`}
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver Documento
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                              <DialogHeader>
-                                <DialogTitle>Verificar Documento</DialogTitle>
-                                <DialogDescription>
-                                  Analise o documento enviado e aprove ou rejeite
-                                </DialogDescription>
-                              </DialogHeader>
-                              
-                              {selectedDocument && (
-                                <div className="space-y-4">
-                                  <div className="border rounded-xl overflow-hidden">
-                                    {selectedDocument.documentUrl && (
-                                      <img 
-                                        src={selectedDocument.documentUrl}
-                                        alt="Documento do prestador"
-                                        className="w-full max-h-96 object-contain bg-muted"
-                                      />
-                                    )}
-                                  </div>
-
-                                  <div className="p-4 bg-muted/50 rounded-xl">
-                                    <h4 className="font-medium mb-2">Informações do Prestador</h4>
-                                    <div className="grid grid-cols-2 gap-2 text-sm">
-                                      <div>
-                                        <span className="text-muted-foreground">ID:</span>
-                                        <span className="ml-2">{selectedDocument.userId.substring(0, 12)}...</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Cidade:</span>
-                                        <span className="ml-2">{selectedDocument.city || "N/A"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Telefone:</span>
-                                        <span className="ml-2">{selectedDocument.phone || "N/A"}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Termos:</span>
-                                        <span className="ml-2">
-                                          {selectedDocument.termsAccepted ? (
-                                            <span className="text-green-600">Aceitos</span>
-                                          ) : (
-                                            <span className="text-red-600">Não aceitos</span>
-                                          )}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label>Observações (opcional)</Label>
-                                    <Textarea
-                                      placeholder="Adicione uma nota sobre a verificação..."
-                                      value={documentNotes}
-                                      onChange={(e) => setDocumentNotes(e.target.value)}
-                                      data-testid="input-document-notes"
-                                    />
-                                  </div>
-
-                                  <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                                    <div className="flex items-start gap-3">
-                                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                                      <div className="text-sm">
-                                        <p className="font-medium text-amber-700">Verificação Manual</p>
-                                        <p className="text-muted-foreground mt-1">
-                                          Confirme se o documento é oficial (RG, CNH, etc.), está legível 
-                                          e pertence ao prestador cadastrado.
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex gap-3">
-                                    <Button
-                                      variant="outline"
-                                      className="flex-1 gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                                      onClick={() => updateDocumentStatusMutation.mutate({
-                                        userId: selectedDocument.userId,
-                                        status: "rejected",
-                                        notes: documentNotes
-                                      })}
-                                      disabled={updateDocumentStatusMutation.isPending}
-                                      data-testid="button-reject-document"
-                                    >
-                                      <XCircle className="h-4 w-4" />
-                                      Rejeitar
-                                    </Button>
-                                    <Button
-                                      className="flex-1 gap-2"
-                                      onClick={() => updateDocumentStatusMutation.mutate({
-                                        userId: selectedDocument.userId,
-                                        status: "approved",
-                                        notes: documentNotes
-                                      })}
-                                      disabled={updateDocumentStatusMutation.isPending}
-                                      data-testid="button-approve-document"
-                                    >
-                                      {updateDocumentStatusMutation.isPending ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <CheckCircle2 className="h-4 w-4" />
-                                          Aprovar
-                                        </>
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="mx-auto h-16 w-16 rounded-2xl bg-green-500/10 flex items-center justify-center mb-4">
-                      <CheckCircle2 className="h-8 w-8 text-green-500" />
-                    </div>
-                    <h3 className="font-medium mb-2">Nenhum documento pendente</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Todos os documentos foram verificados
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="cities" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Usuários por Cidade
-                </CardTitle>
-                <CardDescription>Visão geral de clientes e prestadores por região</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {cityStats.map(({ city, total, clients, providers }) => (
-                    <Card key={city} className="border-2 hover:border-primary/20 transition-colors">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                            <MapPin className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-semibold">{city}</p>
-                            <p className="text-sm text-muted-foreground">{total} usuários</p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2 bg-muted/50 rounded-lg text-center">
-                            <p className="text-lg font-bold text-primary">{clients}</p>
-                            <p className="text-xs text-muted-foreground">Clientes</p>
-                          </div>
-                          <div className="p-2 bg-muted/50 rounded-lg text-center">
-                            <p className="text-lg font-bold text-accent-foreground">{providers}</p>
-                            <p className="text-xs text-muted-foreground">Prestadores</p>
-                          </div>
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          className="w-full mt-4"
-                          onClick={() => {
-                            setCityFilter(city === "Sem cidade" ? "Todas" : city);
-                          }}
-                          data-testid={`button-filter-city-${city}`}
-                        >
-                          Ver usuários
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      )}
+                    </DialogContent>
+                  </Dialog>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="mx-auto h-16 w-16 rounded-2xl bg-green-500/10 flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            </div>
+            <h3 className="font-medium mb-2">Nenhum documento pendente</h3>
+            <p className="text-sm text-muted-foreground">
+              Todos os documentos foram verificados
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-          <TabsContent value="pricing" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5" />
-                  Preços do Diagnóstico IA
-                </CardTitle>
-                <CardDescription>Configure os valores cobrados pelo diagnóstico automático</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="ai_diagnosis_price">Preço do Diagnóstico (centavos)</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="ai_diagnosis_price"
-                        type="number"
-                        value={getSettingValue("ai_diagnosis_price")}
-                        onChange={(e) => setSettingValues(prev => ({ ...prev, ai_diagnosis_price: e.target.value }))}
-                        placeholder="500"
-                        data-testid="input-ai-price"
-                      />
-                      <Button 
-                        size="icon" 
-                        onClick={() => handleSaveSetting("ai_diagnosis_price", "Preço do diagnóstico IA (centavos)")}
-                        disabled={updateSettingMutation.isPending}
-                        data-testid="button-save-ai-price"
-                      >
-                        {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Valor atual: R$ {(parseInt(getSettingValue("ai_diagnosis_price") || "500") / 100).toFixed(2)}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="service_fee_percent">Taxa sobre Serviços (%)</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="service_fee_percent"
-                        type="number"
-                        value={getSettingValue("service_fee_percent")}
-                        onChange={(e) => setSettingValues(prev => ({ ...prev, service_fee_percent: e.target.value }))}
-                        placeholder="15"
-                        data-testid="input-service-fee"
-                      />
-                      <Button 
-                        size="icon" 
-                        onClick={() => handleSaveSetting("service_fee_percent", "Taxa sobre serviços (%)")}
-                        disabled={updateSettingMutation.isPending}
-                        data-testid="button-save-service-fee"
-                      >
-                        {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Multiplicadores de SLA
-                </CardTitle>
-                <CardDescription>Configure os multiplicadores de preço para cada nível de urgência</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="express_multiplier">Multiplicador Express</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="express_multiplier"
-                        type="number"
-                        step="0.1"
-                        value={getSettingValue("express_multiplier")}
-                        onChange={(e) => setSettingValues(prev => ({ ...prev, express_multiplier: e.target.value }))}
-                        placeholder="1.5"
-                        data-testid="input-express-multiplier"
-                      />
-                      <Button 
-                        size="icon" 
-                        onClick={() => handleSaveSetting("express_multiplier", "Multiplicador Express")}
-                        disabled={updateSettingMutation.isPending}
-                      >
-                        {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Atendimento em até 12h</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="urgent_multiplier">Multiplicador Urgente</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="urgent_multiplier"
-                        type="number"
-                        step="0.1"
-                        value={getSettingValue("urgent_multiplier")}
-                        onChange={(e) => setSettingValues(prev => ({ ...prev, urgent_multiplier: e.target.value }))}
-                        placeholder="2.0"
-                        data-testid="input-urgent-multiplier"
-                      />
-                      <Button 
-                        size="icon" 
-                        onClick={() => handleSaveSetting("urgent_multiplier", "Multiplicador Urgente")}
-                        disabled={updateSettingMutation.isPending}
-                      >
-                        {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Atendimento em até 2h</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="backup" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  Backup de Dados
-                </CardTitle>
-                <CardDescription>Exporte os dados do sistema para backup</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-6 border rounded-xl text-center space-y-4">
-                  <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <Download className="h-8 w-8 text-primary" />
+// ==================== CITIES SECTION ====================
+function CitiesSection({ cityStats, setCityFilter, setActiveSection }: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MapPin className="h-5 w-5" />
+          Usuários por Cidade
+        </CardTitle>
+        <CardDescription>Visão geral de clientes e prestadores por região</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {cityStats.map(({ city, total, clients, providers }: any) => (
+            <Card key={city} className="border-2 hover:border-primary/20 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <MapPin className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-medium mb-1">Exportar todos os dados</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Baixe um arquivo com todos os usuários, serviços e pagamentos
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={handleExportData}
-                    className="gap-2"
-                    data-testid="button-export-backup"
-                  >
-                    <Download className="h-4 w-4" />
-                    Iniciar Backup
-                  </Button>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="p-4 border rounded-xl text-center">
-                    <p className="text-2xl font-bold text-primary">{stats?.totalServices || 0}</p>
-                    <p className="text-sm text-muted-foreground">Serviços</p>
-                  </div>
-                  <div className="p-4 border rounded-xl text-center">
-                    <p className="text-2xl font-bold text-primary">{users?.length || 0}</p>
-                    <p className="text-sm text-muted-foreground">Usuários</p>
-                  </div>
-                  <div className="p-4 border rounded-xl text-center">
-                    <p className="text-2xl font-bold text-primary">{stats?.totalPayments || 0}</p>
-                    <p className="text-sm text-muted-foreground">Pagamentos</p>
+                    <p className="font-semibold">{city}</p>
+                    <p className="text-sm text-muted-foreground">{total} usuários</p>
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2 bg-muted/50 rounded-lg text-center">
+                    <p className="text-lg font-bold text-primary">{clients}</p>
+                    <p className="text-xs text-muted-foreground">Clientes</p>
+                  </div>
+                  <div className="p-2 bg-muted/50 rounded-lg text-center">
+                    <p className="text-lg font-bold text-accent-foreground">{providers}</p>
+                    <p className="text-xs text-muted-foreground">Prestadores</p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4"
+                  onClick={() => {
+                    setCityFilter(city === "Sem cidade" ? "Todas" : city);
+                    setActiveSection("users");
+                  }}
+                  data-testid={`button-filter-city-${city}`}
+                >
+                  Ver usuários
+                </Button>
               </CardContent>
             </Card>
-          </TabsContent>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-          <TabsContent value="antifraud" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" />
-                  Sistema Antifraude
-                </CardTitle>
-                <CardDescription>Monitore flags de risco e comportamentos suspeitos</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="p-4 text-center border rounded-xl bg-green-500/10 border-green-500/20">
-                    <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                    <p className="text-2xl font-bold">Baixo Risco</p>
-                    <p className="text-sm text-muted-foreground">Operações normais</p>
-                  </div>
-                  <div className="p-4 text-center border rounded-xl bg-yellow-500/10 border-yellow-500/20">
-                    <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
-                    <p className="text-2xl font-bold">0</p>
-                    <p className="text-sm text-muted-foreground">Alertas pendentes</p>
-                  </div>
-                  <div className="p-4 text-center border rounded-xl bg-red-500/10 border-red-500/20">
-                    <XCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-                    <p className="text-2xl font-bold">0</p>
-                    <p className="text-sm text-muted-foreground">Bloqueados</p>
-                  </div>
-                </div>
+// ==================== PRICING SECTION ====================
+function PricingSection({ getSettingValue, setSettingValues, handleSaveSetting, updateSettingMutation }: any) {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Preços do Diagnóstico IA
+          </CardTitle>
+          <CardDescription>Configure os valores cobrados pelo diagnóstico automático</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="ai_diagnosis_price">Preço do Diagnóstico (centavos)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="ai_diagnosis_price"
+                  type="number"
+                  value={getSettingValue("ai_diagnosis_price")}
+                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, ai_diagnosis_price: e.target.value }))}
+                  placeholder="500"
+                  data-testid="input-ai-price"
+                />
+                <Button 
+                  size="icon" 
+                  onClick={() => handleSaveSetting("ai_diagnosis_price", "Preço do diagnóstico IA (centavos)")}
+                  disabled={updateSettingMutation.isPending}
+                  data-testid="button-save-ai-price"
+                >
+                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Valor atual: R$ {(parseInt(getSettingValue("ai_diagnosis_price") || "500") / 100).toFixed(2)}
+              </p>
+            </div>
 
-                <div className="space-y-4">
-                  <h3 className="font-medium">Regras de Detecção Ativas</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        <div>
-                          <p className="font-medium text-sm">Múltiplos serviços mesmo CPF</p>
-                          <p className="text-xs text-muted-foreground">Detecta 3+ serviços pendentes do mesmo CPF</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">Ativo</Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        <div>
-                          <p className="font-medium text-sm">Distância geolocalização</p>
-                          <p className="text-xs text-muted-foreground">Alerta se distância &gt; 50km do endereço cadastrado</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">Ativo</Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        <div>
-                          <p className="font-medium text-sm">Valor acima do padrão</p>
-                          <p className="text-xs text-muted-foreground">Alerta para serviços &gt; R$ 5.000</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">Ativo</Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        <div>
-                          <p className="font-medium text-sm">Cancelamentos frequentes</p>
-                          <p className="text-xs text-muted-foreground">Flag para 3+ cancelamentos em 30 dias</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline">Ativo</Badge>
-                    </div>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="service_fee_percent">Taxa sobre Serviços (%)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="service_fee_percent"
+                  type="number"
+                  value={getSettingValue("service_fee_percent")}
+                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, service_fee_percent: e.target.value }))}
+                  placeholder="15"
+                  data-testid="input-service-fee"
+                />
+                <Button 
+                  size="icon" 
+                  onClick={() => handleSaveSetting("service_fee_percent", "Taxa sobre serviços (%)")}
+                  disabled={updateSettingMutation.isPending}
+                  data-testid="button-save-service-fee"
+                >
+                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-                <div className="space-y-4">
-                  <h3 className="font-medium">Histórico de Alertas</h3>
-                  <div className="p-8 text-center border rounded-lg">
-                    <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground">Nenhum alerta registrado</p>
-                    <p className="text-sm text-muted-foreground">Todas as operações estão dentro dos padrões normais</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Multiplicadores SLA
+          </CardTitle>
+          <CardDescription>Configure os multiplicadores de preço por prioridade</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="express_multiplier">Multiplicador Express</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="express_multiplier"
+                  type="number"
+                  step="0.1"
+                  value={getSettingValue("express_multiplier")}
+                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, express_multiplier: e.target.value }))}
+                  placeholder="1.5"
+                />
+                <Button 
+                  size="icon" 
+                  onClick={() => handleSaveSetting("express_multiplier", "Multiplicador Express")}
+                  disabled={updateSettingMutation.isPending}
+                >
+                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Atendimento em até 4h</p>
+            </div>
 
-          <TabsContent value="symptoms" className="space-y-6">
-            <SymptomsManager />
-          </TabsContent>
-
-          {/* Providers Management Tab */}
-          <TabsContent value="providers" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wrench className="h-5 w-5" />
-                  Gestão de Profissionais
-                </CardTitle>
-                <CardDescription>Visualize notas, avaliações, serviços e pagamentos dos profissionais</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {providersLoading ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-24 bg-muted rounded animate-pulse" />
-                    ))}
-                  </div>
-                ) : providersData && providersData.length > 0 ? (
-                  <div className="space-y-4">
-                    {providersData.map((provider) => (
-                      <div key={provider.userId} className="p-4 border rounded-lg hover-elevate">
-                        <div className="flex items-start justify-between gap-4 flex-wrap">
-                          <div className="flex-1 min-w-[200px]">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold">Profissional #{provider.userId.slice(-6)}</span>
-                              {(provider.totalRatings || 0) > 0 ? (
-                                <Badge variant="default" className="bg-yellow-500 text-black">
-                                  {parseFloat(provider.rating || "0").toFixed(1)}/10
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                                  Novo
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                              {provider.city && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {provider.city}
-                                </span>
-                              )}
-                              {provider.phone && (
-                                <span>{provider.phone}</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                            <div className="p-2 bg-muted rounded">
-                              <p className="text-xs text-muted-foreground">Avaliações</p>
-                              <p className="text-lg font-bold">{provider.totalRatings || 0}</p>
-                            </div>
-                            <div className="p-2 bg-muted rounded">
-                              <p className="text-xs text-muted-foreground">Serviços</p>
-                              <p className="text-lg font-bold">{provider.completedServices || 0}</p>
-                            </div>
-                            <div className="p-2 bg-muted rounded">
-                              <p className="text-xs text-muted-foreground">Pendentes</p>
-                              <p className="text-lg font-bold">{provider.pendingServices || 0}</p>
-                            </div>
-                            <div className="p-2 bg-primary/10 rounded">
-                              <p className="text-xs text-muted-foreground">Ganhos</p>
-                              <p className="text-lg font-bold text-primary">
-                                R$ {((provider.totalEarnings || 0) / 100).toFixed(0)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Recent Reviews */}
-                        {provider.reviews && provider.reviews.length > 0 && (
-                          <div className="mt-4 pt-4 border-t">
-                            <p className="text-sm font-medium mb-2">Últimas avaliações:</p>
-                            <div className="flex gap-2 flex-wrap">
-                              {provider.reviews.map((review) => (
-                                <div key={review.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
-                                  <Star className="h-3 w-3 text-yellow-500 fill-current" />
-                                  {review.rating}/10
-                                  {review.comment && (
-                                    <span className="text-muted-foreground ml-1 truncate max-w-[100px]">
-                                      "{review.comment}"
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <Wrench className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhum profissional cadastrado</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Clients Management Tab */}
-          <TabsContent value="clients" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCheck className="h-5 w-5" />
-                  Gestão de Clientes
-                </CardTitle>
-                <CardDescription>Visualize serviços e pagamentos dos clientes</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {clientsLoading ? (
-                  <div className="space-y-4">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-20 bg-muted rounded animate-pulse" />
-                    ))}
-                  </div>
-                ) : clientsData && clientsData.length > 0 ? (
-                  <div className="space-y-4">
-                    {clientsData.map((client) => (
-                      <div key={client.userId} className="p-4 border rounded-lg hover-elevate">
-                        <div className="flex items-start justify-between gap-4 flex-wrap">
-                          <div className="flex-1 min-w-[200px]">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold">Cliente #{client.userId.slice(-6)}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                              {client.city && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {client.city}
-                                </span>
-                              )}
-                              {client.phone && (
-                                <span>{client.phone}</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                            <div className="p-2 bg-muted rounded">
-                              <p className="text-xs text-muted-foreground">Total</p>
-                              <p className="text-lg font-bold">{client.totalServices || 0}</p>
-                            </div>
-                            <div className="p-2 bg-muted rounded">
-                              <p className="text-xs text-muted-foreground">Concluídos</p>
-                              <p className="text-lg font-bold">{client.completedServices || 0}</p>
-                            </div>
-                            <div className="p-2 bg-muted rounded">
-                              <p className="text-xs text-muted-foreground">Pendentes</p>
-                              <p className="text-lg font-bold">{client.pendingServices || 0}</p>
-                            </div>
-                            <div className="p-2 bg-primary/10 rounded">
-                              <p className="text-xs text-muted-foreground">Gastos</p>
-                              <p className="text-lg font-bold text-primary">
-                                R$ {((client.totalSpent || 0) / 100).toFixed(0)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhum cliente cadastrado</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="reference-prices" className="space-y-6">
-            <ReferencePricesManager />
-          </TabsContent>
-
-          <TabsContent value="ai-training" className="space-y-6">
-            <AiTrainingManager />
-          </TabsContent>
-        </Tabs>
-      </main>
+            <div className="space-y-2">
+              <Label htmlFor="urgent_multiplier">Multiplicador Urgente</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="urgent_multiplier"
+                  type="number"
+                  step="0.1"
+                  value={getSettingValue("urgent_multiplier")}
+                  onChange={(e: any) => setSettingValues((prev: any) => ({ ...prev, urgent_multiplier: e.target.value }))}
+                  placeholder="2.0"
+                />
+                <Button 
+                  size="icon" 
+                  onClick={() => handleSaveSetting("urgent_multiplier", "Multiplicador Urgente")}
+                  disabled={updateSettingMutation.isPending}
+                >
+                  {updateSettingMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Atendimento em até 2h</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+// ==================== BACKUP SECTION ====================
+function BackupSection({ stats, users, handleExportData }: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="h-5 w-5" />
+          Backup de Dados
+        </CardTitle>
+        <CardDescription>Exporte os dados do sistema para backup</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="p-6 border rounded-xl text-center space-y-4">
+          <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Download className="h-8 w-8 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-medium mb-1">Exportar todos os dados</h3>
+            <p className="text-sm text-muted-foreground">
+              Baixe um arquivo com todos os usuários, serviços e pagamentos
+            </p>
+          </div>
+          <Button 
+            onClick={handleExportData}
+            className="gap-2"
+            data-testid="button-export-backup"
+          >
+            <Download className="h-4 w-4" />
+            Iniciar Backup
+          </Button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="p-4 border rounded-xl text-center">
+            <p className="text-2xl font-bold text-primary">{stats?.totalServices || 0}</p>
+            <p className="text-sm text-muted-foreground">Serviços</p>
+          </div>
+          <div className="p-4 border rounded-xl text-center">
+            <p className="text-2xl font-bold text-primary">{users?.length || 0}</p>
+            <p className="text-sm text-muted-foreground">Usuários</p>
+          </div>
+          <div className="p-4 border rounded-xl text-center">
+            <p className="text-2xl font-bold text-primary">{stats?.totalPayments || 0}</p>
+            <p className="text-sm text-muted-foreground">Pagamentos</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== ANTIFRAUD SECTION ====================
+function AntifraudSection() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5" />
+          Sistema Antifraude
+        </CardTitle>
+        <CardDescription>Monitore flags de risco e comportamentos suspeitos</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="p-4 text-center border rounded-xl bg-green-500/10 border-green-500/20">
+            <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold">Baixo Risco</p>
+            <p className="text-sm text-muted-foreground">Operações normais</p>
+          </div>
+          <div className="p-4 text-center border rounded-xl bg-yellow-500/10 border-yellow-500/20">
+            <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold">0</p>
+            <p className="text-sm text-muted-foreground">Alertas pendentes</p>
+          </div>
+          <div className="p-4 text-center border rounded-xl bg-red-500/10 border-red-500/20">
+            <XCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold">0</p>
+            <p className="text-sm text-muted-foreground">Bloqueados</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="font-medium">Regras de Detecção Ativas</h3>
+          <div className="space-y-2">
+            {[
+              { title: "Múltiplos serviços mesmo CPF", desc: "Detecta 3+ serviços pendentes do mesmo CPF" },
+              { title: "Distância geolocalização", desc: "Alerta se distância > 50km do endereço cadastrado" },
+              { title: "Valor acima do padrão", desc: "Alerta para serviços > R$ 5.000" },
+              { title: "Cancelamentos frequentes", desc: "Flag para 3+ cancelamentos em 30 dias" },
+            ].map((rule) => (
+              <div key={rule.title} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-sm">{rule.title}</p>
+                    <p className="text-xs text-muted-foreground">{rule.desc}</p>
+                  </div>
+                </div>
+                <Badge variant="outline">Ativo</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="font-medium">Histórico de Alertas</h3>
+          <div className="p-8 text-center border rounded-lg">
+            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">Nenhum alerta registrado</p>
+            <p className="text-sm text-muted-foreground">Todas as operações estão dentro dos padrões normais</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== PROVIDERS SECTION ====================
+function ProvidersSection({ providersData, providersLoading }: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Wrench className="h-5 w-5" />
+          Gestão de Profissionais
+        </CardTitle>
+        <CardDescription>Visualize notas, avaliações, serviços e pagamentos dos profissionais</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {providersLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_: any, i: number) => (
+              <div key={i} className="h-24 bg-muted rounded animate-pulse" />
+            ))}
+          </div>
+        ) : providersData && providersData.length > 0 ? (
+          <div className="space-y-4">
+            {providersData.map((provider: any) => (
+              <div key={provider.userId} className="p-4 border rounded-lg hover-elevate">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="font-semibold">Profissional #{provider.userId.slice(-6)}</span>
+                      {(provider.totalRatings || 0) > 0 ? (
+                        <Badge variant="default" className="bg-yellow-500 text-black">
+                          {parseFloat(provider.rating || "0").toFixed(1)}/10
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                          Novo
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      {provider.city && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {provider.city}
+                        </span>
+                      )}
+                      {provider.phone && (
+                        <span>{provider.phone}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-xs text-muted-foreground">Avaliações</p>
+                      <p className="text-lg font-bold">{provider.totalRatings || 0}</p>
+                    </div>
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-xs text-muted-foreground">Serviços</p>
+                      <p className="text-lg font-bold">{provider.completedServices || 0}</p>
+                    </div>
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-xs text-muted-foreground">Pendentes</p>
+                      <p className="text-lg font-bold">{provider.pendingServices || 0}</p>
+                    </div>
+                    <div className="p-2 bg-primary/10 rounded">
+                      <p className="text-xs text-muted-foreground">Ganhos</p>
+                      <p className="text-lg font-bold text-primary">
+                        R$ {((provider.totalEarnings || 0) / 100).toFixed(0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {provider.reviews && provider.reviews.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-sm font-medium mb-2">Últimas avaliações:</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {provider.reviews.map((review: any) => (
+                        <div key={review.id} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
+                          <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                          {review.rating}/10
+                          {review.comment && (
+                            <span className="text-muted-foreground ml-1 truncate max-w-[100px]">
+                              "{review.comment}"
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-muted-foreground">
+            <Wrench className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum profissional cadastrado</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================== CLIENTS SECTION ====================
+function ClientsSection({ clientsData, clientsLoading }: any) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <UserCheck className="h-5 w-5" />
+          Gestão de Clientes
+        </CardTitle>
+        <CardDescription>Visualize serviços e pagamentos dos clientes</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {clientsLoading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_: any, i: number) => (
+              <div key={i} className="h-20 bg-muted rounded animate-pulse" />
+            ))}
+          </div>
+        ) : clientsData && clientsData.length > 0 ? (
+          <div className="space-y-4">
+            {clientsData.map((client: any) => (
+              <div key={client.userId} className="p-4 border rounded-lg hover-elevate">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold">Cliente #{client.userId.slice(-6)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      {client.city && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {client.city}
+                        </span>
+                      )}
+                      {client.phone && (
+                        <span>{client.phone}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="text-lg font-bold">{client.totalServices || 0}</p>
+                    </div>
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-xs text-muted-foreground">Concluídos</p>
+                      <p className="text-lg font-bold">{client.completedServices || 0}</p>
+                    </div>
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-xs text-muted-foreground">Pendentes</p>
+                      <p className="text-lg font-bold">{client.pendingServices || 0}</p>
+                    </div>
+                    <div className="p-2 bg-primary/10 rounded">
+                      <p className="text-xs text-muted-foreground">Gastos</p>
+                      <p className="text-lg font-bold text-primary">
+                        R$ {((client.totalSpent || 0) / 100).toFixed(0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-muted-foreground">
+            <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum cliente cadastrado</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1540,8 +1675,17 @@ function ReferencePricesManager() {
                   Cadastre um novo preço de serviço ou material para melhorar as estimativas da IA.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Código</Label>
+                    <Input
+                      value={newPrice.code}
+                      onChange={(e) => setNewPrice({ ...newPrice, code: e.target.value })}
+                      placeholder="SINAPI-1234"
+                      data-testid="input-new-code"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label>Fonte</Label>
                     <Select value={newPrice.source} onValueChange={(v) => setNewPrice({ ...newPrice, source: v })}>
@@ -1555,19 +1699,20 @@ function ReferencePricesManager() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Select value={newPrice.itemType} onValueChange={(v) => setNewPrice({ ...newPrice, itemType: v })}>
-                      <SelectTrigger data-testid="select-new-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="service">Serviço</SelectItem>
-                        <SelectItem value="material">Material</SelectItem>
-                        <SelectItem value="labor">Mão de obra</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select value={newPrice.itemType} onValueChange={(v) => setNewPrice({ ...newPrice, itemType: v })}>
+                    <SelectTrigger data-testid="select-new-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="service">Serviço</SelectItem>
+                      <SelectItem value="material">Material</SelectItem>
+                      <SelectItem value="labor">Mão de obra</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -1703,7 +1848,7 @@ function ReferencePricesManager() {
                       <Badge variant="outline" className="text-xs">{price.state}</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1 flex-wrap">
                     <span className="font-medium text-foreground">
                       {formatPrice(price.priceMin)}
                       {price.priceMax && ` - ${formatPrice(price.priceMax)}`}
@@ -1791,7 +1936,6 @@ function SymptomsManager() {
   const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false);
   const [isAddDiagnosisOpen, setIsAddDiagnosisOpen] = useState(false);
 
-  // Form states
   const [symptomForm, setSymptomForm] = useState({
     name: "",
     description: "",
@@ -1815,23 +1959,19 @@ function SymptomsManager() {
     urgencyLevel: "normal",
   });
 
-  // Fetch categories
   const { data: categories = [] } = useQuery<ServiceCategory[]>({
     queryKey: ["/api/categories"],
   });
 
-  // Fetch symptoms
   const { data: symptoms = [], isLoading: symptomsLoading } = useQuery<Symptom[]>({
     queryKey: ["/api/symptoms"],
   });
 
-  // Fetch selected symptom details
   const { data: symptomDetails } = useQuery<Symptom>({
     queryKey: ["/api/symptoms", selectedSymptom?.id],
     enabled: !!selectedSymptom?.id,
   });
 
-  // Mutations
   const createSymptom = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/admin/symptoms", data);
@@ -1957,7 +2097,6 @@ function SymptomsManager() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Coluna 1: Categorias e Sintomas */}
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -1969,7 +2108,6 @@ function SymptomsManager() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Seletor de Categoria */}
           <div>
             <Label>Categoria de Serviço</Label>
             <Select
@@ -1992,7 +2130,6 @@ function SymptomsManager() {
             </Select>
           </div>
 
-          {/* Lista de Sintomas */}
           {selectedCategory && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -2093,7 +2230,6 @@ function SymptomsManager() {
         </CardContent>
       </Card>
 
-      {/* Coluna 2: Perguntas do Sintoma */}
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -2122,9 +2258,7 @@ function SymptomsManager() {
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Nova Pergunta</DialogTitle>
-                      <DialogDescription>
-                        Adicione uma pergunta de refinamento para o sintoma
-                      </DialogDescription>
+                      <DialogDescription>Adicione uma pergunta de refinamento</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div>
@@ -2132,17 +2266,40 @@ function SymptomsManager() {
                         <Textarea
                           value={questionForm.question}
                           onChange={(e) => setQuestionForm({ ...questionForm, question: e.target.value })}
-                          placeholder="A água está limpa ou suja?"
+                          placeholder="Ex: A água sai com força ou goteja?"
                           data-testid="input-question-text"
                         />
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Ordem</Label>
+                          <Input
+                            type="number"
+                            value={questionForm.questionOrder}
+                            onChange={(e) => setQuestionForm({ ...questionForm, questionOrder: parseInt(e.target.value) || 1 })}
+                            data-testid="input-question-order"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={questionForm.isRequired}
+                              onChange={(e) => setQuestionForm({ ...questionForm, isRequired: e.target.checked })}
+                              className="rounded"
+                              data-testid="input-question-required"
+                            />
+                            <span className="text-sm">Obrigatória</span>
+                          </label>
+                        </div>
+                      </div>
                       <div>
-                        <Label>Ordem</Label>
+                        <Label>Palavras-gatilho (separadas por vírgula)</Label>
                         <Input
-                          type="number"
-                          value={questionForm.questionOrder}
-                          onChange={(e) => setQuestionForm({ ...questionForm, questionOrder: parseInt(e.target.value) || 1 })}
-                          data-testid="input-question-order"
+                          value={questionForm.triggerKeywords}
+                          onChange={(e) => setQuestionForm({ ...questionForm, triggerKeywords: e.target.value })}
+                          placeholder="vazamento, água, goteira"
+                          data-testid="input-question-triggers"
                         />
                       </div>
                       <div>
@@ -2150,21 +2307,9 @@ function SymptomsManager() {
                         <Input
                           value={questionForm.expectedResponses}
                           onChange={(e) => setQuestionForm({ ...questionForm, expectedResponses: e.target.value })}
-                          placeholder="limpa, suja, marrom"
+                          placeholder="com força, gotejando, pingando"
                           data-testid="input-question-responses"
                         />
-                      </div>
-                      <div>
-                        <Label>Palavras que ativam esta pergunta (separadas por vírgula)</Label>
-                        <Input
-                          value={questionForm.triggerKeywords}
-                          onChange={(e) => setQuestionForm({ ...questionForm, triggerKeywords: e.target.value })}
-                          placeholder="vazamento, vazando, goteira"
-                          data-testid="input-question-triggers"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Se preenchido, esta pergunta só será sugerida quando o cliente mencionar essas palavras
-                        </p>
                       </div>
                       <Button onClick={handleAddQuestion} disabled={createQuestion.isPending} data-testid="btn-save-question">
                         {createQuestion.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -2178,31 +2323,26 @@ function SymptomsManager() {
               {symptomDetails?.questions && symptomDetails.questions.length > 0 ? (
                 <div className="space-y-2">
                   {symptomDetails.questions.map((q) => (
-                    <div key={q.id} className="p-3 border rounded-lg">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <Badge variant="outline" className="mb-2">Ordem: {q.questionOrder}</Badge>
-                          <p className="font-medium">{q.question}</p>
-                          {q.expectedResponses && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Respostas: {JSON.parse(q.expectedResponses).join(", ")}
-                            </p>
-                          )}
-                          {q.triggerKeywords && (
-                            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                              Ativa quando: {JSON.parse(q.triggerKeywords).join(", ")}
-                            </p>
-                          )}
+                    <div key={q.id} className="p-3 border rounded-lg flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-xs">#{q.questionOrder}</Badge>
+                          {q.isRequired && <Badge variant="secondary" className="text-xs">Obrigatória</Badge>}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteQuestion.mutate(q.id)}
-                          data-testid={`btn-delete-question-${q.id}`}
-                        >
-                          <XCircle className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <p className="text-sm mt-1">{q.question}</p>
+                        {q.triggerKeywords && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Gatilhos: {JSON.parse(q.triggerKeywords).join(", ")}
+                          </p>
+                        )}
                       </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteQuestion.mutate(q.id)}
+                      >
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -2216,12 +2356,11 @@ function SymptomsManager() {
         </CardContent>
       </Card>
 
-      {/* Coluna 3: Diagnósticos Possíveis */}
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5" />
-            Diagnósticos Possíveis
+            <Sparkles className="h-5 w-5" />
+            Diagnósticos
           </CardTitle>
           <CardDescription>
             {selectedSymptom ? `Diagnósticos para: ${selectedSymptom.name}` : "Selecione um sintoma"}
@@ -2245,66 +2384,77 @@ function SymptomsManager() {
                   <DialogContent className="max-w-lg">
                     <DialogHeader>
                       <DialogTitle>Novo Diagnóstico</DialogTitle>
-                      <DialogDescription>
-                        Adicione um diagnóstico possível para este sintoma
-                      </DialogDescription>
+                      <DialogDescription>Adicione um diagnóstico possível para este sintoma</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                       <div>
                         <Label>Título</Label>
                         <Input
                           value={diagnosisForm.title}
                           onChange={(e) => setDiagnosisForm({ ...diagnosisForm, title: e.target.value })}
-                          placeholder="Ex: Cano furado"
+                          placeholder="Ex: Vedação desgastada"
                           data-testid="input-diagnosis-title"
                         />
                       </div>
                       <div>
-                        <Label>Descrição do Problema</Label>
+                        <Label>Descrição</Label>
                         <Textarea
                           value={diagnosisForm.description}
                           onChange={(e) => setDiagnosisForm({ ...diagnosisForm, description: e.target.value })}
-                          placeholder="Explicação do problema para o cliente"
+                          placeholder="Descrição do diagnóstico"
                           data-testid="input-diagnosis-description"
                         />
                       </div>
                       <div>
-                        <Label>Solução Recomendada</Label>
+                        <Label>Solução sugerida</Label>
                         <Textarea
                           value={diagnosisForm.solution}
                           onChange={(e) => setDiagnosisForm({ ...diagnosisForm, solution: e.target.value })}
-                          placeholder="Como o problema será resolvido"
+                          placeholder="Como resolver o problema"
                           data-testid="input-diagnosis-solution"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label>Preço Mínimo (R$)</Label>
+                          <Label>Preço Mín (R$)</Label>
                           <Input
                             type="number"
                             value={diagnosisForm.estimatedPriceMin}
                             onChange={(e) => setDiagnosisForm({ ...diagnosisForm, estimatedPriceMin: e.target.value })}
-                            placeholder="100"
+                            placeholder="80"
                             data-testid="input-diagnosis-price-min"
                           />
                         </div>
                         <div>
-                          <Label>Preço Máximo (R$)</Label>
+                          <Label>Preço Máx (R$)</Label>
                           <Input
                             type="number"
                             value={diagnosisForm.estimatedPriceMax}
                             onChange={(e) => setDiagnosisForm({ ...diagnosisForm, estimatedPriceMax: e.target.value })}
-                            placeholder="300"
+                            placeholder="200"
                             data-testid="input-diagnosis-price-max"
                           />
                         </div>
+                      </div>
+                      <div>
+                        <Label>Urgência</Label>
+                        <Select value={diagnosisForm.urgencyLevel} onValueChange={(v) => setDiagnosisForm({ ...diagnosisForm, urgencyLevel: v })}>
+                          <SelectTrigger data-testid="select-diagnosis-urgency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="alto">Alto</SelectItem>
+                            <SelectItem value="urgente">Urgente</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label>Materiais do Prestador (separados por vírgula)</Label>
                         <Input
                           value={diagnosisForm.providerMaterials}
                           onChange={(e) => setDiagnosisForm({ ...diagnosisForm, providerMaterials: e.target.value })}
-                          placeholder="Chave de fenda, alicate, fita veda rosca"
+                          placeholder="chave inglesa, veda rosca"
                           data-testid="input-diagnosis-provider-materials"
                         />
                       </div>
@@ -2313,27 +2463,11 @@ function SymptomsManager() {
                         <Input
                           value={diagnosisForm.clientMaterials}
                           onChange={(e) => setDiagnosisForm({ ...diagnosisForm, clientMaterials: e.target.value })}
-                          placeholder="Cano PVC, cola, conexão"
+                          placeholder="torneira nova, sifão"
                           data-testid="input-diagnosis-client-materials"
                         />
                       </div>
-                      <div>
-                        <Label>Nível de Urgência</Label>
-                        <Select
-                          value={diagnosisForm.urgencyLevel}
-                          onValueChange={(val) => setDiagnosisForm({ ...diagnosisForm, urgencyLevel: val })}
-                        >
-                          <SelectTrigger data-testid="select-urgency">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="urgente">Urgente</SelectItem>
-                            <SelectItem value="emergencia">Emergência</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button onClick={handleAddDiagnosis} disabled={createDiagnosis.isPending} className="w-full" data-testid="btn-save-diagnosis">
+                      <Button onClick={handleAddDiagnosis} disabled={createDiagnosis.isPending} data-testid="btn-save-diagnosis">
                         {createDiagnosis.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         Salvar Diagnóstico
                       </Button>
@@ -2347,17 +2481,20 @@ function SymptomsManager() {
                   {symptomDetails.diagnoses.map((d) => (
                     <div key={d.id} className="p-3 border rounded-lg">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{d.title}</span>
-                            <Badge variant={d.urgencyLevel === "emergencia" ? "destructive" : d.urgencyLevel === "urgente" ? "default" : "secondary"}>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{d.title}</span>
+                            <Badge variant={
+                              d.urgencyLevel === "urgente" ? "destructive" :
+                              d.urgencyLevel === "alto" ? "secondary" : "outline"
+                            } className="text-xs">
                               {d.urgencyLevel}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{d.description}</p>
-                          {(d.estimatedPriceMin || d.estimatedPriceMax) && (
-                            <p className="text-sm font-medium text-primary mt-1">
-                              R$ {((d.estimatedPriceMin || 0) / 100).toFixed(0)} - R$ {((d.estimatedPriceMax || 0) / 100).toFixed(0)}
+                          <p className="text-xs text-muted-foreground mt-1">{d.description}</p>
+                          {d.estimatedPriceMin && d.estimatedPriceMax && (
+                            <p className="text-xs font-medium mt-1 text-primary">
+                              R$ {(d.estimatedPriceMin / 100).toFixed(0)} - R$ {(d.estimatedPriceMax / 100).toFixed(0)}
                             </p>
                           )}
                         </div>
@@ -2365,7 +2502,6 @@ function SymptomsManager() {
                           size="sm"
                           variant="ghost"
                           onClick={() => deleteDiagnosis.mutate(d.id)}
-                          data-testid={`btn-delete-diagnosis-${d.id}`}
                         >
                           <XCircle className="h-4 w-4 text-destructive" />
                         </Button>
