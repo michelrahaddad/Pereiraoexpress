@@ -2428,12 +2428,25 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
         notes,
       });
 
-      // Atualizar serviço
+      // Atualizar serviço - auto enviar orçamento ao cliente
       await storage.updateService(serviceId, {
         providerId,
-        status: "provider_diagnosed",
+        status: "quote_sent",
         estimatedPrice: laborCost + (materialsCost || 0),
       });
+
+      // Criar notificação para o cliente sobre o orçamento
+      try {
+        await storage.createNotification({
+          userId: service.clientId,
+          type: "service_request",
+          title: "Orçamento recebido!",
+          message: `O profissional enviou o orçamento para "${service.title}". Mão de obra: R$ ${(laborCost / 100).toFixed(2)}${materialsCost ? ` + Materiais: R$ ${(materialsCost / 100).toFixed(2)}` : ""}. Acesse para aprovar e pagar.`,
+          data: JSON.stringify({ serviceId }),
+        });
+      } catch (notifError) {
+        console.error("Error creating quote notification:", notifError);
+      }
 
       res.json(providerDiagnosis);
     } catch (error) {
@@ -2493,7 +2506,7 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
       }
 
       // Validar que orçamento foi enviado antes de aceitar
-      if (service.status !== "quote_sent") {
+      if (service.status !== "quote_sent" && service.status !== "provider_diagnosed") {
         return res.status(400).json({ error: "Cannot accept service: quote not sent yet" });
       }
 
@@ -2544,14 +2557,27 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
         status: "holding",
       });
 
-      // Simular pagamento
-      setTimeout(async () => {
-        await storage.updatePaymentStatus(payment.id, "completed");
-        await storage.updateService(serviceId, { 
-          status: "accepted",
-          finalPrice: totalPrice,
-        });
-      }, 2000);
+      // Simular pagamento processado
+      await storage.updatePaymentStatus(payment.id, "completed");
+      await storage.updateService(serviceId, { 
+        status: "accepted",
+        finalPrice: totalPrice,
+      });
+
+      // Notificar prestador que orçamento foi aceito e pagamento feito
+      try {
+        if (service.providerId) {
+          await storage.createNotification({
+            userId: service.providerId,
+            type: "service_accepted",
+            title: "Orçamento aceito!",
+            message: `O cliente aceitou o orçamento e pagou R$ ${(totalPrice / 100).toFixed(2)} para "${service.title}". Você pode iniciar o serviço!`,
+            data: JSON.stringify({ serviceId }),
+          });
+        }
+      } catch (notifError) {
+        console.error("Error creating acceptance notification:", notifError);
+      }
 
       res.json({ acceptance, payment, escrow });
     } catch (error) {
@@ -2658,16 +2684,29 @@ ${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}
         completedAt: new Date(),
       });
 
-      // Liberar escrow após período de segurança (simulado)
+      // Liberar escrow imediatamente após confirmação do cliente
       const escrow = await storage.getPaymentEscrowByServiceId(serviceId);
       if (escrow) {
-        // Em produção, aguardar 48h para liberar
-        setTimeout(async () => {
-          await storage.releasePaymentEscrow(escrow.id);
-        }, 5000);
+        await storage.releasePaymentEscrow(escrow.id);
       }
 
-      res.json({ message: "Service confirmed, payment will be released" });
+      // Notificar prestador que serviço foi confirmado e pagamento liberado
+      try {
+        if (service.providerId) {
+          const finalAmount = service.finalPrice || service.estimatedPrice || 0;
+          await storage.createNotification({
+            userId: service.providerId,
+            type: "payment_received",
+            title: "Pagamento liberado!",
+            message: `O cliente confirmou o serviço "${service.title}". O valor de R$ ${(finalAmount / 100).toFixed(2)} foi creditado na sua carteira.`,
+            data: JSON.stringify({ serviceId }),
+          });
+        }
+      } catch (notifError) {
+        console.error("Error creating payment notification:", notifError);
+      }
+
+      res.json({ message: "Service confirmed, payment released" });
     } catch (error) {
       console.error("Error confirming service:", error);
       res.status(500).json({ error: "Failed to confirm service" });

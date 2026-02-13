@@ -139,12 +139,12 @@ export default function SelectProvider() {
     }
   };
 
-  const handleDomesticPayment = () => {
+  const handleDomesticPayment = (method: string) => {
     if (!selectedProvider || !serviceData?.aiDiagnosis) return;
     const totalAmount = Math.round(serviceData.aiDiagnosis.priceRangeMin * 1.10);
     payDomesticMutation.mutate({
       providerId: selectedProvider,
-      method: "pix",
+      method: method || "pix",
       totalAmount,
     });
   };

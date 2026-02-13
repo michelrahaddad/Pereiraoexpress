@@ -233,8 +233,8 @@ export default function ServiceDetails() {
     setShowPaymentModal(true);
   };
 
-  const handlePaymentComplete = () => {
-    acceptQuoteMutation.mutate({ method: "pix" });
+  const handlePaymentComplete = (method: string) => {
+    acceptQuoteMutation.mutate({ method });
   };
 
   const handleConfirmService = () => {

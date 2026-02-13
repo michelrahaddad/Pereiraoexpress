@@ -28,7 +28,7 @@ interface PaymentModalProps {
   onOpenChange: (open: boolean) => void;
   amount: number;
   description: string;
-  onPaymentComplete: (paymentId: number) => void;
+  onPaymentComplete: (method: string) => void;
 }
 
 // Simulated PIX code generator
@@ -98,29 +98,13 @@ export function PaymentModal({
   const simulatePayment = async () => {
     setIsProcessing(true);
     
-    // Simulate API call for payment processing
     try {
-      const response = await fetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount,
-          method,
-          description,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Payment failed");
-
-      const payment = await response.json();
-      
-      // Simulate processing delay
       await new Promise((resolve) => setTimeout(resolve, 2000));
       
       setPaymentComplete(true);
       
       setTimeout(() => {
-        onPaymentComplete(payment.id);
+        onPaymentComplete(method || "pix");
         resetModal();
       }, 1500);
     } catch (error) {

@@ -27,10 +27,17 @@ type EnrichedServiceRequest = ServiceRequest & {
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color: string }> = {
   pending: { label: "Aguardando", variant: "secondary", color: "bg-muted" },
+  ai_diagnosed: { label: "Diagnóstico IA", variant: "default", color: "bg-primary/20" },
+  fee_paid: { label: "Taxa paga", variant: "default", color: "bg-primary/20" },
   diagnosed: { label: "Diagnosticado", variant: "default", color: "bg-primary/20" },
+  selecting_provider: { label: "Selecionando profissional", variant: "outline", color: "bg-accent/20" },
   waiting_provider: { label: "Buscando profissional", variant: "outline", color: "bg-accent/20" },
-  accepted: { label: "Aceito", variant: "default", color: "bg-primary/20" },
+  provider_assigned: { label: "Profissional atribuído", variant: "default", color: "bg-primary/20" },
+  provider_diagnosed: { label: "Orçamento recebido", variant: "default", color: "bg-accent/20" },
+  quote_sent: { label: "Orçamento recebido", variant: "default", color: "bg-accent/20" },
+  accepted: { label: "Aceito - Aguardando execução", variant: "default", color: "bg-primary/20" },
   in_progress: { label: "Em andamento", variant: "default", color: "bg-accent/20" },
+  awaiting_confirmation: { label: "Aguardando confirmação", variant: "outline", color: "bg-amber-500/20" },
   completed: { label: "Concluído", variant: "secondary", color: "bg-green-500/20" },
   cancelled: { label: "Cancelado", variant: "destructive", color: "bg-destructive/20" },
 };
@@ -64,6 +71,22 @@ function ServiceCard({ service }: { service: EnrichedServiceRequest }) {
               <p className="text-sm text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
                 {service.description}
               </p>
+              {(service.status === "quote_sent" || service.status === "provider_diagnosed") && (
+                <div className="mt-2 p-2 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="text-xs font-medium text-primary flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Orçamento recebido - Toque para ver e aprovar
+                  </p>
+                </div>
+              )}
+              {service.status === "awaiting_confirmation" && (
+                <div className="mt-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Serviço concluído - Confirme para liberar pagamento
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5" />
@@ -112,7 +135,7 @@ export default function ClientDashboard() {
   }
 
   const activeServices = services?.filter(s => 
-    ["pending", "diagnosed", "waiting_provider", "accepted", "in_progress"].includes(s.status)
+    !["completed", "cancelled"].includes(s.status)
   ) || [];
   
   const completedServices = services?.filter(s => 

@@ -235,14 +235,14 @@ export default function NewService() {
     },
   });
 
-  const handleDomesticPaymentComplete = (paymentId: number) => {
+  const handleDomesticPaymentComplete = (method: string) => {
     if (aiDiagnosis) {
       const basePrice = aiDiagnosis.aiDiagnosis.priceRangeMin;
       const platformFee = aiDiagnosis.aiDiagnosis.diagnosisFee || Math.round(basePrice * 0.15);
       const totalAmount = basePrice + platformFee;
       payDomesticServiceMutation.mutate({
         serviceId: aiDiagnosis.service.id,
-        method: "pix",
+        method,
         totalAmount,
       });
     }
@@ -556,7 +556,7 @@ export default function NewService() {
     setShowPaymentModal(true);
   };
 
-  const handleFeePaymentComplete = (paymentId: number) => {
+  const handleFeePaymentComplete = (method: string) => {
     setShowPaymentModal(false);
     setFeePaid(true);
     setStep("guided");
