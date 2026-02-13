@@ -59,6 +59,8 @@ async function seedCategories() {
       { name: "Ar Condicionado", icon: "wind", description: "Instalação, manutenção e limpeza de AC", basePrice: 25000 },
       { name: "Limpeza", icon: "sparkles", description: "Limpeza residencial e comercial", basePrice: 10000 },
       { name: "Passadeira", icon: "shirt", description: "Serviço de passar roupas", basePrice: 8000 },
+      { name: "Chaveiro", icon: "key", description: "Abertura de portas, troca de fechaduras, cópias de chaves", basePrice: 8000 },
+      { name: "Portões", icon: "door-open", description: "Instalação, manutenção e reparo de portões automáticos", basePrice: 12000 },
     ];
     for (const cat of categories) {
       await storage.createCategory(cat);
