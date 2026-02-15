@@ -1,0 +1,597 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ai_diagnoses {
+  id                  Int       @id @default(autoincrement())
+  service_request_id  Int
+  input_description   String
+  guided_answers      String?
+  media_urls          String?
+  classification      String?   @db.VarChar
+  urgency_level       String?   @db.VarChar
+  estimated_duration  String?   @db.VarChar
+  materials_suggested String?
+  price_range_min     Int?
+  price_range_max     Int?
+  diagnosis_fee       Int?
+  ai_response         String?
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model ai_training_configs {
+  id                     Int       @id @default(autoincrement())
+  category_id            Int
+  rules                  String?
+  engine_model           String?   @default("gemini-2.5-flash") @db.VarChar
+  engine_temperature     Decimal?  @default(0.70) @db.Decimal(3, 2)
+  engine_max_tokens      Int?      @default(2048)
+  engine_max_questions   Int?      @default(3)
+  tone                   String?   @default("friendly") @db.VarChar
+  greeting               String?
+  vocabulary             String?
+  conditional_questions  String?
+  example_conversations  String?
+  forbidden_topics       String?
+  pricing_rules          String?
+  diagnosis_tips         String?
+  system_prompt_override String?
+  is_active              Boolean?  @default(true)
+  created_at             DateTime? @default(now()) @db.Timestamp(6)
+  updated_at             DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model antifraud_flags {
+  id                 Int                @id @default(autoincrement())
+  service_request_id Int
+  user_id            String?            @db.VarChar
+  reason             String             @db.VarChar
+  severity           antifraud_severity @default(low)
+  details            String?
+  resolved           Boolean?           @default(false)
+  resolved_by        String?            @db.VarChar
+  resolved_at        DateTime?          @db.Timestamp(6)
+  created_at         DateTime?          @default(now()) @db.Timestamp(6)
+}
+
+model construction_materials {
+  id           Int               @id @default(autoincrement())
+  name         String            @db.VarChar(255)
+  description  String?
+  category     material_category
+  unit         String            @db.VarChar(50)
+  base_price   Int
+  market_price Int
+  brand        String?           @db.VarChar(100)
+  sku          String?           @db.VarChar(50)
+  is_active    Boolean?          @default(true)
+  created_at   DateTime?         @default(now()) @db.Timestamp(6)
+}
+
+model conversations {
+  id         Int      @id @default(autoincrement())
+  title      String
+  user_id    String?  @db.VarChar
+  created_at DateTime @default(now()) @db.Timestamp(6)
+}
+
+model digital_acceptances {
+  id                    Int       @id @default(autoincrement())
+  service_request_id    Int
+  client_id             String    @db.VarChar
+  ai_diagnosis_id       Int?
+  provider_diagnosis_id Int?
+  total_price           Int
+  labor_cost            Int
+  materials_cost        Int?      @default(0)
+  platform_fee          Int?      @default(0)
+  estimated_duration    String?   @db.VarChar
+  terms_version         String?   @default("1.0") @db.VarChar
+  ip_address            String?   @db.VarChar
+  user_agent            String?
+  accepted_at           DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model guided_questions {
+  id            Int                  @id @default(autoincrement())
+  category_id   Int?
+  question_type guided_question_type @default(repair)
+  question_key  String               @db.VarChar(100)
+  question_text String
+  options       String
+  sort_order    Int                  @default(0)
+  is_active     Boolean?             @default(true)
+  created_at    DateTime?            @default(now()) @db.Timestamp(6)
+}
+
+model local_knowledge {
+  id             Int       @id @default(autoincrement())
+  city           String?   @db.VarChar
+  category_id    Int?
+  title          String    @db.VarChar
+  knowledge      String
+  common_issues  String?
+  materials_tips String?
+  is_active      Boolean?  @default(true)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model material_orders {
+  id                 Int       @id @default(autoincrement())
+  service_request_id Int
+  supplier_id        Int
+  items              String
+  total_cost         Int
+  total_sale         Int
+  platform_margin    Int?      @default(0)
+  status             String?   @default("pending") @db.VarChar
+  ordered_at         DateTime? @db.Timestamp(6)
+  delivered_at       DateTime? @db.Timestamp(6)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model material_suppliers {
+  id                 Int       @id @default(autoincrement())
+  name               String    @db.VarChar
+  city               String    @db.VarChar
+  state              String    @db.VarChar(2)
+  address            String?
+  phone              String?   @db.VarChar
+  whatsapp           String?   @db.VarChar
+  website            String?   @db.VarChar
+  specialties        String?
+  delivery_available Boolean?  @default(false)
+  price_level        String?   @db.VarChar
+  rating             Decimal?  @db.Decimal(3, 1)
+  notes              String?
+  is_active          Boolean?  @default(true)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model materials {
+  id             Int       @id @default(autoincrement())
+  supplier_id    Int
+  name           String    @db.VarChar
+  description    String?
+  category       String?   @db.VarChar
+  unit           String?   @default("un") @db.VarChar
+  cost_price     Int
+  sale_price     Int
+  stock_quantity Int?      @default(0)
+  is_active      Boolean?  @default(true)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model messages {
+  id              Int      @id @default(autoincrement())
+  conversation_id Int
+  role            String
+  content         String
+  image_url       String?
+  created_at      DateTime @default(now()) @db.Timestamp(6)
+}
+
+model notifications {
+  id         Int               @id @default(autoincrement())
+  user_id    String            @db.VarChar
+  type       notification_type
+  title      String            @db.VarChar
+  message    String
+  data       String?
+  is_read    Boolean?          @default(false)
+  created_at DateTime?         @default(now()) @db.Timestamp(6)
+}
+
+model password_reset_tokens {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar
+  user_id    String    @db.VarChar
+  token      String    @unique(map: "password_reset_tokens_token_unique") @db.VarChar
+  expires_at DateTime  @db.Timestamp(6)
+  used_at    DateTime? @db.Timestamp(6)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model payment_escrows {
+  id                 Int           @id @default(autoincrement())
+  service_request_id Int
+  payment_id         Int
+  hold_amount        Int
+  platform_share     Int?          @default(0)
+  provider_share     Int?          @default(0)
+  supplier_share     Int?          @default(0)
+  status             escrow_status @default(holding)
+  release_at         DateTime?     @db.Timestamp(6)
+  released_at        DateTime?     @db.Timestamp(6)
+  created_at         DateTime?     @default(now()) @db.Timestamp(6)
+}
+
+model payments {
+  id                 Int            @id @default(autoincrement())
+  user_id            String         @db.VarChar
+  service_request_id Int?
+  amount             Int
+  method             payment_method
+  status             payment_status @default(pending)
+  description        String?
+  pix_code           String?
+  stripe_payment_id  String?
+  created_at         DateTime?      @default(now()) @db.Timestamp(6)
+  completed_at       DateTime?      @db.Timestamp(6)
+}
+
+model provider_diagnoses {
+  id                 Int       @id @default(autoincrement())
+  service_request_id Int
+  provider_id        String    @db.VarChar
+  findings           String
+  labor_cost         Int
+  materials_cost     Int?      @default(0)
+  materials_list     String?
+  estimated_duration String?   @db.VarChar
+  media_urls         String?
+  notes              String?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model provider_withdrawals {
+  id           Int               @id @default(autoincrement())
+  provider_id  String            @db.VarChar
+  amount       Int
+  pix_key_type String            @db.VarChar
+  pix_key      String            @db.VarChar
+  bank_name    String?           @db.VarChar
+  bank_agency  String?           @db.VarChar
+  bank_account String?           @db.VarChar
+  status       withdrawal_status @default(pending)
+  processed_at DateTime?         @db.Timestamp(6)
+  notes        String?
+  created_at   DateTime?         @default(now()) @db.Timestamp(6)
+}
+
+model push_subscriptions {
+  id         Int       @id @default(autoincrement())
+  user_id    String    @db.VarChar
+  endpoint   String
+  p256dh     String
+  auth       String
+  user_agent String?
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model reference_prices {
+  id             Int       @id @default(autoincrement())
+  code           String?   @db.VarChar
+  source         String    @db.VarChar
+  category_id    Int?
+  state          String?   @db.VarChar(2)
+  city           String?   @db.VarChar
+  item_type      String    @db.VarChar
+  name           String    @db.VarChar
+  description    String?
+  unit           String    @db.VarChar
+  price_min      Int
+  price_max      Int?
+  price_avg      Int?
+  labor_percent  Int?
+  keywords       String?
+  reference_date DateTime? @db.Timestamp(6)
+  is_desonerated Boolean?  @default(false)
+  is_active      Boolean?  @default(true)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  updated_at     DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model reviews {
+  id                 Int       @id @default(autoincrement())
+  service_request_id Int
+  client_id          String    @db.VarChar
+  provider_id        String    @db.VarChar
+  rating             Int
+  comment            String?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model service_categories {
+  id          Int       @id @default(autoincrement())
+  name        String    @db.VarChar
+  icon        String    @db.VarChar
+  description String?
+  base_price  Int?      @default(0)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model service_chat_messages {
+  id                 Int       @id @default(autoincrement())
+  service_request_id Int
+  sender_id          String?   @db.VarChar
+  sender_type        String    @db.VarChar
+  content            String
+  image_url          String?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model service_execution_logs {
+  id                 Int       @id @default(autoincrement())
+  service_request_id Int
+  provider_id        String    @db.VarChar
+  started_at         DateTime? @db.Timestamp(6)
+  completed_at       DateTime? @db.Timestamp(6)
+  start_latitude     String?   @db.VarChar
+  start_longitude    String?   @db.VarChar
+  end_latitude       String?   @db.VarChar
+  end_longitude      String?   @db.VarChar
+  before_photos      String?
+  after_photos       String?
+  notes              String?
+  duration_minutes   Int?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model service_materials {
+  id                 Int       @id @default(autoincrement())
+  service_request_id Int
+  material_id        Int
+  material_name      String    @db.VarChar(255)
+  quantity           Decimal   @db.Decimal(10, 2)
+  unit_price         Int
+  total_price        Int
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model service_requests {
+  id              Int            @id @default(autoincrement())
+  client_id       String         @db.VarChar
+  provider_id     String?        @db.VarChar
+  category_id     Int
+  title           String         @db.VarChar
+  description     String
+  status          service_status @default(pending)
+  sla_priority    sla_priority?  @default(standard)
+  estimated_price Int?
+  final_price     Int?
+  diagnosis       String?
+  materials       String?
+  address         String?
+  scheduled_date  DateTime?      @db.Timestamp(6)
+  completed_at    DateTime?      @db.Timestamp(6)
+  created_at      DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?      @default(now()) @db.Timestamp(6)
+}
+
+model sessions {
+  sid    String   @id @db.VarChar
+  sess   Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+}
+
+model suppliers {
+  id                  Int       @id @default(autoincrement())
+  name                String    @db.VarChar
+  cnpj                String?   @db.VarChar
+  phone               String?   @db.VarChar
+  email               String?   @db.VarChar
+  address             String?
+  city                String?   @db.VarChar
+  categories          String?
+  delivery_time_hours Int?      @default(24)
+  is_active           Boolean?  @default(true)
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model symptom_diagnoses {
+  id                  Int       @id @default(autoincrement())
+  symptom_id          Int
+  title               String    @db.VarChar
+  description         String
+  solution            String?
+  provider_materials  String?
+  client_materials    String?
+  estimated_price_min Int?
+  estimated_price_max Int?
+  urgency_level       String?   @default("normal") @db.VarChar
+  match_conditions    String?
+  is_active           Boolean?  @default(true)
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model symptom_questions {
+  id                 Int       @id @default(autoincrement())
+  symptom_id         Int
+  question           String
+  question_order     Int?      @default(1)
+  expected_responses String?
+  is_required        Boolean?  @default(true)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  trigger_keywords   String?
+  trigger_condition  String?
+}
+
+model symptoms {
+  id          Int       @id @default(autoincrement())
+  category_id Int
+  name        String    @db.VarChar
+  description String?
+  keywords    String?
+  is_active   Boolean?  @default(true)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model system_settings {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique(map: "system_settings_key_unique") @db.VarChar
+  value       String
+  description String?
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model twilio_calls {
+  id                 Int                 @id @default(autoincrement())
+  service_request_id Int
+  provider_id        String              @db.VarChar
+  provider_phone     String              @db.VarChar
+  twilio_call_sid    String?             @db.VarChar
+  status             twilio_call_status? @default(pending)
+  transcript         String?
+  ai_response        String?
+  provider_response  String?
+  duration           Int?
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  completed_at       DateTime?           @db.Timestamp(6)
+}
+
+model user_profiles {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar
+  user_id           String           @db.VarChar
+  role              user_role        @default(client)
+  phone             String?          @db.VarChar
+  address           String?
+  bio               String?
+  specialties       String?
+  rating            Decimal?         @default(10.0) @db.Decimal(3, 1)
+  total_services    Int?             @default(0)
+  is_available      Boolean?         @default(true)
+  created_at        DateTime?        @default(now()) @db.Timestamp(6)
+  city              String?          @db.VarChar
+  document_url      String?
+  document_status   document_status? @default(pending)
+  document_notes    String?
+  terms_accepted    Boolean?         @default(false)
+  terms_accepted_at DateTime?        @db.Timestamp(6)
+  total_ratings     Int?             @default(0)
+}
+
+model users {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.VarChar
+  email             String?   @unique(map: "users_email_unique") @db.VarChar
+  first_name        String?   @db.VarChar
+  last_name         String?   @db.VarChar
+  profile_image_url String?   @db.VarChar
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+  password          String?   @db.VarChar
+  cpf               String?   @db.VarChar
+  phone             String?   @db.VarChar
+  age               Int?
+  city              String?   @db.VarChar
+  latitude          Decimal?  @db.Decimal(10, 7)
+  longitude         Decimal?  @db.Decimal(10, 7)
+  pix_key_type      String?   @db.VarChar
+  pix_key           String?   @db.VarChar
+  bank_name         String?   @db.VarChar
+  bank_agency       String?   @db.VarChar
+  bank_account      String?   @db.VarChar
+}
+
+enum antifraud_severity {
+  low
+  medium
+  high
+  critical
+}
+
+enum document_status {
+  pending
+  approved
+  rejected
+}
+
+enum escrow_status {
+  holding
+  released
+  refunded
+  disputed
+}
+
+enum guided_question_type {
+  repair
+  domestic
+}
+
+enum material_category {
+  pintura
+  eletrica
+  hidraulica
+  alvenaria
+  ferramentas
+  acabamento
+  madeira
+  ar_condicionado
+  limpeza
+}
+
+enum notification_type {
+  service_request
+  service_accepted
+  service_rejected
+  service_completed
+  payment_received
+  new_message
+  call_requested
+}
+
+enum payment_method {
+  pix
+  credit_card
+  debit_card
+}
+
+enum payment_status {
+  pending
+  processing
+  completed
+  failed
+  refunded
+}
+
+enum service_status {
+  pending
+  ai_diagnosed
+  fee_paid
+  selecting_provider
+  provider_assigned
+  provider_diagnosed
+  quote_sent
+  accepted
+  in_progress
+  awaiting_confirmation
+  completed
+  cancelled
+}
+
+enum sla_priority {
+  standard
+  express
+  urgent
+}
+
+enum twilio_call_status {
+  pending
+  calling
+  in_progress
+  completed
+  no_answer
+  busy
+  failed
+  accepted
+  rejected
+}
+
+enum user_role {
+  client
+  provider
+  admin
+}
+
+enum withdrawal_status {
+  pending
+  processing
+  completed
+  rejected
+}
