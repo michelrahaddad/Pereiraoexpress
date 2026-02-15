@@ -61,11 +61,15 @@ Preferred communication style: Simple, everyday language.
 - **Future Enhancement**: Twilio SMS integration for OTP verification (not configured yet)
 
 ### Data Layer
-- **Database**: PostgreSQL with Drizzle ORM
-- **Schema Location**: `shared/schema.ts` contains all table definitions
-- **Auth Schema**: `shared/models/auth.ts` contains users, sessions, and password reset tokens
-- **Migrations**: Drizzle Kit with `db:push` command for schema synchronization
-- **Key Tables**: users, sessions, userProfiles, serviceCategories, serviceRequests, serviceChatMessages, reviews, conversations, messages, systemSettings, payments, passwordResetTokens, symptoms, symptomQuestions, symptomDiagnoses, localKnowledge
+- **Database**: PostgreSQL with Prisma ORM (migrated from Drizzle)
+- **Prisma Schema**: `prisma/schema.prisma` contains all 35 model definitions
+- **Generated Client**: `generated/prisma/` - Prisma client output with `@prisma/adapter-pg` driver adapter
+- **Prisma Client Singleton**: `server/infrastructure/prisma/client.ts` - uses pg pool with Prisma adapter
+- **Storage Repository**: `server/infrastructure/repositories/prisma-storage.ts` - 126 methods, handles snake_case→camelCase mapping
+- **Auth Adapter**: `server/infrastructure/auth/prisma-auth.ts` - JWT auth with Prisma queries
+- **Routes**: `server/infrastructure/routes/prisma-routes.ts` - all 124 API endpoints using Prisma storage
+- **Key Tables**: users, sessions, user_profiles, service_categories, service_requests, service_chat_messages, reviews, conversations, messages, system_settings, payments, password_reset_tokens, symptoms, symptom_questions, symptom_diagnoses, local_knowledge
+- **Legacy Files (preserved)**: `server/routes.ts`, `server/storage.ts`, `server/auth/localAuth.ts`, `shared/schema.ts` - original Drizzle-based code kept for reference
 
 ### Key Domain Entities
 - **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, city, and geolocation (latitude/longitude)
@@ -195,8 +199,21 @@ client/src/pages/
 └── landing.tsx           # Landing page
 
 server/
+├── infrastructure/
+│   ├── prisma/
+│   │   └── client.ts         # Prisma client singleton with pg adapter
+│   ├── repositories/
+│   │   └── prisma-storage.ts # 126 storage methods (IStorage implementation)
+│   ├── auth/
+│   │   └── prisma-auth.ts    # JWT auth with Prisma queries
+│   └── routes/
+│       └── prisma-routes.ts  # All 124 API endpoints
+├── domain/
+│   └── entities/
+│       └── index.ts          # 35 entity interfaces + enums + errors
 ├── auth/
-│   └── localAuth.ts      # Local authentication with JWT
-├── routes.ts             # API routes
-└── storage.ts            # Database operations
+│   └── localAuth.ts          # Legacy: Local auth with Drizzle (preserved)
+├── routes.ts                 # Legacy: API routes with Drizzle (preserved)
+├── storage.ts                # Legacy: Drizzle storage (preserved)
+└── index.ts                  # Express app entry point (uses Prisma routes)
 ```
