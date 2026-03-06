@@ -44,8 +44,17 @@ export default function LoginPage({ userType }: LoginPageProps) {
         description: `Bem-vindo(a) de volta, ${data.user.firstName}!`,
       });
 
-      const redirectPath = data.user.role === "admin" ? "/admin" : 
-                          data.user.role === "provider" ? "/provider" : "/client";
+      const searchParams = new URLSearchParams(window.location.search);
+      const fromDiagnosis = searchParams.get("from") === "diagnosis";
+      const hasSavedDiagnosis = sessionStorage.getItem("pereirao_diagnosis");
+      
+      let redirectPath: string;
+      if (fromDiagnosis && hasSavedDiagnosis && data.user.role !== "admin") {
+        redirectPath = "/client/new?resume=true";
+      } else {
+        redirectPath = data.user.role === "admin" ? "/admin" : 
+                       data.user.role === "provider" ? "/provider" : "/client";
+      }
       setLocation(redirectPath);
     } catch (error: any) {
       toast({

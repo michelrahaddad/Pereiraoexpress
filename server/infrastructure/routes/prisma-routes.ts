@@ -5,9 +5,26 @@ import { isPrismaAuthenticated, setupPrismaAuth } from "../auth/prisma-auth";
 import { prisma } from "../prisma/client";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 
 const storage = prismaStorage;
 const isAuthenticated = isPrismaAuthenticated;
+
+const publicAiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: "Muitas requisições. Tente novamente em alguns minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const publicDiagnosisLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: { error: "Limite de diagnósticos atingido. Tente novamente em 1 hora." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 async function getAdminSetting(key: string, defaultValue: string): Promise<string> {
   try {
@@ -776,7 +793,7 @@ export async function registerPrismaRoutes(
     }
   });
 
-  app.post("/api/ai/diagnose", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/diagnose", publicAiLimiter, async (req: any, res) => {
     try {
       const validationResult = aiDiagnoseSchema.safeParse(req.body);
       if (!validationResult.success) {
@@ -1925,6 +1942,238 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
 
   app.get("/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // ==================== DIAGNÓSTICO PÚBLICO (SEM LOGIN) ====================
+
+  app.post("/api/diagnosis/preview", publicDiagnosisLimiter, async (req: any, res) => {
+    try {
+      const previewSchema = z.object({
+        description: z.string().min(1).max(5000),
+        guidedAnswers: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+        mediaUrls: z.array(z.string()).max(5).optional(),
+        title: z.string().max(200).optional(),
+      });
+      const validation = previewSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: "Dados inválidos", details: validation.error.flatten() });
+      }
+      const { description, guidedAnswers, mediaUrls, title } = validation.data;
+
+      const getCategoryFromAnswers = (answers: any[]): number => {
+        const serviceTypeAnswer = answers?.find((a: any) => 
+          a.question?.includes("tipo") || a.question?.includes("problema")
+        )?.answer || "";
+        
+        if (serviceTypeAnswer.includes("Empregada") || serviceTypeAnswer.includes("Doméstica") || serviceTypeAnswer.includes("Limpeza") || serviceTypeAnswer.includes("Faxina")) return 6;
+        if (serviceTypeAnswer.includes("Passadeira") || serviceTypeAnswer.includes("Passar roupa")) return 7;
+        if (serviceTypeAnswer.includes("Elétrica") || serviceTypeAnswer.includes("eletricista")) return 2;
+        if (serviceTypeAnswer.includes("Hidráulica") || serviceTypeAnswer.includes("Encanamento") || serviceTypeAnswer.includes("encanador")) return 1;
+        if (serviceTypeAnswer.includes("Pintura") || serviceTypeAnswer.includes("pintor")) return 3;
+        if (serviceTypeAnswer.includes("Marcenaria") || serviceTypeAnswer.includes("marceneiro") || serviceTypeAnswer.includes("Reforma")) return 4;
+        if (serviceTypeAnswer.includes("Ar condicionado") || serviceTypeAnswer.includes("ar-condicionado") || serviceTypeAnswer.includes("climatização")) return 5;
+        if (serviceTypeAnswer.includes("Chaveiro") || serviceTypeAnswer.includes("fechadura") || serviceTypeAnswer.includes("chave")) return 8;
+        if (serviceTypeAnswer.includes("Portões") || serviceTypeAnswer.includes("portão") || serviceTypeAnswer.includes("Portão")) return 9;
+        return 1;
+      };
+
+      const isDomesticService = guidedAnswers?.some((a: any) => 
+        a.answer?.includes("Empregada") || 
+        a.answer?.includes("Passadeira") ||
+        a.question?.includes("tamanho")
+      );
+
+      const resolvedCategoryId = getCategoryFromAnswers(guidedAnswers || []);
+
+      if (isDomesticService) {
+        const houseSize = guidedAnswers?.find((a: any) => a.question?.includes("tamanho"))?.answer || "";
+        const serviceType = guidedAnswers?.find((a: any) => a.question?.includes("tipo"))?.answer || "";
+        const frequency = guidedAnswers?.find((a: any) => a.question?.includes("frequência"))?.answer || "";
+
+        const priceSmall = await getAdminSettingNumber("domestic_price_small", 15000);
+        const priceMedium = await getAdminSettingNumber("domestic_price_medium", 20000);
+        const priceLarge = await getAdminSettingNumber("domestic_price_large", 30000);
+        const priceCommercial = await getAdminSettingNumber("domestic_price_commercial", 25000);
+        const extraPassing = await getAdminSettingNumber("domestic_extra_passing", 5000);
+        const extraCooking = await getAdminSettingNumber("domestic_extra_cooking", 8000);
+
+        let basePrice = priceSmall;
+        if (houseSize.includes("3-4")) basePrice = priceMedium;
+        else if (houseSize.includes("5+") || houseSize.includes("grande")) basePrice = priceLarge;
+        else if (houseSize.includes("Comercial") || houseSize.includes("Escritório")) basePrice = priceCommercial;
+
+        const multHeavy = await getAdminSettingNumber("domestic_mult_heavy", 1.8);
+        const multComplete = await getAdminSettingNumber("domestic_mult_complete", 1.5);
+        let serviceMultiplier = 1.0;
+        if (serviceType.includes("pesada") || serviceType.includes("pós-obra")) serviceMultiplier = multHeavy;
+        else if (serviceType.includes("completo")) serviceMultiplier = multComplete;
+        else if (serviceType.includes("Passar")) basePrice += extraPassing;
+        else if (serviceType.includes("Cozinhar")) basePrice += extraCooking;
+
+        const freqDaily = await getAdminSettingNumber("domestic_freq_daily", 0.80);
+        const freqWeekly = await getAdminSettingNumber("domestic_freq_weekly", 0.85);
+        const freqBiweekly = await getAdminSettingNumber("domestic_freq_biweekly", 0.90);
+        const freqMonthly = await getAdminSettingNumber("domestic_freq_monthly", 0.95);
+        let frequencyMultiplier = 1.0;
+        if (frequency.includes("Diária")) frequencyMultiplier = freqDaily;
+        else if (frequency.includes("Semanal")) frequencyMultiplier = freqWeekly;
+        else if (frequency.includes("Quinzenal")) frequencyMultiplier = freqBiweekly;
+        else if (frequency.includes("Mensal")) frequencyMultiplier = freqMonthly;
+
+        const domesticPlatformFee = await getAdminSettingNumber("domestic_platform_fee", 15);
+        const finalPrice = Math.round(basePrice * serviceMultiplier * frequencyMultiplier);
+        const diagnosisFee = Math.round(finalPrice * (domesticPlatformFee / 100));
+
+        return res.json({
+          preview: true,
+          aiDiagnosis: {
+            classification: "Serviço Doméstico",
+            urgencyLevel: "baixa",
+            estimatedDuration: frequency.includes("Diária") ? "4-8 horas" : "3-6 horas",
+            materialsSuggested: ["Produtos de limpeza", "Equipamentos básicos"],
+            priceRangeMin: finalPrice,
+            priceRangeMax: Math.round(finalPrice * 1.2),
+            diagnosisFee,
+            aiResponse: `Serviço de ${serviceType.toLowerCase() || "limpeza"} para ${houseSize.toLowerCase()}. Frequência: ${frequency.toLowerCase()}.`,
+          },
+          diagnosisFee,
+        });
+      }
+
+      let diagnosisKnowledgeContext = "";
+      try {
+        const normalizeForPreview = (text: string): string => {
+          return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        };
+        const safeJsonParsePreview = (str: string | null): any[] => {
+          if (!str) return [];
+          try { const parsed = JSON.parse(str); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+        };
+        const descNormalized = normalizeForPreview(description || "");
+
+        const categoryPrices = await storage.getReferencePricesByCategoryId(resolvedCategoryId);
+        if (categoryPrices.length > 0) {
+          diagnosisKnowledgeContext += `\nPREÇOS DE REFERÊNCIA SINAPI/MERCADO REGIONAL (USE OBRIGATORIAMENTE como base para estimativas):\n`;
+          for (const rp of categoryPrices.slice(0, 20)) {
+            const pMin = rp.priceMin / 100;
+            const pMax = rp.priceMax ? rp.priceMax / 100 : pMin * 1.5;
+            diagnosisKnowledgeContext += `- ${rp.name} (${rp.unit}): R$ ${pMin.toFixed(2)} - R$ ${pMax.toFixed(2)}`;
+            if (rp.laborPercent) diagnosisKnowledgeContext += ` [${rp.laborPercent}% mão de obra]`;
+            if (rp.source === "sinapi") diagnosisKnowledgeContext += ` [SINAPI]`;
+            diagnosisKnowledgeContext += `\n`;
+          }
+        }
+
+        const allSymptoms = await storage.getSymptoms();
+        const relevantSymptoms = allSymptoms.filter(s => {
+          if (s.categoryId !== resolvedCategoryId) return false;
+          const keywords = safeJsonParsePreview(s.keywords);
+          return keywords.some(kw => descNormalized.includes(normalizeForPreview(kw)));
+        });
+        if (relevantSymptoms.length > 0) {
+          diagnosisKnowledgeContext += `\nSINTOMAS IDENTIFICADOS:\n`;
+          for (const sym of relevantSymptoms.slice(0, 3)) {
+            const detail = await storage.getSymptomWithDetails(sym.id);
+            if (detail) {
+              diagnosisKnowledgeContext += `- ${detail.name}: ${detail.description || ""}\n`;
+              if (detail.diagnoses && detail.diagnoses.length > 0) {
+                for (const d of detail.diagnoses.slice(0, 2)) {
+                  diagnosisKnowledgeContext += `  Diagnóstico: ${d.title} - ${d.description}`;
+                  if (d.estimatedPriceMin && d.estimatedPriceMax) {
+                    diagnosisKnowledgeContext += ` (R$ ${d.estimatedPriceMin / 100} - R$ ${d.estimatedPriceMax / 100})`;
+                  }
+                  const mats = safeJsonParsePreview(d.providerMaterials);
+                  if (mats.length > 0) diagnosisKnowledgeContext += ` Materiais: ${mats.join(", ")}`;
+                  diagnosisKnowledgeContext += `\n`;
+                }
+              }
+            }
+          }
+        }
+
+        const trainingConfig = await storage.getAiTrainingConfigByCategory(resolvedCategoryId);
+        if (trainingConfig && trainingConfig.isActive) {
+          const tips = safeJsonParsePreview(trainingConfig.diagnosisTips);
+          if (tips.length > 0) {
+            diagnosisKnowledgeContext += `\nDICAS TÉCNICAS:\n`;
+            for (const tip of tips) diagnosisKnowledgeContext += `- ${tip}\n`;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching preview diagnosis knowledge context:", err);
+      }
+
+      const diagnosisSystemPrompt = `Você é um especialista em diagnóstico de problemas residenciais do Pereirão Express. Analise a descrição do problema e forneça um diagnóstico preciso.
+${diagnosisKnowledgeContext}
+REGRAS DE PRECIFICAÇÃO:
+- Você DEVE basear seus preços nos valores SINAPI/regionais acima. NÃO invente preços.
+- Se encontrou preços de referência, use-os como base e ajuste pela complexidade.
+- Se encontrou diagnósticos de sintomas com faixas de preço, use essas faixas.
+- Preços em centavos (R$150,00 = 15000 centavos).
+
+Forneça:
+1. Classificação do tipo de serviço
+2. Nível de urgência (baixa, média, alta, urgente)
+3. Tempo estimado de execução
+4. Materiais provavelmente necessários
+5. Faixa de preço estimada (mínimo e máximo em centavos) baseada nos preços SINAPI/regionais
+
+Responda APENAS em JSON com este formato:
+{
+  "classification": "tipo de serviço",
+  "urgencyLevel": "média",
+  "estimatedDuration": "2-4 horas",
+  "materialsSuggested": ["material1", "material2"],
+  "priceRangeMin": 15000,
+  "priceRangeMax": 30000,
+  "diagnosis": "Explicação detalhada do problema e possível solução"
+}
+
+Descrição do problema: ${description}
+${guidedAnswers ? `Respostas adicionais: ${JSON.stringify(guidedAnswers)}` : ""}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: diagnosisSystemPrompt }] }],
+      });
+
+      let aiResult;
+      try {
+        const text = response.text || "";
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        aiResult = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+      } catch {
+        aiResult = {
+          classification: "Geral",
+          urgencyLevel: "média",
+          estimatedDuration: "2-4 horas",
+          materialsSuggested: [],
+          priceRangeMin: 15000,
+          priceRangeMax: 30000,
+          diagnosis: response.text || "Diagnóstico em análise",
+        };
+      }
+
+      const diagnosisPrice = await getAdminSettingNumber("ai_diagnosis_price", 1000);
+
+      res.json({
+        preview: true,
+        aiDiagnosis: {
+          classification: aiResult.classification,
+          urgencyLevel: aiResult.urgencyLevel,
+          estimatedDuration: aiResult.estimatedDuration,
+          materialsSuggested: aiResult.materialsSuggested || [],
+          priceRangeMin: aiResult.priceRangeMin,
+          priceRangeMax: aiResult.priceRangeMax,
+          diagnosisFee: diagnosisPrice,
+          aiResponse: aiResult.diagnosis,
+        },
+        diagnosisFee: diagnosisPrice,
+      });
+    } catch (error) {
+      console.error("Error creating preview diagnosis:", error);
+      res.status(500).json({ error: "Failed to create preview diagnosis" });
+    }
   });
 
   // ==================== NOVO FLUXO DE INTELIGÊNCIA INTEGRAL ====================

@@ -59,7 +59,7 @@ export default function Landing() {
                   className="gap-3 rounded-2xl shadow-lg shadow-primary/25" 
                   data-testid="button-start"
                 >
-                  <a href="/login/cliente">
+                  <a href="/client/new">
                     <Wrench className="h-5 w-5" />
                     Descrever meu problema
                   </a>
@@ -352,7 +352,7 @@ export default function Landing() {
                 className="gap-3 rounded-2xl shadow-xl" 
                 data-testid="button-cta-footer"
               >
-                <a href="/login/cliente">
+                <a href="/client/new">
                   <Wrench className="h-5 w-5" />
                   Quero resolver meu problema agora
                 </a>

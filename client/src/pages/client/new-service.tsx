@@ -7,10 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useLocation } from "wouter";
-import { PaymentModal } from "@/components/payment-modal";
+import { useLocation, useSearch } from "wouter";
 import { Progress } from "@/components/ui/progress";
 import { 
   Send, 
@@ -28,7 +27,6 @@ import {
   Mic,
   MicOff,
   FileText,
-  CreditCard,
   Shield,
   Users
 } from "lucide-react";
@@ -96,12 +94,13 @@ function cleanMessageContent(content: string): string {
 export default function NewService() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isResuming, setIsResuming] = useState(false);
   
-  const [step, setStep] = useState<"payment" | "guided" | "chat" | "diagnosis" | "complete">("payment");
+  const [step, setStep] = useState<"guided" | "chat" | "diagnosis" | "complete">("guided");
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [guidedAnswers, setGuidedAnswers] = useState<GuidedAnswer[]>([]);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
@@ -120,15 +119,61 @@ export default function NewService() {
   const [aiDiagnosis, setAiDiagnosis] = useState<ServiceWithDiagnosis | null>(null);
   const [selectedSLA, setSelectedSLA] = useState<"standard" | "express" | "urgent" | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentType, setPaymentType] = useState<"fee" | "service">("fee");
-  const [feePaid, setFeePaid] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    if (params.get("resume") === "true" && isAuthenticated && !isResuming) {
+      const savedDiagnosis = sessionStorage.getItem("pereirao_diagnosis");
+      if (!savedDiagnosis) {
+        toast({
+          title: "Diagnóstico não encontrado",
+          description: "Seu diagnóstico anterior expirou. Faça um novo diagnóstico gratuito.",
+        });
+        setLocation("/client/new");
+        return;
+      }
+      setIsResuming(true);
+      try {
+        const diagnosisData = JSON.parse(savedDiagnosis);
+        
+        apiRequest("POST", "/api/diagnosis/ai", {
+          description: diagnosisData.description || "Diagnóstico via IA",
+          guidedAnswers: diagnosisData.guidedAnswers || [],
+          mediaUrls: diagnosisData.mediaUrls || [],
+          title: diagnosisData.title || "Novo Serviço",
+        }).then(async (response) => {
+          const result = await response.json();
+          sessionStorage.removeItem("pereirao_diagnosis");
+          
+          if (diagnosisData.isDomesticService) {
+            setLocation(`/cliente/selecionar-profissional/${result.service.id}?domestic=true`);
+          } else {
+            setLocation(`/cliente/selecionar-profissional/${result.service.id}`);
+          }
+          toast({
+            title: "Serviço criado!",
+            description: "Agora escolha um profissional para atender você.",
+          });
+        }).catch(() => {
+          sessionStorage.removeItem("pereirao_diagnosis");
+          setIsResuming(false);
+          toast({
+            title: "Erro",
+            description: "Não foi possível criar o serviço. Tente novamente.",
+            variant: "destructive",
+          });
+        });
+      } catch {
+        sessionStorage.removeItem("pereirao_diagnosis");
+        setIsResuming(false);
+      }
+    }
+  }, [searchString, isAuthenticated]);
+
   const { data: pricingSettings } = useQuery<{ diagnosisPrice: number; serviceFee: number; expressMultiplier: number; urgentMultiplier: number }>({
     queryKey: ["/api/settings/pricing"],
   });
-  const DIAGNOSIS_FEE = pricingSettings?.diagnosisPrice || 1000;
 
   const { data: apiRepairQuestions } = useQuery<any[]>({
     queryKey: ["/api/guided-questions", "repair"],
@@ -162,15 +207,34 @@ export default function NewService() {
       mediaUrls: string[];
       title: string;
     }): Promise<ServiceWithDiagnosis> => {
-      const response = await apiRequest("POST", "/api/diagnosis/ai", data);
-      return response.json();
+      const response = await fetch("/api/diagnosis/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to get diagnosis");
+      const result = await response.json();
+      return {
+        service: { id: 0, title: data.title },
+        aiDiagnosis: result.aiDiagnosis,
+        diagnosisFee: result.diagnosisFee,
+      };
     },
     onSuccess: (data) => {
       setAiDiagnosis(data);
       setStep("diagnosis");
+      sessionStorage.setItem("pereirao_diagnosis", JSON.stringify({
+        aiDiagnosis: data.aiDiagnosis,
+        diagnosisFee: data.diagnosisFee,
+        guidedAnswers,
+        isDomesticService,
+        description: messages.filter(m => m.role === "user").map(m => m.content).join("\n"),
+        title: data.service.title,
+        mediaUrls: selectedPhotos,
+      }));
       toast({
         title: "Diagnóstico IA concluído!",
-        description: "Analise o resultado e pague a taxa para continuar.",
+        description: "Veja o resultado da análise gratuita.",
       });
     },
     onError: () => {
@@ -182,71 +246,7 @@ export default function NewService() {
     },
   });
 
-  const payDiagnosisFeeMutation = useMutation({
-    mutationFn: async (data: { serviceId: number; method: string }) => {
-      const response = await apiRequest("POST", `/api/diagnosis/pay-fee/${data.serviceId}`, {
-        method: data.method
-      });
-      return { ...response, serviceId: data.serviceId };
-    },
-    onSuccess: (data: any) => {
-      setFeePaid(true);
-      toast({
-        title: "Taxa paga!",
-        description: "Redirecionando para seleção de profissionais...",
-      });
-      setTimeout(() => {
-        setLocation(`/cliente/selecionar-profissional/${data.serviceId}`);
-      }, 1500);
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Não foi possível processar o pagamento. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
 
-  const [showDomesticPaymentModal, setShowDomesticPaymentModal] = useState(false);
-
-  const payDomesticServiceMutation = useMutation({
-    mutationFn: async (data: { serviceId: number; method: string; totalAmount: number }) => {
-      const response = await apiRequest("POST", `/api/service/${data.serviceId}/pay-domestic`, {
-        method: data.method,
-        totalAmount: data.totalAmount,
-      });
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Pagamento confirmado!",
-        description: "Uma profissional será atribuída em breve.",
-      });
-      setShowDomesticPaymentModal(false);
-      setLocation("/client");
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Não foi possível processar o pagamento. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleDomesticPaymentComplete = (method: string) => {
-    if (aiDiagnosis) {
-      const basePrice = aiDiagnosis.aiDiagnosis.priceRangeMin;
-      const platformFee = aiDiagnosis.aiDiagnosis.diagnosisFee || Math.round(basePrice * 0.15);
-      const totalAmount = basePrice + platformFee;
-      payDomesticServiceMutation.mutate({
-        serviceId: aiDiagnosis.service.id,
-        method,
-        totalAmount,
-      });
-    }
-  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -297,20 +297,6 @@ export default function NewService() {
     }
   }, [messages, isStreaming]);
 
-  if (!authLoading && !isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container px-6 py-16 text-center">
-          <h1 className="text-2xl font-bold mb-4">Acesso necessário</h1>
-          <p className="text-muted-foreground mb-6">Faça login para solicitar um serviço</p>
-          <Button asChild className="rounded-xl">
-            <a href="/login/cliente">Fazer login</a>
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -551,37 +537,23 @@ export default function NewService() {
     }
   };
 
-  const handlePayFee = () => {
-    setPaymentType("fee");
-    setShowPaymentModal(true);
-  };
 
-  const handleFeePaymentComplete = (method: string) => {
-    setShowPaymentModal(false);
-    setFeePaid(true);
-    setStep("guided");
-    toast({
-      title: "Taxa paga com sucesso!",
-      description: "Agora vamos entender seu problema.",
-    });
-  };
-
-  if (authLoading) {
+  if (isResuming) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-lg font-medium">Criando seu serviço...</p>
+        <p className="text-sm text-muted-foreground">Estamos registrando seu diagnóstico e buscando profissionais.</p>
       </div>
     );
   }
 
-  const progressValue = step === "payment"
-    ? 5
-    : step === "guided" 
-    ? 10 + ((currentQuestion + 1) / currentQuestions.length) * 25
+  const progressValue = step === "guided" 
+    ? 10 + ((currentQuestion + 1) / currentQuestions.length) * 30
     : step === "chat" 
     ? 50 
     : step === "diagnosis"
-    ? 80
+    ? 90
     : 100;
 
   return (
@@ -591,17 +563,16 @@ export default function NewService() {
       <main className="flex-1 flex flex-col max-w-3xl mx-auto w-full">
         <div className="flex items-center gap-3 p-4 border-b">
           <Button variant="ghost" size="icon" asChild>
-            <a href="/client">
+            <a href={isAuthenticated ? "/client" : "/"}>
               <ArrowLeft className="h-5 w-5" />
             </a>
           </Button>
           <div className="flex-1">
-            <h1 className="font-semibold">Pedir serviço</h1>
+            <h1 className="font-semibold" data-testid="text-page-title">Diagnóstico Gratuito</h1>
             <p className="text-sm text-muted-foreground">
               {step === "guided" && "Responda algumas perguntas rápidas"}
               {step === "chat" && "Descreva mais detalhes do problema"}
-              {step === "diagnosis" && "Análise do diagnóstico"}
-              {step === "payment" && "Taxa de diagnóstico"}
+              {step === "diagnosis" && "Resultado do diagnóstico"}
             </p>
           </div>
         </div>
@@ -609,70 +580,12 @@ export default function NewService() {
         <div className="px-4 pt-3">
           <Progress value={progressValue} className="h-2" />
           <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-            <span>Taxa</span>
             <span>Perguntas</span>
             <span>Chat IA</span>
             <span>Diagnóstico</span>
           </div>
         </div>
 
-        {step === "payment" && (
-          <div className="flex-1 p-4 flex flex-col items-center justify-center">
-            <Card className="w-full max-w-md">
-              <CardHeader className="text-center">
-                <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <CreditCard className="h-8 w-8 text-primary" />
-                </div>
-                <CardTitle className="text-2xl">Taxa de Diagnóstico IA</CardTitle>
-                <CardDescription>
-                  Pague a taxa para acessar nosso assistente inteligente que vai analisar seu problema e encontrar os melhores profissionais.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center">
-                  <p className="text-4xl font-bold text-primary">R$ 10,00</p>
-                  <p className="text-sm text-muted-foreground mt-1">Taxa única por diagnóstico</p>
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span>Análise inteligente do seu problema</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span>Orçamento estimado em minutos</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <span>Conexão com profissionais qualificados</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-primary" />
-                    <span>Pagamento seguro</span>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  className="w-full rounded-xl h-12 text-lg" 
-                  onClick={() => setShowPaymentModal(true)}
-                  data-testid="button-pay-diagnosis-fee"
-                >
-                  Pagar e começar
-                </Button>
-              </CardFooter>
-            </Card>
-            
-            <PaymentModal
-              open={showPaymentModal}
-              onOpenChange={setShowPaymentModal}
-              amount={DIAGNOSIS_FEE}
-              description="Taxa de diagnóstico IA"
-              onPaymentComplete={handleFeePaymentComplete}
-            />
-          </div>
-        )}
 
         {step === "guided" && (
           <div className="flex-1 p-4 flex flex-col">
@@ -954,7 +867,7 @@ export default function NewService() {
                 </CardContent>
               </Card>
 
-              {isDomesticService ? (
+              {isAuthenticated ? (
                 <Card className="border-primary bg-primary/5">
                   <CardContent className="pt-6">
                     <div className="text-center space-y-3">
@@ -962,50 +875,11 @@ export default function NewService() {
                         <CheckCircle2 className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <p className="font-semibold">Orçamento calculado!</p>
+                        <p className="font-semibold">Diagnóstico concluído!</p>
                         <p className="text-sm text-muted-foreground">
-                          Escolha uma profissional para realizar o serviço
-                        </p>
-                      </div>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p className="flex items-center justify-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Profissionais verificadas
-                        </p>
-                        <p className="flex items-center justify-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Ordenadas por avaliação
-                        </p>
-                        <p className="flex items-center justify-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          Pagamento após seleção
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <Button 
-                      className="w-full" 
-                      size="lg"
-                      onClick={() => setLocation(`/cliente/selecionar-profissional/${aiDiagnosis.service.id}?domestic=true`)}
-                      data-testid="button-select-domestic-provider"
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Ver profissionais disponíveis
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ) : (
-                <Card className="border-primary bg-primary/5">
-                  <CardContent className="pt-6">
-                    <div className="text-center space-y-3">
-                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
-                        <CheckCircle2 className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold">Taxa de diagnóstico paga!</p>
-                        <p className="text-sm text-muted-foreground">
-                          Agora você pode escolher um profissional para fazer o orçamento presencial
+                          {isDomesticService 
+                            ? "Escolha uma profissional para realizar o serviço"
+                            : "Agora você pode escolher um profissional"}
                         </p>
                       </div>
                     </div>
@@ -1015,14 +889,49 @@ export default function NewService() {
                       className="w-full" 
                       size="lg"
                       onClick={() => {
-                        if (aiDiagnosis) {
-                          setLocation(`/cliente/selecionar-profissional/${aiDiagnosis.service.id}`);
-                        }
+                        setLocation("/login/cliente?from=diagnosis");
                       }}
-                      data-testid="button-select-provider"
+                      data-testid="button-continue-service"
                     >
                       <Users className="h-4 w-4 mr-2" />
-                      Ver profissionais disponíveis
+                      Continuar para contratar
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ) : (
+                <Card className="border-primary bg-primary/5">
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto">
+                        <Sparkles className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-lg">Diagnóstico gratuito concluído!</p>
+                        <p className="text-sm text-muted-foreground">
+                          Para contratar um profissional, crie sua conta ou faça login.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex flex-col gap-3">
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => setLocation("/cadastro/cliente?from=diagnosis")}
+                      data-testid="button-register-after-diagnosis"
+                    >
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      Criar conta e continuar
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => setLocation("/login/cliente?from=diagnosis")}
+                      data-testid="button-login-after-diagnosis"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Já tenho conta — Entrar
                     </Button>
                   </CardFooter>
                 </Card>
@@ -1031,15 +940,6 @@ export default function NewService() {
           </ScrollArea>
         )}
 
-        {aiDiagnosis && isDomesticService && (
-          <PaymentModal
-            open={showDomesticPaymentModal}
-            onOpenChange={setShowDomesticPaymentModal}
-            amount={aiDiagnosis.aiDiagnosis.priceRangeMin + (aiDiagnosis.aiDiagnosis.diagnosisFee || Math.round(aiDiagnosis.aiDiagnosis.priceRangeMin * 0.15))}
-            description={`Serviço: ${aiDiagnosis.service.title}`}
-            onPaymentComplete={handleDomesticPaymentComplete}
-          />
-        )}
       </main>
     </div>
   );

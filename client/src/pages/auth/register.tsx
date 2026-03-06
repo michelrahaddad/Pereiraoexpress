@@ -260,7 +260,16 @@ export default function RegisterPage({ userType }: RegisterPageProps) {
           : `Bem-vindo(a) ao Pereirão Express, ${data.user.firstName}!`,
       });
 
-      const redirectPath = userType === "provider" ? "/provider" : "/client";
+      const searchParams = new URLSearchParams(window.location.search);
+      const fromDiagnosis = searchParams.get("from") === "diagnosis";
+      const hasSavedDiagnosis = sessionStorage.getItem("pereirao_diagnosis");
+      
+      let redirectPath: string;
+      if (fromDiagnosis && hasSavedDiagnosis && userType !== "provider") {
+        redirectPath = "/client/new?resume=true";
+      } else {
+        redirectPath = userType === "provider" ? "/provider" : "/client";
+      }
       setLocation(redirectPath);
     } catch (error: any) {
       toast({

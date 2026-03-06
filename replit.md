@@ -77,6 +77,19 @@ Preferred communication style: Simple, everyday language.
 - **SLA Priorities**: Standard, express, and urgent tiers for service requests
 - **Payments**: Pix and card options (simulated, structured for future Stripe integration)
 
+### Public AI Diagnosis Flow (No Login Required)
+- **Landing Page**: "Descrever meu problema" button goes directly to `/client/new`
+- **Diagnosis Flow**: Guided questions → AI Chat → Diagnosis result — all free, no login required
+- **Public Endpoints**:
+  - POST `/api/ai/diagnose` - AI chat streaming (no auth required)
+  - POST `/api/diagnosis/preview` - Generate diagnosis without creating DB records (no auth required)
+- **After Diagnosis**: Non-authenticated users see "Criar conta e continuar" / "Já tenho conta — Entrar" buttons
+- **Resume Flow**: Diagnosis data saved to `sessionStorage` under key `pereirao_diagnosis`
+  - Login/register pages detect `?from=diagnosis` parameter
+  - After auth, user redirected to `/client/new?resume=true`
+  - Resume logic reads sessionStorage, calls authenticated `/api/diagnosis/ai` to create service, then redirects to provider selection
+- **Authenticated Users**: See "Continuar para contratar" button directly after diagnosis
+
 ### Geolocation System
 - **Distance Calculation**: Haversine formula in `shared/geolocation.ts` for accurate distance calculation
 - **Provider Filtering**: Clients only see providers within 30km radius
