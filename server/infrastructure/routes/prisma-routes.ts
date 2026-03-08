@@ -4307,15 +4307,20 @@ Responda apenas: "ACEITO" ou "RECUSADO"`;
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      const fs = await import("fs");
-      const path = await import("path");
-      const sqlFile = path.join(process.cwd(), "scripts", "migrate-to-production.sql");
+      let sql = req.body?.sql;
 
-      if (!fs.existsSync(sqlFile)) {
-        return res.status(404).json({ error: "Migration file not found" });
+      if (!sql) {
+        const fs = await import("fs");
+        const path = await import("path");
+        const sqlFile = path.join(process.cwd(), "scripts", "migrate-to-production.sql");
+
+        if (!fs.existsSync(sqlFile)) {
+          return res.status(404).json({ error: "Migration file not found. Send SQL in request body: { sql: '...' }" });
+        }
+
+        sql = fs.readFileSync(sqlFile, "utf-8");
       }
 
-      const sql = fs.readFileSync(sqlFile, "utf-8");
       const { pool } = await import("../prisma/client");
 
       const client = await pool.connect();
