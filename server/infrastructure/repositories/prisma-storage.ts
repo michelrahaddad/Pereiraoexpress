@@ -31,6 +31,7 @@ import {
   type AiTrainingConfig, type InsertAiTrainingConfig,
   type GuidedQuestion, type InsertGuidedQuestion,
   type ProviderWithdrawal, type InsertProviderWithdrawal,
+  type ProviderAvailability, type InsertProviderAvailability,
 } from "@shared/schema";
 
 function snakeToCamel(str: string): string {
@@ -1058,6 +1059,45 @@ export class PrismaStorage implements IStorage {
   async getAllWithdrawals(): Promise<ProviderWithdrawal[]> {
     const rows = await prisma.provider_withdrawals.findMany({ orderBy: { created_at: 'desc' } });
     return mapRowsToCamel<ProviderWithdrawal>(rows);
+  }
+
+  async getProviderAvailability(userId: string): Promise<ProviderAvailability[]> {
+    const rows = await prisma.provider_availability.findMany({
+      where: { user_id: userId },
+      orderBy: [{ day_of_week: 'asc' }, { start_time: 'asc' }],
+    });
+    return mapRowsToCamel<ProviderAvailability>(rows);
+  }
+
+  async setProviderAvailability(userId: string, slots: InsertProviderAvailability[]): Promise<ProviderAvailability[]> {
+    await prisma.provider_availability.deleteMany({ where: { user_id: userId } });
+    if (slots.length > 0) {
+      await prisma.provider_availability.createMany({
+        data: slots.map(s => ({
+          user_id: userId,
+          day_of_week: s.dayOfWeek,
+          start_time: s.startTime,
+          end_time: s.endTime,
+          is_active: s.isActive !== undefined ? s.isActive : true,
+        })),
+      });
+    }
+    return this.getProviderAvailability(userId);
+  }
+
+  async getProvidersWithAvailability(userIds: string[]): Promise<Record<string, ProviderAvailability[]>> {
+    if (userIds.length === 0) return {};
+    const rows = await prisma.provider_availability.findMany({
+      where: { user_id: { in: userIds }, is_active: true },
+      orderBy: [{ day_of_week: 'asc' }, { start_time: 'asc' }],
+    });
+    const mapped = mapRowsToCamel<ProviderAvailability>(rows);
+    const result: Record<string, ProviderAvailability[]> = {};
+    for (const slot of mapped) {
+      if (!result[slot.userId]) result[slot.userId] = [];
+      result[slot.userId].push(slot);
+    }
+    return result;
   }
 }
 

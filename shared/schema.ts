@@ -663,3 +663,17 @@ export const providerWithdrawals = pgTable("provider_withdrawals", {
 export const insertProviderWithdrawalSchema = createInsertSchema(providerWithdrawals).omit({ id: true, createdAt: true });
 export type InsertProviderWithdrawal = z.infer<typeof insertProviderWithdrawalSchema>;
 export type ProviderWithdrawal = typeof providerWithdrawals.$inferSelect;
+
+export const providerAvailability = pgTable("provider_availability", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(),
+  endTime: varchar("end_time", { length: 5 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertProviderAvailabilitySchema = createInsertSchema(providerAvailability).omit({ id: true, createdAt: true });
+export type InsertProviderAvailability = z.infer<typeof insertProviderAvailabilitySchema>;
+export type ProviderAvailability = typeof providerAvailability.$inferSelect;

@@ -280,6 +280,18 @@ export interface PaymentEscrow {
   createdAt: Date | null;
 }
 
+export interface ProviderAvailability {
+  id: number;
+  userId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  createdAt: Date | null;
+}
+
+export type InsertProviderAvailability = Omit<ProviderAvailability, "id" | "createdAt">;
+
 export interface ProviderWithdrawal {
   id: number;
   providerId: string;

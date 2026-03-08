@@ -68,12 +68,13 @@ Preferred communication style: Simple, everyday language.
 - **Storage Repository**: `server/infrastructure/repositories/prisma-storage.ts` - 126 methods, handles snake_case→camelCase mapping
 - **Auth Adapter**: `server/infrastructure/auth/prisma-auth.ts` - JWT auth with Prisma queries
 - **Routes**: `server/infrastructure/routes/prisma-routes.ts` - all 124 API endpoints using Prisma storage
-- **Key Tables**: users, sessions, user_profiles, service_categories, service_requests, service_chat_messages, reviews, conversations, messages, system_settings, payments, password_reset_tokens, symptoms, symptom_questions, symptom_diagnoses, local_knowledge
+- **Key Tables**: users, sessions, user_profiles, service_categories, service_requests, service_chat_messages, reviews, conversations, messages, system_settings, payments, password_reset_tokens, symptoms, symptom_questions, symptom_diagnoses, local_knowledge, provider_availability
 - **Legacy Files (preserved)**: `server/routes.ts`, `server/storage.ts`, `server/auth/localAuth.ts`, `shared/schema.ts` - original Drizzle-based code kept for reference
 
 ### Key Domain Entities
 - **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, city, and geolocation (latitude/longitude)
-- **Service Requests**: Track full lifecycle from pending through diagnosis, provider assignment, progress, to completion
+- **Service Requests**: Track full lifecycle from pending through diagnosis, provider assignment, progress, to completion; includes optional scheduledDate for appointment scheduling
+- **Provider Availability**: Weekly schedule with day_of_week (0=Sun to 6=Sat), start_time/end_time (HH:MM), is_active toggle; providers without any active availability slots are hidden from client search results
 - **SLA Priorities**: Standard, express, and urgent tiers for service requests
 - **Payments**: Pix and card options (simulated, structured for future Stripe integration)
 

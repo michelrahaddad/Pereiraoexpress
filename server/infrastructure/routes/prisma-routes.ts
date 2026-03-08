@@ -724,6 +724,64 @@ export async function registerPrismaRoutes(
     }
   });
 
+  app.get("/api/provider/availability", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const slots = await storage.getProviderAvailability(userId);
+      res.json(slots);
+    } catch (error) {
+      console.error("Error fetching provider availability:", error);
+      res.status(500).json({ error: "Failed to fetch availability" });
+    }
+  });
+
+  app.put("/api/provider/availability", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { slots } = req.body;
+      if (!Array.isArray(slots)) {
+        return res.status(400).json({ error: "slots must be an array" });
+      }
+      for (const slot of slots) {
+        if (slot.dayOfWeek === undefined || slot.dayOfWeek < 0 || slot.dayOfWeek > 6) {
+          return res.status(400).json({ error: "dayOfWeek must be 0-6" });
+        }
+        if (!slot.startTime || !slot.endTime) {
+          return res.status(400).json({ error: "startTime and endTime are required" });
+        }
+        if (!/^\d{2}:\d{2}$/.test(slot.startTime) || !/^\d{2}:\d{2}$/.test(slot.endTime)) {
+          return res.status(400).json({ error: "Time format must be HH:MM" });
+        }
+        if (slot.startTime >= slot.endTime) {
+          return res.status(400).json({ error: "startTime must be before endTime" });
+        }
+      }
+      const result = await storage.setProviderAvailability(userId, slots.map((s: any) => ({
+        userId,
+        dayOfWeek: s.dayOfWeek,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        isActive: s.isActive !== undefined ? s.isActive : true,
+      })));
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating provider availability:", error);
+      res.status(500).json({ error: "Failed to update availability" });
+    }
+  });
+
+  app.get("/api/providers/:userId/availability", isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const slots = await storage.getProviderAvailability(userId);
+      const activeSlots = slots.filter(s => s.isActive);
+      res.json(activeSlots);
+    } catch (error) {
+      console.error("Error fetching provider availability:", error);
+      res.status(500).json({ error: "Failed to fetch availability" });
+    }
+  });
+
   app.patch("/api/provider/bank-data", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1296,6 +1354,14 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         priceRangeMax = priceRangeMin * 2;
       }
       
+      const providerUserIds = filteredProviders.map((p: any) => p.userId);
+      const availabilityMap = await storage.getProvidersWithAvailability(providerUserIds);
+      
+      filteredProviders = filteredProviders.filter((p: any) => {
+        const slots = availabilityMap[p.userId];
+        return slots && slots.length > 0;
+      });
+      
       const { getRatingLevel } = await import("@shared/priceMultiplier");
       
       const providersWithPricing = filteredProviders.map(provider => {
@@ -1349,6 +1415,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
           ratingLevel,
           basePrice: priceRangeMin,
           distance: provider.distance ? Math.round(provider.distance * 10) / 10 : null,
+          availability: availabilityMap[provider.userId] || [],
         };
       });
       
@@ -1383,7 +1450,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
   app.post("/api/services/:id/select-provider", isAuthenticated, async (req: any, res) => {
     try {
       const serviceId = parseInt(req.params.id);
-      const { providerId } = req.body;
+      const { providerId, scheduledDate } = req.body;
       const clientId = req.user.claims.sub;
       
       const service = await storage.getServiceById(serviceId);
@@ -1414,11 +1481,15 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         provider.totalRatings || 0
       );
       
-      const updatedService = await storage.updateService(serviceId, {
+      const updateData: any = {
         providerId,
         status: "provider_assigned",
         estimatedPrice: adjustedPrice,
-      });
+      };
+      if (scheduledDate) {
+        updateData.scheduledDate = new Date(scheduledDate);
+      }
+      const updatedService = await storage.updateService(serviceId, updateData);
       
       const client = await prisma.users.findFirst({ where: { id: clientId } });
       const clientName = client?.first_name || "Cliente";
@@ -1427,7 +1498,7 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         userId: providerId,
         type: "service_request",
         title: "Novo serviço para você!",
-        message: `${clientName} selecionou você para um serviço de ${category?.name || 'manutenção'}. Valor: R$ ${(adjustedPrice / 100).toFixed(2)}`,
+        message: `${clientName} selecionou você para um serviço de ${category?.name || 'manutenção'}. Valor: R$ ${(adjustedPrice / 100).toFixed(2)}${scheduledDate ? `. Agendado para: ${new Date(scheduledDate).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}`,
         data: JSON.stringify({ 
           serviceId, 
           clientId, 

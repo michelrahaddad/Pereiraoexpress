@@ -1,15 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useRoute, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation, Medal } from "lucide-react";
+import { Star, MapPin, Briefcase, CheckCircle, ArrowLeft, Crown, Award, User, Navigation, Medal, CalendarDays, Clock } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { PaymentModal } from "@/components/payment-modal";
+
+interface ProviderAvailability {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
 
 interface Provider {
   id: string;
@@ -28,6 +34,30 @@ interface Provider {
   distance: number | null;
   firstName: string | null;
   lastName: string | null;
+  availability?: ProviderAvailability[];
+}
+
+const DAY_NAMES_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const MONTH_NAMES_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+function formatDateBR(date: Date): string {
+  const dayName = DAY_NAMES_PT[date.getDay()];
+  const day = date.getDate();
+  const month = MONTH_NAMES_PT[date.getMonth()];
+  return `${dayName}, ${day} de ${month}`;
+}
+
+function generateTimeSlots(startTime: string, endTime: string): string[] {
+  const slots: string[] = [];
+  const [startH] = startTime.split(":").map(Number);
+  const [endH] = endTime.split(":").map(Number);
+  for (let h = startH; h < endH; h++) {
+    slots.push(`${String(h).padStart(2, "0")}:00`);
+  }
+  return slots;
 }
 
 export default function SelectProvider() {
@@ -38,6 +68,8 @@ export default function SelectProvider() {
   const isDomestic = new URLSearchParams(searchString).get("domestic") === "true";
   const { toast } = useToast();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
 
@@ -82,9 +114,59 @@ export default function SelectProvider() {
     }
   }, [latitude, longitude, locationLoading, serviceId, refetch]);
 
+  useEffect(() => {
+    setSelectedDate(null);
+    setSelectedTime(null);
+  }, [selectedProvider]);
+
+  useEffect(() => {
+    setSelectedTime(null);
+  }, [selectedDate]);
+
+  const currentProvider = useMemo(() => {
+    if (!selectedProvider) return null;
+    return providers.find((p) => p.userId === selectedProvider) || null;
+  }, [selectedProvider, providers]);
+
+  const availableDates = useMemo(() => {
+    if (!currentProvider?.availability?.length) return [];
+    const availableDays = new Set(currentProvider.availability.map((a) => a.dayOfWeek));
+    const dates: Date[] = [];
+    const today = new Date();
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      d.setHours(0, 0, 0, 0);
+      if (availableDays.has(d.getDay())) {
+        dates.push(d);
+      }
+    }
+    return dates;
+  }, [currentProvider]);
+
+  const timeSlots = useMemo(() => {
+    if (!selectedDate || !currentProvider?.availability?.length) return [];
+    const dayOfWeek = selectedDate.getDay();
+    const dayAvailability = currentProvider.availability.find((a) => a.dayOfWeek === dayOfWeek);
+    if (!dayAvailability) return [];
+    return generateTimeSlots(dayAvailability.startTime, dayAvailability.endTime);
+  }, [selectedDate, currentProvider]);
+
+  const scheduledDate = useMemo(() => {
+    if (!selectedDate || !selectedTime) return null;
+    const d = new Date(selectedDate);
+    const [h, m] = selectedTime.split(":").map(Number);
+    d.setHours(h, m, 0, 0);
+    return d;
+  }, [selectedDate, selectedTime]);
+
   const selectMutation = useMutation({
     mutationFn: async (providerId: string) => {
-      return apiRequest("POST", `/api/services/${serviceId}/select-provider`, { providerId });
+      const body: any = { providerId };
+      if (scheduledDate) {
+        body.scheduledDate = scheduledDate.toISOString();
+      }
+      return apiRequest("POST", `/api/services/${serviceId}/select-provider`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
@@ -105,7 +187,11 @@ export default function SelectProvider() {
 
   const payDomesticMutation = useMutation({
     mutationFn: async (data: { providerId: string; method: string; totalAmount: number }) => {
-      await apiRequest("POST", `/api/services/${serviceId}/select-provider`, { providerId: data.providerId });
+      const body: any = { providerId: data.providerId };
+      if (scheduledDate) {
+        body.scheduledDate = scheduledDate.toISOString();
+      }
+      await apiRequest("POST", `/api/services/${serviceId}/select-provider`, body);
       const response = await apiRequest("POST", `/api/service/${serviceId}/pay-domestic`, {
         method: data.method,
         totalAmount: data.totalAmount,
@@ -131,7 +217,7 @@ export default function SelectProvider() {
   });
 
   const handleConfirmProvider = () => {
-    if (!selectedProvider) return;
+    if (!selectedProvider || !scheduledDate) return;
     if (isDomestic) {
       setShowPaymentModal(true);
     } else {
@@ -334,6 +420,82 @@ export default function SelectProvider() {
             })}
           </div>
         )}
+
+        {selectedProvider && (
+          <div data-testid="section-scheduling" className="mt-6">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <CalendarDays className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Escolha o dia e horário</h2>
+                </div>
+
+                {availableDates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="text-no-availability">
+                    Profissional sem horários disponíveis
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {availableDates.map((date, index) => {
+                        const isDateSelected = selectedDate && date.getTime() === selectedDate.getTime();
+                        return (
+                          <Button
+                            key={date.toISOString()}
+                            variant={isDateSelected ? "default" : "outline"}
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDate(date);
+                            }}
+                            data-testid={`button-date-${index}`}
+                          >
+                            <span className="flex flex-col items-center leading-tight">
+                              <span className="text-xs font-medium">{DAY_NAMES_PT[date.getDay()]}</span>
+                              <span className="text-sm font-bold">{date.getDate()}</span>
+                            </span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedDate && timeSlots.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Clock className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Horários disponíveis</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {timeSlots.map((slot) => (
+                            <Button
+                              key={slot}
+                              variant={selectedTime === slot ? "default" : "outline"}
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTime(slot);
+                              }}
+                              data-testid={`button-time-${slot}`}
+                            >
+                              {slot}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {scheduledDate && (
+                      <div className="mt-4 flex items-center gap-2 text-sm text-primary font-medium" data-testid="text-selected-datetime">
+                        <CalendarDays className="h-4 w-4" />
+                        {formatDateBR(selectedDate!)} às {selectedTime}
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {providers.length > 0 && (
@@ -341,7 +503,7 @@ export default function SelectProvider() {
           <div className="max-w-2xl mx-auto">
             <Button
               className="w-full h-12 text-base font-semibold rounded-xl"
-              disabled={!selectedProvider || selectMutation.isPending || payDomesticMutation.isPending}
+              disabled={!selectedProvider || !scheduledDate || selectMutation.isPending || payDomesticMutation.isPending}
               onClick={handleConfirmProvider}
               data-testid="button-confirm-provider"
             >
@@ -350,8 +512,10 @@ export default function SelectProvider() {
                   <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                   {isDomestic ? "Processando..." : "Selecionando..."}
                 </span>
-              ) : selectedProvider ? (
+              ) : selectedProvider && scheduledDate ? (
                 isDomestic ? "Selecionar e Pagar" : "Confirmar Profissional"
+              ) : selectedProvider && !scheduledDate ? (
+                "Selecione um horário"
               ) : (
                 "Selecione um Profissional"
               )}

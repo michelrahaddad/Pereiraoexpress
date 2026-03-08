@@ -41,7 +41,8 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Banknote,
-  Edit3
+  Edit3,
+  CalendarDays
 } from "lucide-react";
 import type { ServiceRequest } from "@shared/schema";
 
@@ -346,6 +347,72 @@ export default function ProviderDashboard() {
   const { data: reviews } = useQuery<{ id: number; rating: number; comment: string; createdAt: string; clientName?: string }[]>({
     queryKey: ["/api/provider/reviews"],
     enabled: isAuthenticated,
+  });
+
+  interface AvailabilitySlot {
+    id?: number;
+    userId?: number;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isActive: boolean;
+  }
+
+  const { data: availability } = useQuery<AvailabilitySlot[]>({
+    queryKey: ["/api/provider/availability"],
+    enabled: isAuthenticated,
+  });
+
+  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+  const defaultSchedule: AvailabilitySlot[] = dayNames.map((_, i) => ({
+    dayOfWeek: i,
+    startTime: "08:00",
+    endTime: "18:00",
+    isActive: i >= 1 && i <= 5,
+  }));
+
+  const [schedule, setSchedule] = useState<AvailabilitySlot[]>(defaultSchedule);
+
+  useEffect(() => {
+    if (availability && availability.length > 0) {
+      const merged = defaultSchedule.map(def => {
+        const found = availability.find(a => a.dayOfWeek === def.dayOfWeek);
+        return found ? { ...def, startTime: found.startTime, endTime: found.endTime, isActive: found.isActive } : def;
+      });
+      setSchedule(merged);
+    }
+  }, [availability]);
+
+  const updateScheduleSlot = (dayIndex: number, field: keyof AvailabilitySlot, value: any) => {
+    setSchedule(prev => prev.map(s => s.dayOfWeek === dayIndex ? { ...s, [field]: value } : s));
+  };
+
+  const saveAvailabilityMutation = useMutation({
+    mutationFn: async (slots: AvailabilitySlot[]) => {
+      return apiRequest("PUT", "/api/provider/availability", {
+        slots: slots.map(s => ({
+          dayOfWeek: s.dayOfWeek,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          isActive: s.isActive,
+        })),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/provider/availability"] });
+      toast({
+        title: "Horários salvos!",
+        description: "Seus horários de disponibilidade foram atualizados.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar os horários.",
+        variant: "destructive",
+      });
+    },
   });
 
   interface WalletData {
@@ -894,6 +961,58 @@ export default function ProviderDashboard() {
                 )}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Schedule section */}
+        <Card className="mb-8" data-testid="card-schedule">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              Meus Horários
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {schedule.map((slot) => (
+              <div key={slot.dayOfWeek} className="flex items-center gap-3 flex-wrap">
+                <div className="w-10 text-sm font-medium">{dayNames[slot.dayOfWeek]}</div>
+                <Switch
+                  checked={slot.isActive}
+                  onCheckedChange={(val) => updateScheduleSlot(slot.dayOfWeek, "isActive", val)}
+                  data-testid={`switch-day-${slot.dayOfWeek}`}
+                />
+                <Input
+                  type="time"
+                  value={slot.startTime}
+                  onChange={(e) => updateScheduleSlot(slot.dayOfWeek, "startTime", e.target.value)}
+                  disabled={!slot.isActive}
+                  className="w-[120px]"
+                  data-testid={`input-start-${slot.dayOfWeek}`}
+                />
+                <span className="text-muted-foreground text-sm">até</span>
+                <Input
+                  type="time"
+                  value={slot.endTime}
+                  onChange={(e) => updateScheduleSlot(slot.dayOfWeek, "endTime", e.target.value)}
+                  disabled={!slot.isActive}
+                  className="w-[120px]"
+                  data-testid={`input-end-${slot.dayOfWeek}`}
+                />
+              </div>
+            ))}
+            <Button
+              className="w-full mt-4"
+              onClick={() => saveAvailabilityMutation.mutate(schedule)}
+              disabled={saveAvailabilityMutation.isPending}
+              data-testid="button-save-schedule"
+            >
+              {saveAvailabilityMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Clock className="h-4 w-4 mr-2" />
+              )}
+              Salvar Horários
+            </Button>
           </CardContent>
         </Card>
 
