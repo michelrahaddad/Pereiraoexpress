@@ -4300,5 +4300,46 @@ Responda apenas: "ACEITO" ou "RECUSADO"`;
     }
   });
 
+  app.post("/api/admin/migrate-data", async (req, res) => {
+    try {
+      const secret = req.headers["x-migration-key"];
+      if (secret !== process.env.SESSION_SECRET) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const fs = await import("fs");
+      const path = await import("path");
+      const sqlFile = path.join(process.cwd(), "scripts", "migrate-to-production.sql");
+
+      if (!fs.existsSync(sqlFile)) {
+        return res.status(404).json({ error: "Migration file not found" });
+      }
+
+      const sql = fs.readFileSync(sqlFile, "utf-8");
+      const { pool } = await import("../prisma/client");
+
+      const client = await pool.connect();
+      try {
+        await client.query(sql);
+        const result = await client.query(`
+          SELECT 'users' as table_name, count(*)::int as count FROM users
+          UNION ALL SELECT 'user_profiles', count(*)::int FROM user_profiles
+          UNION ALL SELECT 'service_categories', count(*)::int FROM service_categories
+          UNION ALL SELECT 'provider_availability', count(*)::int FROM provider_availability
+          UNION ALL SELECT 'symptoms', count(*)::int FROM symptoms
+          UNION ALL SELECT 'symptom_questions', count(*)::int FROM symptom_questions
+          UNION ALL SELECT 'symptom_diagnoses', count(*)::int FROM symptom_diagnoses
+          UNION ALL SELECT 'local_knowledge', count(*)::int FROM local_knowledge
+        `);
+        res.json({ success: true, counts: result.rows });
+      } finally {
+        client.release();
+      }
+    } catch (error: any) {
+      console.error("Migration error:", error);
+      res.status(500).json({ error: "Migration failed", details: error.message });
+    }
+  });
+
   return httpServer;
 }
