@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pereirão Express is a home services marketplace application that connects clients with qualified service providers (electricians, plumbers, painters, etc.). The platform features AI-powered diagnostics using Google's Gemini to help users describe their problems and receive instant assessments. The app supports three user roles: clients who request services, providers who fulfill them, and admins who manage the platform.
+Pereirão Express is a home services marketplace application designed to connect clients with qualified service providers (electricians, plumbers, painters, etc.). The platform integrates AI-powered diagnostics using Google's Gemini to assist users in describing their problems and receiving instant assessments. It supports three distinct user roles: clients who request services, providers who fulfill them, and administrators who manage the platform. The project aims to provide a seamless, efficient, and transparent experience for home service transactions, leveraging technology to streamline problem diagnosis, service booking, and provider management.
 
 ## User Preferences
 
@@ -25,212 +25,61 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: React 18 with TypeScript, using Vite as the build tool
-- **Routing**: Wouter for lightweight client-side routing
-- **State Management**: TanStack React Query for server state and caching
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS with custom theme variables supporting light/dark modes
-- **Mobile First**: PWA-ready with responsive design and manifest.json configured
-- **Voice Input**: Web Speech API for speech-to-text input in AI chat (browser-native, no API required)
+The frontend is built with React 18 and TypeScript, using Vite for development and bundling. It employs Wouter for lightweight routing and TanStack React Query for state management and caching. UI components are sourced from shadcn/ui, based on Radix UI primitives, styled with Tailwind CSS supporting light/dark modes. The application is PWA-ready with a mobile-first responsive design. Voice input for the AI chat utilizes the Web Speech API.
 
 ### Backend Architecture
-- **Framework**: Express.js with TypeScript running on Node.js
-- **API Design**: RESTful API endpoints prefixed with `/api/`
-- **Session Management**: PostgreSQL-backed sessions using connect-pg-simple
-- **AI Integration**: Google Gemini via Replit's AI Integrations service for diagnostics, chat, and image generation
+The backend is an Express.js application built with TypeScript, exposing RESTful API endpoints prefixed with `/api/`. Session management is handled via PostgreSQL-backed sessions using `connect-pg-simple`. AI integration for diagnostics, chat, and image generation is provided by Google Gemini through Replit's AI Integrations service.
 
-### Authentication System (Local Auth - Enterprise Security)
-- **Type**: Custom email/password authentication with JWT tokens
-- **Password Hashing**: bcryptjs with 12 salt rounds
-- **Tokens**: JWT access tokens (15min) + refresh tokens (7 days)
-- **Security Features**:
-  - Rate limiting on login (10 attempts per 15min)
-  - Rate limiting on registration (5 per hour)
-  - Rate limiting on password reset (3 per hour)
-  - Account lockout after 5 failed attempts (15 min)
-  - Strong password validation (8+ chars, uppercase, lowercase, number, special char)
-  - CPF validation (Brazilian ID)
-- **Routes**:
-  - POST `/api/auth/register` - User registration with CPF, email, phone, age, city
-  - POST `/api/auth/login` - Email/password login
-  - POST `/api/auth/refresh` - Refresh access token
-  - POST `/api/auth/logout` - Session destruction
-  - POST `/api/auth/forgot-password` - Password reset request
-  - POST `/api/auth/reset-password` - Password reset with token
-  - GET `/api/auth/me` - Get current user
-- **Future Enhancement**: Twilio SMS integration for OTP verification (not configured yet)
+### Authentication System
+A custom email/password authentication system is implemented using JWT tokens (15min access, 7-day refresh). Security features include bcryptjs for password hashing (12 salt rounds), rate limiting on login, registration, and password reset, and account lockout mechanisms. Strong password validation and Brazilian CPF validation are also included.
 
 ### Data Layer
-- **Database**: PostgreSQL with Prisma ORM (migrated from Drizzle)
-- **Prisma Schema**: `prisma/schema.prisma` contains all 35 model definitions
-- **Generated Client**: `generated/prisma/` - Prisma client output with `@prisma/adapter-pg` driver adapter
-- **Prisma Client Singleton**: `server/infrastructure/prisma/client.ts` - uses pg pool with Prisma adapter
-- **Storage Repository**: `server/infrastructure/repositories/prisma-storage.ts` - 126 methods, handles snake_case→camelCase mapping
-- **Auth Adapter**: `server/infrastructure/auth/prisma-auth.ts` - JWT auth with Prisma queries
-- **Routes**: `server/infrastructure/routes/prisma-routes.ts` - all 124 API endpoints using Prisma storage
-- **Key Tables**: users, sessions, user_profiles, service_categories, service_requests, service_chat_messages, reviews, conversations, messages, system_settings, payments, password_reset_tokens, symptoms, symptom_questions, symptom_diagnoses, local_knowledge, provider_availability
-- **Legacy Files (preserved)**: `server/routes.ts`, `server/storage.ts`, `server/auth/localAuth.ts`, `shared/schema.ts` - original Drizzle-based code kept for reference
+PostgreSQL is the primary database, accessed via Prisma ORM. The `prisma/schema.prisma` defines 35 models, with a generated Prisma client. A singleton Prisma client is used with a `pg` pool adapter. A storage repository handles 126 methods, including snake_case to camelCase mapping.
 
 ### Key Domain Entities
-- **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, city, and geolocation (latitude/longitude)
-- **Service Requests**: Track full lifecycle from pending through diagnosis, provider assignment, progress, to completion; includes optional scheduledDate for appointment scheduling
-- **Provider Availability**: Weekly schedule with day_of_week (0=Sun to 6=Sat), start_time/end_time (HH:MM), is_active toggle; providers without any active availability slots are hidden from client search results
-- **Slot Occupation**: When a client books a time, the slot is marked occupied based on `estimated_duration_minutes` (parsed from AI diagnosis); other clients see occupied slots as disabled; provider dashboard shows "Agenda - Compromissos" section with upcoming booked appointments
-  - GET `/api/providers/:userId/booked-slots` - Client-facing: see provider's occupied slots
-  - GET `/api/provider/booked-slots` - Provider-facing: see own upcoming appointments
-- **SLA Priorities**: Standard, express, and urgent tiers for service requests
-- **Payments**: Pix and card options (simulated, structured for future Stripe integration)
+The system models Users (client, provider, admin roles with profiles including specialties, ratings, availability, geolocation), Service Requests (tracking lifecycle, including optional scheduling), and Provider Availability (weekly schedules to filter providers). Slot occupation is managed based on estimated service duration. SLA priorities (Standard, Express, Urgent) are supported, and payment options include Pix and card (simulated for future Stripe integration).
 
-### Public AI Diagnosis Flow (No Login Required)
-- **Landing Page**: "Descrever meu problema" button goes directly to `/client/new`
-- **Diagnosis Flow**: Guided questions → AI Chat → Diagnosis result — all free, no login required
-- **Public Endpoints**:
-  - POST `/api/ai/diagnose` - AI chat streaming (no auth required)
-  - POST `/api/diagnosis/preview` - Generate diagnosis without creating DB records (no auth required)
-- **After Diagnosis**: Non-authenticated users see "Criar conta e continuar" / "Já tenho conta — Entrar" buttons
-- **Resume Flow**: Diagnosis data saved to `sessionStorage` under key `pereirao_diagnosis`
-  - Login/register pages detect `?from=diagnosis` parameter
-  - After auth, user redirected to `/client/new?resume=true`
-  - Resume logic reads sessionStorage, calls authenticated `/api/diagnosis/ai` to create service, then redirects to provider selection
-- **Authenticated Users**: See "Continuar para contratar" button directly after diagnosis
+### Public AI Diagnosis Flow
+A public, no-login-required AI diagnosis flow allows users to describe problems, receive AI-guided questions, and get a diagnosis. Diagnosis data is saved to `sessionStorage` for non-authenticated users, allowing them to create an account or log in and resume the service creation process. Authenticated users proceed directly to provider selection.
 
 ### Geolocation System
-- **Distance Calculation**: Haversine formula in `shared/geolocation.ts` for accurate distance calculation
-- **Provider Filtering**: Clients only see providers within 30km radius
-- **Location Capture**: Browser Geolocation API captures client location automatically
-- **Fallback**: If location unavailable, shows all providers without distance filtering
-- **Distance Display**: Shows distance in km next to each provider
-- **Routes**:
-  - PATCH `/api/user/location` - Update user's latitude/longitude
-  - GET `/api/providers/available?lat=X&lon=Y` - Filter providers by distance
+The system calculates distances using the Haversine formula, filtering providers within a 30km radius of the client's location. Browser Geolocation API captures client location, with a fallback to showing all providers if location is unavailable.
 
 ### Admin Panel Features
-- **User Management**: Filter by city, role, and search
-- **City Overview**: Users grouped by city with stats
-- **Pricing Controls**: All pricing is admin-configurable via system_settings table
-  - AI diagnosis fee (default R$10), platform fee for repairs (default 10%), SLA multipliers
-  - Domestic services: base prices by house size, frequency multipliers, service type multipliers, platform fee (15%)
-  - GET `/api/settings/pricing` - Public endpoint for frontend to read current pricing
-  - All pricing reads from admin settings with fallback to defaults
-- **Backup**: Data export functionality
-- **Sintomas IA**: Manage symptom knowledge base for AI diagnosis improvement
+The admin panel provides user management (filtering by city, role, search), a city overview with user statistics, and comprehensive pricing controls configurable via the `system_settings` table (e.g., AI diagnosis fee, platform fees, SLA multipliers).
 
 ### AI Symptom Knowledge Base
-- **Symptoms**: Linked to service categories with keywords for matching
-- **Symptom Questions**: Refinement questions per symptom with expected responses and trigger keywords
-- **Conditional Questions**: Questions can be configured with trigger keywords (e.g., "vazamento" triggers water pressure/color questions)
-- **Symptom Diagnoses**: Possible diagnoses with price ranges, materials, and urgency levels
-- **Local Knowledge**: City-specific service information (material suppliers, service particularities)
-- **AI Integration**: Knowledge base is automatically queried during diagnosis to provide context to Gemini
-- **Conditional Question Logic**:
-  - If user mentions "vazamento/água" → AI asks about water pressure and color
-  - If user mentions "elétrica/tomada" → AI asks about circuit breaker and burning smell
-  - If user mentions "entupimento" → AI asks about location and water backflow
-  - If user mentions "portão/motor" → AI asks about gate type and motor sounds
-- **Features**: Accent normalization for Portuguese, safe JSON parsing, token limit protection (2000 chars)
-
-### Build System
-- **Development**: TSX for running TypeScript directly, Vite dev server with HMR
-- **Production**: esbuild bundles server code, Vite builds client assets to `dist/public`
-- **Path Aliases**: `@/` maps to client/src, `@shared/` maps to shared folder
-
-## Authentication Flow
-
-### Client Registration/Login
-1. User visits `/login/cliente` or `/cadastro/cliente`
-2. Multi-step registration: Personal data → CPF, phone, age, city → Password creation
-3. Password strength indicator with real-time validation
-4. JWT tokens stored in localStorage
-5. Automatic token refresh on expiration
-
-### Provider Registration/Login
-1. User visits `/login/prestador` or `/cadastro/prestador`
-2. Same registration flow as clients with city selection for service area
-3. Role automatically set to "provider"
-
-### Admin Access
-1. Admin role assigned by existing admin in user management
-2. Admins access `/admin` for platform management
-3. City-based user filtering for regional control
+A structured knowledge base for AI diagnosis includes Symptoms linked to service categories, Symptom Questions with conditional logic, Symptom Diagnoses with price ranges and urgency, and Local Knowledge for city-specific service information. This knowledge base provides context to Gemini during diagnosis, featuring accent normalization and token limit protection.
 
 ### Notification System
-- **In-App Notifications**: Bell icon in header with unread count badge
-- **Real-time Updates**: Polling every 30 seconds for new notifications
-- **Notification Types**: service_request, service_accepted, service_rejected, service_completed, payment_received, new_message, call_requested
-- **Auto-trigger**: Notifications created when client selects a provider
-- **Push Notifications**: Browser-native push via web-push library
-  - Toggle button in header to enable/disable
-  - Service worker (sw.js) handles background notifications
-  - Sent automatically when client selects provider
-  - Required secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
-  - Routes: GET `/api/push/vapid-public-key`, POST `/api/push/subscribe`, POST `/api/push/unsubscribe`
+The application features an in-app notification system with real-time updates (polling every 30 seconds) and browser-native push notifications via a service worker, triggered automatically upon events like provider selection.
 
-### Twilio Voice Integration (Ready for Credentials)
-- **AI Secretary**: Uses Gemini to conduct phone calls with providers
-- **Call Flow**: Greet provider → Explain service → Gather accept/reject → Update database
-- **TwiML Webhooks**: `/api/twilio/webhook/status`, `/api/twilio/webhook/voice`, `/api/twilio/webhook/gather`
-- **Required Secrets**: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
-- **Status**: API ready, awaiting Twilio credentials from user
+### Twilio Voice Integration
+The system is prepared for Twilio Voice integration to enable an AI secretary (using Gemini) to conduct phone calls with providers, explaining services and gathering acceptance or rejection.
+
+### Build System
+Development uses TSX and Vite, while production builds utilize esbuild for the server and Vite for client assets. Compatibility between CJS and ESM modules is handled for Prisma's generated client.
 
 ## External Dependencies
 
 ### Database
-- **PostgreSQL**: Primary database accessed via `DATABASE_URL` environment variable
-- **Drizzle ORM**: Type-safe database queries with Zod schema validation
+- **PostgreSQL**: Primary database.
 
 ### Security
-- **bcryptjs**: Password hashing
-- **jsonwebtoken**: JWT token generation and verification
-- **express-rate-limit**: API rate limiting
+- **bcryptjs**: For password hashing.
+- **jsonwebtoken**: For JWT token generation and verification.
+- **express-rate-limit**: For API rate limiting.
 
-### Communication (Prepared)
-- **Twilio**: Voice calls to providers (requires credentials)
-- **Voice Model**: Amazon Polly Camila (Brazilian Portuguese)
+### Communication
+- **Twilio**: For voice calls (requires credentials).
+- **Amazon Polly**: For text-to-speech (Camila voice for Brazilian Portuguese) in Twilio integration.
 
 ### AI Services
-- **Google Gemini via Replit AI Integrations**: Requires `AI_INTEGRATIONS_GEMINI_API_KEY` and `AI_INTEGRATIONS_GEMINI_BASE_URL`
-- **Supported Models**: gemini-2.5-flash (fast), gemini-2.5-pro (advanced reasoning), gemini-2.5-flash-image (image generation)
+- **Google Gemini via Replit AI Integrations**: For AI diagnostics, chat, and image generation. Supports `gemini-2.5-flash`, `gemini-2.5-pro`, and `gemini-2.5-flash-image` models.
 
 ### UI Dependencies
-- **Radix UI**: Comprehensive set of accessible component primitives
-- **Lucide React**: Icon library
-- **React Day Picker**: Calendar component
-- **Embla Carousel**: Carousel functionality
-- **Recharts**: Charting library for data visualization
-
-## File Structure
-
-```
-client/src/pages/
-├── auth/
-│   ├── login.tsx         # Client and provider login pages
-│   ├── register.tsx      # Client and provider registration pages
-│   └── forgot-password.tsx # Password recovery flow
-├── admin/
-│   └── index.tsx         # Admin dashboard with user management
-├── client/
-│   ├── new-service.tsx   # AI diagnosis and service creation
-│   └── service-details.tsx
-├── provider/
-│   └── index.tsx         # Provider dashboard
-└── landing.tsx           # Landing page
-
-server/
-├── infrastructure/
-│   ├── prisma/
-│   │   └── client.ts         # Prisma client singleton with pg adapter
-│   ├── repositories/
-│   │   └── prisma-storage.ts # 126 storage methods (IStorage implementation)
-│   ├── auth/
-│   │   └── prisma-auth.ts    # JWT auth with Prisma queries
-│   └── routes/
-│       └── prisma-routes.ts  # All 124 API endpoints
-├── domain/
-│   └── entities/
-│       └── index.ts          # 35 entity interfaces + enums + errors
-├── auth/
-│   └── localAuth.ts          # Legacy: Local auth with Drizzle (preserved)
-├── routes.ts                 # Legacy: API routes with Drizzle (preserved)
-├── storage.ts                # Legacy: Drizzle storage (preserved)
-└── index.ts                  # Express app entry point (uses Prisma routes)
-```
+- **Radix UI**: Accessible UI component primitives.
+- **Lucide React**: Icon library.
+- **React Day Picker**: Calendar component.
+- **Embla Carousel**: Carousel functionality.
+- **Recharts**: Charting library.
