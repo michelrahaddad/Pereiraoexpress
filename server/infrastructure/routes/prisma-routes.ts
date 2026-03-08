@@ -1961,19 +1961,26 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
       const { description, guidedAnswers, mediaUrls, title } = validation.data;
 
       const getCategoryFromAnswers = (answers: any[]): number => {
-        const serviceTypeAnswer = answers?.find((a: any) => 
-          a.question?.includes("tipo") || a.question?.includes("problema")
+        const mainServiceAnswer = answers?.find((a: any) => 
+          a.question === "Tipo de serviço" || a.question?.includes("problema")
         )?.answer || "";
         
-        if (serviceTypeAnswer.includes("Empregada") || serviceTypeAnswer.includes("Doméstica") || serviceTypeAnswer.includes("Limpeza") || serviceTypeAnswer.includes("Faxina")) return 6;
-        if (serviceTypeAnswer.includes("Passadeira") || serviceTypeAnswer.includes("Passar roupa")) return 7;
-        if (serviceTypeAnswer.includes("Elétrica") || serviceTypeAnswer.includes("eletricista")) return 2;
-        if (serviceTypeAnswer.includes("Hidráulica") || serviceTypeAnswer.includes("Encanamento") || serviceTypeAnswer.includes("encanador")) return 1;
-        if (serviceTypeAnswer.includes("Pintura") || serviceTypeAnswer.includes("pintor")) return 3;
-        if (serviceTypeAnswer.includes("Marcenaria") || serviceTypeAnswer.includes("marceneiro") || serviceTypeAnswer.includes("Reforma")) return 4;
-        if (serviceTypeAnswer.includes("Ar condicionado") || serviceTypeAnswer.includes("ar-condicionado") || serviceTypeAnswer.includes("climatização")) return 5;
-        if (serviceTypeAnswer.includes("Chaveiro") || serviceTypeAnswer.includes("fechadura") || serviceTypeAnswer.includes("chave")) return 8;
-        if (serviceTypeAnswer.includes("Portões") || serviceTypeAnswer.includes("portão") || serviceTypeAnswer.includes("Portão")) return 9;
+        if (mainServiceAnswer.includes("Passadeira") || mainServiceAnswer.includes("Passar roupa")) return 7;
+        if (mainServiceAnswer.includes("Empregada") || mainServiceAnswer.includes("Doméstica")) return 6;
+        if (mainServiceAnswer.includes("Elétrica") || mainServiceAnswer.includes("eletricista")) return 2;
+        if (mainServiceAnswer.includes("Hidráulica") || mainServiceAnswer.includes("Encanamento") || mainServiceAnswer.includes("encanador")) return 1;
+        if (mainServiceAnswer.includes("Pintura") || mainServiceAnswer.includes("pintor")) return 3;
+        if (mainServiceAnswer.includes("Marcenaria") || mainServiceAnswer.includes("marceneiro") || mainServiceAnswer.includes("Reforma")) return 4;
+        if (mainServiceAnswer.includes("Ar condicionado") || mainServiceAnswer.includes("ar-condicionado") || mainServiceAnswer.includes("climatização")) return 5;
+        if (mainServiceAnswer.includes("Chaveiro") || mainServiceAnswer.includes("fechadura") || mainServiceAnswer.includes("chave")) return 8;
+        if (mainServiceAnswer.includes("Portões") || mainServiceAnswer.includes("portão") || mainServiceAnswer.includes("Portão")) return 9;
+        
+        const subServiceAnswer = answers?.find((a: any) => 
+          a.question?.includes("tipo de serviço") || a.question?.includes("tipo")
+        )?.answer || "";
+        if (subServiceAnswer.includes("Limpeza") || subServiceAnswer.includes("Faxina")) return 6;
+        if (subServiceAnswer.includes("Passar roupa")) return 7;
+        
         return 1;
       };
 
