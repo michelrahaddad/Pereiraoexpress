@@ -99,6 +99,8 @@ export default function NewService() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isResuming, setIsResuming] = useState(false);
+  const [isCreatingService, setIsCreatingService] = useState(false);
+  const resumeHandledRef = useRef(false);
   
   const [step, setStep] = useState<"guided" | "chat" | "diagnosis" | "complete">("guided");
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -123,7 +125,8 @@ export default function NewService() {
   
   useEffect(() => {
     const params = new URLSearchParams(searchString);
-    if (params.get("resume") === "true" && isAuthenticated && !isResuming) {
+    if (params.get("resume") === "true" && isAuthenticated && !resumeHandledRef.current) {
+      resumeHandledRef.current = true;
       const savedDiagnosis = sessionStorage.getItem("pereirao_diagnosis");
       if (!savedDiagnosis) {
         toast({
@@ -133,40 +136,24 @@ export default function NewService() {
         setLocation("/client/new");
         return;
       }
-      setIsResuming(true);
       try {
         const diagnosisData = JSON.parse(savedDiagnosis);
-        
-        apiRequest("POST", "/api/diagnosis/ai", {
-          description: diagnosisData.description || "Diagnóstico via IA",
-          guidedAnswers: diagnosisData.guidedAnswers || [],
-          mediaUrls: diagnosisData.mediaUrls || [],
-          title: diagnosisData.title || "Novo Serviço",
-        }).then(async (response) => {
-          const result = await response.json();
-          sessionStorage.removeItem("pereirao_diagnosis");
-          
-          if (diagnosisData.isDomesticService) {
-            setLocation(`/cliente/selecionar-profissional/${result.service.id}?domestic=true`);
-          } else {
-            setLocation(`/cliente/selecionar-profissional/${result.service.id}`);
-          }
-          toast({
-            title: "Serviço criado!",
-            description: "Agora escolha um profissional para atender você.",
-          });
-        }).catch(() => {
-          sessionStorage.removeItem("pereirao_diagnosis");
-          setIsResuming(false);
-          toast({
-            title: "Erro",
-            description: "Não foi possível criar o serviço. Tente novamente.",
-            variant: "destructive",
-          });
-        });
+        if (diagnosisData.aiDiagnosis) {
+          setAiDiagnosis({
+            aiDiagnosis: diagnosisData.aiDiagnosis,
+            diagnosisFee: diagnosisData.diagnosisFee || 0,
+          } as ServiceWithDiagnosis);
+        }
+        if (diagnosisData.guidedAnswers) {
+          setGuidedAnswers(diagnosisData.guidedAnswers);
+        }
+        if (diagnosisData.isDomesticService) {
+          setIsDomesticService(true);
+        }
+        setIsResuming(true);
+        setStep("diagnosis");
       } catch {
         sessionStorage.removeItem("pereirao_diagnosis");
-        setIsResuming(false);
       }
     }
   }, [searchString, isAuthenticated]);
@@ -538,15 +525,6 @@ export default function NewService() {
   };
 
 
-  if (isResuming) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-lg font-medium">Criando seu serviço...</p>
-        <p className="text-sm text-muted-foreground">Estamos registrando seu diagnóstico e buscando profissionais.</p>
-      </div>
-    );
-  }
 
   const progressValue = step === "guided" 
     ? 10 + ((currentQuestion + 1) / currentQuestions.length) * 30
@@ -888,13 +866,47 @@ export default function NewService() {
                     <Button 
                       className="w-full" 
                       size="lg"
-                      onClick={() => {
-                        setLocation("/login/cliente?from=diagnosis");
+                      disabled={isCreatingService}
+                      onClick={async () => {
+                        setIsCreatingService(true);
+                        try {
+                          const savedDiagnosis = sessionStorage.getItem("pereirao_diagnosis");
+                          const diagnosisData = savedDiagnosis ? JSON.parse(savedDiagnosis) : null;
+                          
+                          const payload = {
+                            description: diagnosisData?.description || "Diagnóstico via IA",
+                            guidedAnswers: diagnosisData?.guidedAnswers || guidedAnswers,
+                            mediaUrls: diagnosisData?.mediaUrls || selectedPhotos,
+                            title: diagnosisData?.title || "Novo Serviço",
+                          };
+                          
+                          const response = await apiRequest("POST", "/api/diagnosis/ai", payload);
+                          const result = await response.json();
+                          sessionStorage.removeItem("pereirao_diagnosis");
+                          
+                          const domesticParam = (diagnosisData?.isDomesticService || isDomesticService) ? "?domestic=true" : "";
+                          setLocation(`/cliente/selecionar-profissional/${result.service.id}${domesticParam}`);
+                          toast({
+                            title: "Serviço criado!",
+                            description: "Agora escolha um profissional para atender você.",
+                          });
+                        } catch {
+                          setIsCreatingService(false);
+                          toast({
+                            title: "Erro",
+                            description: "Não foi possível criar o serviço. Tente novamente.",
+                            variant: "destructive",
+                          });
+                        }
                       }}
                       data-testid="button-continue-service"
                     >
-                      <Users className="h-4 w-4 mr-2" />
-                      Continuar para contratar
+                      {isCreatingService ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Users className="h-4 w-4 mr-2" />
+                      )}
+                      {isCreatingService ? "Criando serviço..." : "Continuar para contratar"}
                     </Button>
                   </CardFooter>
                 </Card>
