@@ -363,6 +363,11 @@ export default function ProviderDashboard() {
     enabled: isAuthenticated,
   });
 
+  const { data: bookedSlots } = useQuery<any[]>({
+    queryKey: ["/api/provider/booked-slots"],
+    enabled: isAuthenticated,
+  });
+
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   const defaultSchedule: AvailabilitySlot[] = dayNames.map((_, i) => ({
@@ -1015,6 +1020,42 @@ export default function ProviderDashboard() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Upcoming appointments */}
+        {bookedSlots && bookedSlots.length > 0 && (
+          <Card className="mb-8" data-testid="card-appointments">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-orange-500" />
+                Agenda - Compromissos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {bookedSlots.map((slot: any) => {
+                const date = new Date(slot.scheduledDate);
+                const endDate = new Date(date.getTime() + (slot.durationMinutes || 120) * 60 * 1000);
+                const dayName = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][date.getDay()];
+                return (
+                  <div key={slot.serviceId} className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg" data-testid={`appointment-${slot.serviceId}`}>
+                    <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shrink-0">
+                      <CalendarDays className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{slot.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {dayName}, {date.toLocaleDateString('pt-BR')} • {date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - {endDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Duração: ~{slot.durationMinutes || 120} min</p>
+                    </div>
+                    <Badge variant="outline" className="text-orange-600 border-orange-300 shrink-0">
+                      Ocupado
+                    </Badge>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Reviews section */}
         {reviews && reviews.length > 0 && (

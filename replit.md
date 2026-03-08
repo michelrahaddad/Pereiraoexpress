@@ -75,6 +75,9 @@ Preferred communication style: Simple, everyday language.
 - **Users**: Support three roles (client, provider, admin) with profiles containing specialties, ratings, availability, CPF, phone, age, city, and geolocation (latitude/longitude)
 - **Service Requests**: Track full lifecycle from pending through diagnosis, provider assignment, progress, to completion; includes optional scheduledDate for appointment scheduling
 - **Provider Availability**: Weekly schedule with day_of_week (0=Sun to 6=Sat), start_time/end_time (HH:MM), is_active toggle; providers without any active availability slots are hidden from client search results
+- **Slot Occupation**: When a client books a time, the slot is marked occupied based on `estimated_duration_minutes` (parsed from AI diagnosis); other clients see occupied slots as disabled; provider dashboard shows "Agenda - Compromissos" section with upcoming booked appointments
+  - GET `/api/providers/:userId/booked-slots` - Client-facing: see provider's occupied slots
+  - GET `/api/provider/booked-slots` - Provider-facing: see own upcoming appointments
 - **SLA Priorities**: Standard, express, and urgent tiers for service requests
 - **Payments**: Pix and card options (simulated, structured for future Stripe integration)
 

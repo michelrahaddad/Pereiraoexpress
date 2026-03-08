@@ -357,8 +357,9 @@ model service_requests {
   diagnosis       String?
   materials       String?
   address         String?
-  scheduled_date  DateTime?      @db.Timestamp(6)
-  completed_at    DateTime?      @db.Timestamp(6)
+  scheduled_date             DateTime?      @db.Timestamp(6)
+  estimated_duration_minutes Int?
+  completed_at               DateTime?      @db.Timestamp(6)
   created_at      DateTime?      @default(now()) @db.Timestamp(6)
   updated_at      DateTime?      @default(now()) @db.Timestamp(6)
 }

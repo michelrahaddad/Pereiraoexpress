@@ -60,6 +60,14 @@ function generateTimeSlots(startTime: string, endTime: string): string[] {
   return slots;
 }
 
+interface BookedSlot {
+  scheduledDate: string;
+  durationMinutes: number;
+  serviceId: number;
+  title: string;
+  status: string;
+}
+
 export default function SelectProvider() {
   const [, params] = useRoute("/cliente/selecionar-profissional/:serviceId");
   const serviceId = params?.serviceId;
@@ -114,6 +122,18 @@ export default function SelectProvider() {
     }
   }, [latitude, longitude, locationLoading, serviceId, refetch]);
 
+  const { data: bookedSlots = [] } = useQuery<BookedSlot[]>({
+    queryKey: ["/api/providers", selectedProvider, "booked-slots"],
+    queryFn: async () => {
+      const res = await fetch(`/api/providers/${selectedProvider}/booked-slots`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedProvider,
+  });
+
   useEffect(() => {
     setSelectedDate(null);
     setSelectedTime(null);
@@ -127,6 +147,20 @@ export default function SelectProvider() {
     if (!selectedProvider) return null;
     return providers.find((p) => p.userId === selectedProvider) || null;
   }, [selectedProvider, providers]);
+
+  const isSlotOccupied = (date: Date, timeStr: string): boolean => {
+    if (!bookedSlots.length) return false;
+    const [h, m] = timeStr.split(":").map(Number);
+    const slotStart = new Date(date);
+    slotStart.setHours(h, m, 0, 0);
+
+    return bookedSlots.some((booked) => {
+      const bookedStart = new Date(booked.scheduledDate);
+      const bookedEnd = new Date(bookedStart.getTime() + booked.durationMinutes * 60 * 1000);
+      const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
+      return slotStart < bookedEnd && slotEnd > bookedStart;
+    });
+  };
 
   const availableDates = useMemo(() => {
     if (!currentProvider?.availability?.length) return [];
@@ -466,20 +500,26 @@ export default function SelectProvider() {
                           <span className="text-sm font-medium">Horários disponíveis</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {timeSlots.map((slot) => (
-                            <Button
-                              key={slot}
-                              variant={selectedTime === slot ? "default" : "outline"}
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTime(slot);
-                              }}
-                              data-testid={`button-time-${slot}`}
-                            >
-                              {slot}
-                            </Button>
-                          ))}
+                          {timeSlots.map((slot) => {
+                            const occupied = selectedDate ? isSlotOccupied(selectedDate, slot) : false;
+                            return (
+                              <Button
+                                key={slot}
+                                variant={selectedTime === slot ? "default" : occupied ? "destructive" : "outline"}
+                                size="sm"
+                                disabled={occupied}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!occupied) setSelectedTime(slot);
+                                }}
+                                data-testid={`button-time-${slot}`}
+                                className={occupied ? "opacity-50 line-through cursor-not-allowed" : ""}
+                                title={occupied ? "Horário ocupado" : ""}
+                              >
+                                {slot}{occupied ? " ✗" : ""}
+                              </Button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

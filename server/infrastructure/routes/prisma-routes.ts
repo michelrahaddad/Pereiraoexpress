@@ -782,6 +782,28 @@ export async function registerPrismaRoutes(
     }
   });
 
+  app.get("/api/providers/:userId/booked-slots", isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const slots = await storage.getProviderBookedSlots(userId);
+      res.json(slots);
+    } catch (error) {
+      console.error("Error fetching booked slots:", error);
+      res.status(500).json({ error: "Failed to fetch booked slots" });
+    }
+  });
+
+  app.get("/api/provider/booked-slots", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const slots = await storage.getProviderBookedSlots(userId);
+      res.json(slots);
+    } catch (error) {
+      console.error("Error fetching booked slots:", error);
+      res.status(500).json({ error: "Failed to fetch booked slots" });
+    }
+  });
+
   app.patch("/api/provider/bank-data", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -1481,10 +1503,28 @@ Baseie seu diagnóstico no que você vê na imagem combinado com a descrição d
         provider.totalRatings || 0
       );
       
+      let durationMinutes = 120;
+      try {
+        const aiDiag = await storage.getAiDiagnosisByServiceId(serviceId);
+        if (aiDiag?.estimatedDuration) {
+          const durStr = aiDiag.estimatedDuration.toLowerCase();
+          const isMinutes = durStr.includes("min");
+          const nums = durStr.match(/(\d+)/g);
+          if (nums && nums.length >= 2) {
+            const maxVal = parseInt(nums[nums.length - 1]);
+            durationMinutes = isMinutes ? maxVal : maxVal * 60;
+          } else if (nums && nums.length === 1) {
+            const val = parseInt(nums[0]);
+            durationMinutes = isMinutes ? val : val * 60;
+          }
+        }
+      } catch (e) {}
+
       const updateData: any = {
         providerId,
         status: "provider_assigned",
         estimatedPrice: adjustedPrice,
+        estimatedDurationMinutes: durationMinutes,
       };
       if (scheduledDate) {
         updateData.scheduledDate = new Date(scheduledDate);

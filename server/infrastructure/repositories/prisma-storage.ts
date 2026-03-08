@@ -1099,6 +1099,32 @@ export class PrismaStorage implements IStorage {
     }
     return result;
   }
+  async getProviderBookedSlots(providerId: string): Promise<Array<{ scheduledDate: Date; durationMinutes: number; serviceId: number; title: string; status: string }>> {
+    const rows = await prisma.service_requests.findMany({
+      where: {
+        provider_id: providerId,
+        scheduled_date: { gte: new Date() },
+        status: { notIn: ['completed', 'cancelled'] as any },
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        scheduled_date: true,
+        estimated_duration_minutes: true,
+      },
+      orderBy: { scheduled_date: 'asc' },
+    });
+    return rows
+      .filter(r => r.scheduled_date !== null)
+      .map(r => ({
+        scheduledDate: r.scheduled_date!,
+        durationMinutes: r.estimated_duration_minutes || 120,
+        serviceId: r.id,
+        title: r.title,
+        status: r.status,
+      }));
+  }
 }
 
 export const prismaStorage = new PrismaStorage();
